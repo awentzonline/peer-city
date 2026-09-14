@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Peer City</title>
+    <link rel="stylesheet" href="/src/game/style.css" />
+  </head>
+  <body>
+    <div id="game"></div>
+
+    <div id="hud" hidden>
+      <div id="hud-top">
+        <div id="cash">$0</div>
+        <div id="wanted"></div>
+        <div id="health"><div id="health-fill"></div></div>
+      </div>
+      <canvas id="minimap" width="180" height="180"></canvas>
+      <div id="feed"></div>
+      <div id="banner"></div>
+      <div id="hint"></div>
+      <div id="help">
+        <b>WASD</b> move/drive · <b>Mouse</b> aim · <b>Click</b> shoot · <b>F</b> enter/exit car · <b>Space</b> handbrake ·
+        <b>H</b> horn · <b>Shift</b> run · <b>`</b> net stats · <b>N</b> mute
+      </div>
+    </div>
+
+    <div id="lobby">
+      <div class="panel">
+        <h1>PEER CITY</h1>
+        <p class="tag">A serverless open-world sandbox. Every player's browser simulates the city together.</p>
+        <label>Name <input id="name" maxlength="16" autocomplete="off" /></label>
+        <label
+          >Network
+          <select id="net">
+            <option value="online">Online (WebRTC via Trystero / Nostr)</option>
+            <option value="local">Local tabs (BroadcastChannel)</option>
+          </select>
+        </label>
+        <label>Shard <input id="room" maxlength="24" autocomplete="off" /></label>
+        <button id="play">PLAY</button>
+        <p class="small">Open more tabs or share the URL to add players. Peers connect only to others nearby in the world.</p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/game/main.ts"></script>
+  </body>
+</html>
