@@ -230,6 +230,8 @@ export class NetWorld {
   private readonly scratch = new ByteWriter(256);
   private readonly queryBuf: NetEntity<any>[] = [];
   private readonly wants: Want[] = [];
+  /** Reused Want records, so replication doesn't allocate per entity per peer per tick. */
+  private readonly wantPool: Want[] = [];
   private warnedSchema = false;
 
   private statWindowStart = 0;
@@ -685,64 +687,15 @@ export class NetWorld {
   }
 
   private replicateTo(peer: RemotePeer, now: number): void {
-    const R = peer.radius;
-    const rOut = R * 1.2;
-    const R2 = R * R;
-    const rOut2 = rOut * rOut;
     const tick = this.tickNo;
     const wants = this.wants;
     wants.length = 0;
 
-    const consider = (e: NetEntity<any>, d2: number, forced: boolean) => {
-      let rec = peer.sent.get(e.id);
-      if (!rec) {
-        // Right after gaining ownership, cover the whole hysteresis ring: peers there may
-        // still hold the previous owner's copy and would otherwise keep a stale view.
-        const limit2 = tick - e._gainTick <= 3 ? rOut2 : R2;
-        if (d2 > limit2 && !forced) return;
-        rec = { last: null, lastMask: 0, tick: -1e9, time: -1e9, fullTime: now - Math.random() * this.fullRefreshMs * 0.5, seen: tick };
-        peer.sent.set(e.id, rec);
-      } else if (d2 > rOut2 && !forced) {
-        return; // swept below
-      }
-      rec.seen = tick;
-      const q = this.quantize(e);
-      const full = rec.last === null || forced || now - rec.fullTime > this.fullRefreshMs;
-      let mask = e.def.layout.allMask;
-      if (!full) {
-        mask = 0;
-        const last = rec.last!;
-        for (let i = 0; i < q.length; i++) if (last[i] !== q[i]) mask |= 1 << i;
-        const dn = Math.sqrt(d2) / R;
-        const interval = dn < 0.4 ? 1 : dn < 0.75 ? 2 : 4;
-        if (mask === 0) {
-          // An empty update right after movement tells receivers the entity came to rest,
-          // so they stop extrapolating instead of overshooting until the next keepalive.
-          const settle = rec.lastMask !== 0 && tick - rec.tick >= interval;
-          if (!settle && now - rec.time < this.keepaliveMs) return;
-        } else if (tick - rec.tick < interval) {
-          return;
-        }
-      }
-      const dn = Math.sqrt(d2) / R;
-      const score = rec.last === null || forced ? 1e9 : ((tick - rec.tick) * e.def.priority) / (0.25 + dn);
-      wants.push({ e, rec, mask, full, score });
-    };
-
-    const cand = this.spatial.queryRadius(peer.focusX, peer.focusY, rOut, this.queryBuf);
-    for (const e of cand) {
-      if (!e.mine || !e.alive) continue;
-      consider(e, dist2(e.stateX, e.stateY, peer.focusX, peer.focusY), peer.forceFull.has(e.id));
-    }
-    cand.length = 0;
-    if (peer.forceFull.size) {
-      for (const id of peer.forceFull) {
-        const e = this.entities.get(id);
-        const rec = peer.sent.get(id);
-        if (e && e.mine && (!rec || rec.seen !== tick)) consider(e, dist2(e.stateX, e.stateY, peer.focusX, peer.focusY), true);
-      }
-      peer.forceFull.clear();
-    }
+    // A peer owns few entities, so scanning them directly is cheaper than a spatial query
+    // over the interest circle, which would also return every remote entity in range.
+    // This covers peer.forceFull too: only owned entities can be forced.
+    for (const e of this.owned) this.consider(peer, e, now);
+    peer.forceFull.clear();
 
     // Anything we previously sent that's no longer in range: tell them to drop it.
     for (const [id, rec] of peer.sent) {
@@ -752,7 +705,7 @@ export class NetWorld {
       peer.sent.delete(id);
     }
 
-    if (wants.length > 1) wants.sort((a, b) => b.score - a.score);
+    if (wants.length > 1) wants.sort(byScoreDesc);
     const budgetEnd = peer.out.length + this.bytesPerTick;
     for (let i = 0; i < wants.length; i++) {
       if (i > 0 && peer.out.length >= budgetEnd) break;
@@ -767,6 +720,55 @@ export class NetWorld {
       if (full) rec.fullTime = now;
     }
     wants.length = 0;
+  }
+
+  /** Queues an owned entity for `peer` this tick if it's in range and due an update. */
+  private consider(peer: RemotePeer, e: NetEntity<any>, now: number): void {
+    const R = peer.radius;
+    const rOut = R * 1.2;
+    const d2 = dist2(e.stateX, e.stateY, peer.focusX, peer.focusY);
+    const forced = peer.forceFull.size > 0 && peer.forceFull.has(e.id);
+    if (d2 > rOut * rOut && !forced) return; // anything already sent is swept by replicateTo
+    const tick = this.tickNo;
+    let rec = peer.sent.get(e.id);
+    if (!rec) {
+      // Right after gaining ownership, cover the whole hysteresis ring: peers there may
+      // still hold the previous owner's copy and would otherwise keep a stale view.
+      if (d2 > R * R && tick - e._gainTick > 3 && !forced) return;
+      rec = { last: null, lastMask: 0, tick: -1e9, time: -1e9, fullTime: now - Math.random() * this.fullRefreshMs * 0.5, seen: tick };
+      peer.sent.set(e.id, rec);
+    }
+    rec.seen = tick;
+    const q = this.quantize(e);
+    const full = rec.last === null || forced || now - rec.fullTime > this.fullRefreshMs;
+    const dn = Math.sqrt(d2) / R;
+    let mask = e.def.layout.allMask;
+    if (!full) {
+      mask = 0;
+      const last = rec.last!;
+      for (let i = 0; i < q.length; i++) if (last[i] !== q[i]) mask |= 1 << i;
+      const interval = dn < 0.4 ? 1 : dn < 0.75 ? 2 : 4;
+      if (mask === 0) {
+        // An empty update right after movement tells receivers the entity came to rest,
+        // so they stop extrapolating instead of overshooting until the next keepalive.
+        const settle = rec.lastMask !== 0 && tick - rec.tick >= interval;
+        if (!settle && now - rec.time < this.keepaliveMs) return;
+      } else if (tick - rec.tick < interval) {
+        return;
+      }
+    }
+    const score = rec.last === null || forced ? 1e9 : ((tick - rec.tick) * e.def.priority) / (0.25 + dn);
+    let want = this.wantPool[this.wants.length];
+    if (want) {
+      want.e = e;
+      want.rec = rec;
+      want.mask = mask;
+      want.full = full;
+      want.score = score;
+    } else {
+      this.wantPool.push((want = { e, rec, mask, full, score }));
+    }
+    this.wants.push(want);
   }
 
   private writeEntity(w: ByteWriter, e: NetEntity<any>, q: Quantized[], mask: number, flags: number): void {
@@ -1195,6 +1197,10 @@ function dist2(ax: number, ay: number, bx: number, by: number): number {
   const dx = ax - bx;
   const dy = ay - by;
   return dx * dx + dy * dy;
+}
+
+function byScoreDesc(a: Want, b: Want): number {
+  return b.score - a.score;
 }
 
 function randomTag(): number {

@@ -15,101 +15,131 @@ function angleDelta(a: number, b: number): number {
  * *local* time (sender time + estimated clock offset) and rendered a fixed
  * delay in the past, so motion stays smooth despite jitter and throttled
  * update rates. Short gaps are bridged with capped extrapolation.
+ *
+ * Samples live in a fixed ring of typed arrays, so pushing and sampling never
+ * allocate.
  */
 export class InterpBuffer {
-  private times: number[] = [];
-  private values: number[][] = [];
+  private readonly times = new Float64Array(MAX_SAMPLES);
+  /** `width` values per sample, row-major by ring slot. */
+  private readonly values: Float64Array;
   /** Synthetic "hold" samples inserted across gaps carry no velocity information. */
-  private bridge: boolean[] = [];
+  private readonly bridge = new Uint8Array(MAX_SAMPLES);
+  private readonly width: number;
+  /** Ring slot of the oldest sample. */
+  private head = 0;
+  private n = 0;
 
   constructor(
     private readonly kinds: InterpKind[],
     private readonly maxExtrapolateMs: number,
-  ) {}
+  ) {
+    this.width = kinds.length;
+    this.values = new Float64Array(MAX_SAMPLES * this.width);
+  }
 
   get count(): number {
-    return this.times.length;
+    return this.n;
   }
 
   get lastTime(): number {
-    return this.times.length ? this.times[this.times.length - 1] : -Infinity;
+    return this.n ? this.times[this.slot(this.n - 1)] : -Infinity;
   }
 
   clear(): void {
-    this.times.length = 0;
-    this.values.length = 0;
-    this.bridge.length = 0;
+    this.head = 0;
+    this.n = 0;
   }
 
   push(time: number, vals: ArrayLike<number>, bridgeGapMs: number): void {
-    const n = this.times.length;
+    const n = this.n;
     if (n > 0) {
-      const lastT = this.times[n - 1];
+      const last = this.slot(n - 1);
+      const lastT = this.times[last];
       if (time <= lastT) {
         // same packet / out-of-order clock estimate: overwrite the newest
-        this.values[n - 1] = Array.from(vals);
+        this.writeValues(last, vals);
         return;
       }
       // After a pause (entity was idle, or far-LOD throttled) hold the previous
       // value until just before this sample rather than easing across the gap.
       if (time - lastT > bridgeGapMs * 2) {
-        this.times.push(time - bridgeGapMs);
-        this.values.push(this.values[n - 1].slice());
-        this.bridge.push(true);
+        const s = this.append(time - bridgeGapMs, 1);
+        const w = this.width;
+        this.values.copyWithin(s * w, last * w, last * w + w);
       }
     }
-    this.times.push(time);
-    this.values.push(Array.from(vals));
-    this.bridge.push(false);
-    if (this.times.length > MAX_SAMPLES) this.drop(this.times.length - MAX_SAMPLES);
-  }
-
-  private drop(count: number): void {
-    this.times.splice(0, count);
-    this.values.splice(0, count);
-    this.bridge.splice(0, count);
+    this.writeValues(this.append(time, 0), vals);
   }
 
   /** Writes interpolated values for `renderTime` into `out`. Returns false if empty. */
   sample(renderTime: number, out: number[]): boolean {
-    const times = this.times;
-    const n = times.length;
+    const n = this.n;
     if (n === 0) return false;
+    const times = this.times;
+    const values = this.values;
     const kinds = this.kinds;
+    const w = this.width;
 
-    if (renderTime <= times[0] || n === 1) {
-      const v = n === 1 || renderTime <= times[0] ? this.values[0] : this.values[n - 1];
-      for (let k = 0; k < kinds.length; k++) out[k] = v[k];
+    if (n === 1 || renderTime <= times[this.head]) {
+      const v = this.head * w;
+      for (let k = 0; k < w; k++) out[k] = values[v + k];
       return true;
     }
 
-    const last = n - 1;
+    const last = this.slot(n - 1);
     if (renderTime >= times[last]) {
-      const vl = this.values[last];
-      const vp = this.values[last - 1];
-      const span = times[last] - times[last - 1];
+      const prev = this.slot(n - 2);
+      const span = times[last] - times[prev];
       const ahead = Math.min(renderTime - times[last], this.maxExtrapolateMs, span);
-      const f = span > 0 && span < 400 && !this.bridge[last - 1] ? ahead / span : 0;
-      for (let k = 0; k < kinds.length; k++) {
-        const d = kinds[k] === 'angle' ? angleDelta(vp[k], vl[k]) : vl[k] - vp[k];
-        out[k] = vl[k] + d * f;
+      const f = span > 0 && span < 400 && !this.bridge[prev] ? ahead / span : 0;
+      const vl = last * w;
+      const vp = prev * w;
+      for (let k = 0; k < w; k++) {
+        const d = kinds[k] === 'angle' ? angleDelta(values[vp + k], values[vl + k]) : values[vl + k] - values[vp + k];
+        out[k] = values[vl + k] + d * f;
       }
       return true;
     }
 
     // find bracketing pair (buffers are tiny, linear scan from the end)
-    let i = last - 1;
-    while (i > 0 && times[i] > renderTime) i--;
-    const t0 = times[i];
-    const t1 = times[i + 1];
-    const a = this.values[i];
-    const b = this.values[i + 1];
-    const f = (renderTime - t0) / (t1 - t0);
-    for (let k = 0; k < kinds.length; k++) {
-      out[k] = kinds[k] === 'angle' ? a[k] + angleDelta(a[k], b[k]) * f : a[k] + (b[k] - a[k]) * f;
+    let i = n - 2;
+    while (i > 0 && times[this.slot(i)] > renderTime) i--;
+    const s0 = this.slot(i);
+    const s1 = this.slot(i + 1);
+    const f = (renderTime - times[s0]) / (times[s1] - times[s0]);
+    const a = s0 * w;
+    const b = s1 * w;
+    for (let k = 0; k < w; k++) {
+      out[k] = kinds[k] === 'angle' ? values[a + k] + angleDelta(values[a + k], values[b + k]) * f : values[a + k] + (values[b + k] - values[a + k]) * f;
     }
     // drop samples we've fully passed (keep one before renderTime)
     if (i > 1) this.drop(i - 1);
     return true;
+  }
+
+  /** Ring slot of the i-th oldest sample. */
+  private slot(i: number): number {
+    const s = this.head + i;
+    return s < MAX_SAMPLES ? s : s - MAX_SAMPLES;
+  }
+
+  /** Claims the slot after the newest sample, evicting the oldest when full. */
+  private append(time: number, bridge: number): number {
+    if (this.n === MAX_SAMPLES) this.drop(1);
+    const s = this.slot(this.n++);
+    this.times[s] = time;
+    this.bridge[s] = bridge;
+    return s;
+  }
+
+  private writeValues(slot: number, vals: ArrayLike<number>): void {
+    const base = slot * this.width;
+    for (let k = 0; k < this.width; k++) this.values[base + k] = vals[k];
+  }
+
+  private drop(count: number): void {
+    this.head = this.slot(count);
+    this.n -= count;
   }
 }
