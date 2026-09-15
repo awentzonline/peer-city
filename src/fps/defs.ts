@@ -28,6 +28,7 @@ export const Player = defineEntity({
     cash: t.uint(32),
     kills: t.uint(16),
     vr: t.bool(),
+    weapon: t.uint(8), // gun in hand (see arsenal.ts)
   },
   priority: 3,
   snapDistance: 20,
@@ -105,11 +106,12 @@ export const Ped = defineEntity({
 export const enum PickupKind {
   Cash = 0,
   Health = 1,
+  Weapon = 2, // `weapon`, with `amount` rounds
 }
 
 export const Pickup = defineEntity({
   name: 'pickup',
-  fields: { x: t.fixed(0.05), y: t.fixed(0.05), kind: t.uint(8), amount: t.uint(16) },
+  fields: { x: t.fixed(0.05), y: t.fixed(0.05), kind: t.uint(8), amount: t.uint(16), weapon: t.uint(8) },
   migratable: true,
   cullDistance: 210,
   interpolate: [],
@@ -136,6 +138,8 @@ export const Shot = defineAction('shot', {
   dist: t.fixed(0.05),
   impact: t.uint(8),
   shooter: t.ref(),
+  weapon: t.uint(8),
+  quiet: t.bool(), // extra shotgun pellets: tracer only
 });
 
 export const enum DamageCause {

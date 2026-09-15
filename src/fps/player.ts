@@ -1,13 +1,14 @@
+import { Inventory, WEAPONS, weaponSpec } from './arsenal';
 import { angleDiff, clamp, direction, type CarEntity, type GameContext, type PedEntity, type PickupEntity, type PlayerEntity, type Vec3 } from './context';
 import { Car, CarKind, CarMode, Feed, Horn, Ped, PedMode, Pickup, PickupKind, Player } from './defs';
-import { HAND_MUZZLE, type Hands } from './hands';
+import type { Hands } from './hands';
 import type { DesktopInput } from './input';
 import { moveCircle } from './peds';
 import { CUFF_RANGE, isPoliceUnit, spawnOfficer } from './police';
 import { Btn, type XRHand } from './rig';
 import { PED_SKINS, carExtents, carSpec } from './specs';
 import { driveCar } from './vehicles';
-import { fireBullet } from './weapons';
+import { fireBullet, scatter } from './weapons';
 
 const WALK = 4.2;
 const RUN = 7.2;
@@ -15,8 +16,6 @@ const RADIUS = 0.35;
 const EYE = 1.65;
 const GRAVITY = 20;
 const JUMP_SPEED = 6;
-const GUN_RANGE = 160;
-const FIRE_MS = 160;
 const ARREST_MS = 3000;
 const MOUSE_SENSITIVITY = 0.0022;
 const SNAP_TURN = Math.PI / 6;
@@ -53,6 +52,9 @@ export class PlayerController {
   private readonly aim: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly eye: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly tmp: Vec3 = { x: 0, y: 0, z: 0 };
+  private readonly gripPos: Vec3 = { x: 0, y: 0, z: 0 };
+  private readonly pellet: Vec3 = { x: 0, y: 0, z: 0 };
+  readonly inventory = new Inventory();
 
   constructor(
     private readonly ctx: GameContext,
@@ -148,7 +150,10 @@ export class PlayerController {
       this.collectPickups();
     }
 
+    this.switchWeapon();
     this.aimAndFire();
+    s.weapon = this.inventory.current;
+    ctx.hud.setWeapon(weaponSpec(s.weapon).name, this.inventory.ammo());
 
     // wanted level cools off without fresh crimes
     if (s.wanted > 0 && now - this.lastCrime > 20000) {
@@ -331,22 +336,41 @@ export class PlayerController {
     return out;
   }
 
+  /** Mouse wheel or number keys on desktop; B on foot in VR. */
+  private switchWeapon(): void {
+    const { rig } = this.ctx;
+    const inv = this.inventory;
+    const before = inv.current;
+    if (rig.xr) {
+      if (!this.me!.state.car && rig.right.pressed(Btn.B)) inv.cycle(1);
+    } else {
+      const wheel = this.input.wheel();
+      if (wheel) inv.cycle(wheel > 0 ? 1 : -1);
+      for (let i = 0; i < WEAPONS.length; i++) if (this.input.pressed(`Digit${i + 1}`)) inv.select(i);
+    }
+    if (inv.current !== before) this.ctx.sfx.play('empty');
+  }
+
   private aimAndFire(): void {
     const { ctx } = this;
     const { rig } = ctx;
     const s = this.me!.state;
+    this.hands.setWeapon(this.inventory.current);
     if (rig.xr) {
-      // Each hand holds a pistol; aim is wherever the controller points.
+      // Each hand holds the current gun; aim is wherever the controller points.
       for (const hand of [rig.left, rig.right]) {
         if (!hand.connected) continue;
-        rig.handPose(hand, HAND_MUZZLE, this.muzzle, this.aim);
         const right = hand === rig.right;
-        if (right) this.setHandFields(this.muzzle, this.aim);
+        if (right) {
+          rig.handPose(hand, this.hands.grip, this.gripPos, this.aim);
+          this.setHandFields(this.gripPos, this.aim);
+        }
         if (hand.trigger < 0.6 || ctx.now < (right ? this.nextShot : this.nextShotLeft)) continue;
-        if (right) this.nextShot = ctx.now + FIRE_MS;
-        else this.nextShotLeft = ctx.now + FIRE_MS;
+        const fireMs = weaponSpec(this.inventory.current).fireMs;
+        if (right) this.nextShot = ctx.now + fireMs;
+        else this.nextShotLeft = ctx.now + fireMs;
+        rig.handPose(hand, this.hands.handMuzzle, this.muzzle, this.aim);
         this.fire(this.muzzle, this.aim, undefined, hand);
-        this.setHandFields(this.muzzle, this.aim);
       }
       return;
     }
@@ -360,7 +384,7 @@ export class PlayerController {
     this.muzzle.z = s.z + EYE - 0.3;
     this.setHandFields(this.muzzle, this.aim);
     if (this.input.locked && this.input.mouse(0) && ctx.now >= this.nextShot) {
-      this.nextShot = ctx.now + FIRE_MS;
+      this.nextShot = ctx.now + weaponSpec(this.inventory.current).fireMs;
       const from = this.thirdPerson && s.car ? undefined : this.hands.desktopMuzzle(this.tmp);
       this.fire(this.eyePosition(this.eye), this.aim, from, undefined);
     }
@@ -369,21 +393,35 @@ export class PlayerController {
   private fire(origin: Vec3, aim: Vec3, from: Vec3 | undefined, hand: XRHand | undefined): void {
     const { ctx } = this;
     const me = this.me!;
-    const hit = fireBullet(ctx, me, origin, aim, {
-      range: GUN_RANGE,
-      ignore: me.state.car || undefined,
-      from,
-      damage: (e, head) => (e.def === Car ? 8 : head ? 60 : 22),
-    });
+    const weapon = this.inventory.current;
+    const spec = weaponSpec(weapon);
+    let hitSomething = false;
+    let head = false;
+    let hitPolice = false;
+    for (let i = 0; i < spec.pellets; i++) {
+      const hit = fireBullet(ctx, me, origin, spec.spread ? scatter(aim, spec.spread, this.pellet) : aim, {
+        range: spec.range,
+        ignore: me.state.car || undefined,
+        from,
+        weapon,
+        quiet: i > 0,
+        damage: (e, isHead) => (e.def === Car ? spec.car : isHead ? spec.head : spec.body),
+      });
+      if (!hit.entity) continue;
+      hitSomething = true;
+      head ||= hit.head;
+      hitPolice ||= isPoliceUnit(hit.entity);
+    }
+    this.inventory.consume();
     this.hands.recoil(hand);
-    hand?.pulse(0.6, 35);
-    if (hit.entity) {
-      ctx.hud.hitMarker(hit.head);
-      ctx.sfx.play(hit.head ? 'headshot' : 'hit');
+    hand?.pulse(Math.min(1, 0.4 + spec.kick * 0.2), 35);
+    if (hitSomething) {
+      ctx.hud.hitMarker(head);
+      ctx.sfx.play(head ? 'headshot' : 'hit');
       hand?.pulse(1, 60);
     }
     // shooting at police is 2 stars; shooting anywhere near them is 1
-    if (hit.entity && isPoliceUnit(hit.entity)) this.raiseWanted(2);
+    if (hitPolice) this.raiseWanted(2);
     else if (ctx.world.query(me.state.x, me.state.y, 65).some(isPoliceUnit)) this.raiseWanted(1);
   }
 
@@ -430,7 +468,8 @@ export class PlayerController {
       }
       rig.setTint(0x550000, alive ? 0 : 0.3);
     }
-    this.hands.update(dt, !rig.xr && alive && !(car && this.thirdPerson), rig.xr && alive);
+    this.hands.setWeapon(this.inventory.current);
+    this.hands.update(dt,!rig.xr && alive && !(car && this.thirdPerson), rig.xr && alive);
 
     const head = rig.head(this.tmp);
     ctx.sfx.setListener(head, direction(this.viewHeading, rig.xr ? rig.headPitch() : this.pitch, this.aim));
@@ -559,6 +598,8 @@ export class PlayerController {
     const me = this.me!;
     for (const pk of ctx.world.query(me.state.x, me.state.y, 1.3, Pickup)) {
       if (this.collecting.has(pk.id)) continue;
+      // leave guns you can't carry more ammo for
+      if (pk.state.kind === PickupKind.Weapon && !this.inventory.wants(pk.state.weapon)) continue;
       this.collecting.add(pk.id);
       // Ownership doubles as a lock: only one player can win the pickup.
       void ctx.world.requestOwnership(pk).then((ok) => {
@@ -572,8 +613,17 @@ export class PlayerController {
 
   private applyPickup(pk: PickupEntity): void {
     const s = this.me!.state;
-    if (pk.state.kind === PickupKind.Cash) s.cash += pk.state.amount;
-    else s.hp = Math.min(100, s.hp + pk.state.amount);
+    const { kind, amount, weapon } = pk.state;
+    if (kind === PickupKind.Cash) {
+      s.cash += amount;
+    } else if (kind === PickupKind.Weapon) {
+      const { name } = weaponSpec(weapon);
+      const isNew = !this.inventory.has(weapon);
+      const added = this.inventory.add(weapon, amount);
+      if (added) this.ctx.hud.message(isNew ? `Picked up the ${name}` : `+${added} ${name} ammo`);
+    } else {
+      s.hp = Math.min(100, s.hp + amount);
+    }
     this.ctx.sfx.play('pickup');
   }
 
@@ -601,6 +651,10 @@ export class PlayerController {
     this.deathOrbit = this.heading + Math.PI;
     ctx.hud.showBanner('WASTED', '#e53935', 4000);
     ctx.sfx.play('wasted');
+    // the gun in your hand falls where you died; the rest of your arsenal is lost
+    const gun = this.inventory.takeCurrent();
+    this.inventory.clear();
+    if (gun) ctx.world.spawn(Pickup, { x: me.state.x - 1, y: me.state.y, kind: PickupKind.Weapon, weapon: gun.weapon, amount: gun.ammo });
     const dropped = Math.floor(me.state.cash * 0.25);
     if (dropped > 0) {
       me.state.cash -= dropped;
@@ -623,6 +677,7 @@ export class PlayerController {
     ctx.hud.showBanner('BUSTED', '#4fc3ff', ARREST_MS);
     ctx.sfx.play('busted');
     me.state.cash = Math.floor(me.state.cash / 2);
+    this.inventory.clear(); // confiscated
     me.state.wanted = 0; // every officer on the case stands down
     ctx.world.send(Feed, { text: `${me.state.name} got busted` }, { to: 'all' });
   }

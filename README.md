@@ -203,11 +203,11 @@ and networking: zones, interest management, NPC ownership migration, carjacking 
 npm run dev    # http://localhost:5173/fps.html
 ```
 
-**Desktop:** WASD move · mouse look · click shoot · Shift run · Space jump / handbrake · **F** enter/exit
+**Desktop:** WASD move · mouse look · click shoot · wheel / 1-5 switch gun · Shift run · Space jump / handbrake · **F** enter/exit
 car · **V** chase camera while driving · H horn · `` ` `` net stats · N mute
 
 **VR:** walk around your room for real, or use the left stick (click or grip to run). Right stick
-snap-turns. Each trigger fires the pistol in that hand. **A/X** enter/exit a car. Driving: left stick
+snap-turns. Each trigger fires the gun in that hand; **B** switches guns. **A/X** enter/exit a car. Driving: left stick
 steers and accelerates, right grip is the handbrake, **B** horns, **Y** recenters your seat. Cash, wanted
 level, health and the minimap are on your left wrist.
 
@@ -229,6 +229,21 @@ What changes in 3D:
   instead.
 - `?xrsim` emulates a headset on desktop for testing the VR code paths. Mouse moves the head, arrow keys
   walk the room, C crouches, WASD/Q/E are the sticks, mouse buttons the triggers, F = A, R = Y.
+
+- **Model assets.** Most of the world is still built in code, but models can come from asset files.
+  Source models (FBX, OBJ or .blend) are converted to GLB with Blender and committed under `assets/`:
+
+  ```bash
+  blender -b --factory-startup -P scripts/assets/convert.py -- assets/models/weapons path/to/Pistol_01.fbx
+  ```
+
+  `src/fps/assets.ts` loads them before the game starts and bakes their materials into vertex colours,
+  so a model is a single draw call with the shared material. The guns come from
+  [Zsky's Weapons Pack](https://www.patreon.com/Zsky) (CC BY 4.0).
+- **Guns are pickups.** Everyone starts with a pistol. An SMG, shotgun, assault rifle and sniper rifle
+  spawn around the streets (orange on the minimap); walk over one to take it and its ammo. Stats,
+  model fitting (length, grip, barrel direction) and the inventory live in `src/fps/arsenal.ts`. The gun
+  in your hand replicates, so others see what you're carrying, and it's dropped where you die.
 
 Source: `src/fps/`.
 

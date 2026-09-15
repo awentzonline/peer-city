@@ -17,6 +17,8 @@ export class Hud {
   wanted = 0;
   hp = 100;
   hint = '';
+  /** Gun in hand and its ammo, e.g. "SMG 120". */
+  weaponText = '';
   readonly banner = { text: '', color: '#fff', until: 0 };
   readonly feed: { text: string; until: number }[] = [];
   /** Bumped whenever something the VR panels show changes. */
@@ -26,6 +28,7 @@ export class Hud {
   private readonly cashEl = document.getElementById('cash')!;
   private readonly wantedEl = document.getElementById('wanted')!;
   private readonly healthFill = document.getElementById('health-fill')!;
+  private readonly weaponEl = document.getElementById('weapon')!;
   private readonly feedEl = document.getElementById('feed')!;
   private readonly bannerEl = document.getElementById('banner')!;
   private readonly hintEl = document.getElementById('hint')!;
@@ -74,6 +77,14 @@ export class Hud {
       this.healthFill.style.width = `${Math.max(0, hp)}%`;
       this.version++;
     }
+  }
+
+  /** Doesn't bump `version`: the wrist panel redraws on its own timer, and this changes with every shot. */
+  setWeapon(name: string, ammo: number): void {
+    const text = Number.isFinite(ammo) ? `${name}  ${ammo}` : name;
+    if (text === this.weaponText) return;
+    this.weaponText = text;
+    this.weaponEl.textContent = text;
   }
 
   setHint(text: string): void {

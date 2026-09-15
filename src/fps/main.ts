@@ -2,6 +2,7 @@ import { NetWorld, type Transport } from '@engine/index';
 import { BroadcastTransport } from '@engine/transport/broadcast';
 import { TrysteroTransport } from '@engine/transport/trystero';
 import { City } from './city';
+import { loadAssets } from './assets';
 import { ACTIONS, ENTITIES } from './defs';
 import { Game, VR_SESSION_INIT } from './Game';
 import { Hud } from './hud';
@@ -30,6 +31,9 @@ void Game.vrSupported().then((ok) => {
     : 'No VR headset detected. Open this page in a WebXR browser (e.g. Meta Quest Browser) to play in VR.';
 });
 
+// Models download while the lobby is up; the game starts once they're in.
+const assetsReady = loadAssets();
+
 let started = false;
 playButton.addEventListener('click', () => start(false));
 vrButton.addEventListener('click', () => start(true));
@@ -56,8 +60,17 @@ function start(vr: boolean): void {
 
   const sfx = new Sfx();
   sfx.unlock();
-  document.getElementById('lobby')!.hidden = true;
+  playButton.textContent = 'LOADING…';
+  assetsReady.then(
+    () => launch(session, sfx, playerName, mode, shard),
+    (err: unknown) => {
+      vrNote.textContent = `Couldn't load game assets: ${err instanceof Error ? err.message : String(err)}`;
+    },
+  );
+}
 
+function launch(session: Promise<XRSession> | null, sfx: Sfx, playerName: string, mode: 'online' | 'local', shard: string): void {
+  document.getElementById('lobby')!.hidden = true;
   const transport: Transport = mode === 'local' ? new BroadcastTransport(APP_ID) : new TrysteroTransport({ appId: APP_ID });
   // Distances are meters, so the engine's pixel-scale defaults are scaled down.
   const world = new NetWorld({

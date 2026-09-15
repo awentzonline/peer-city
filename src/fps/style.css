@@ -87,6 +87,15 @@ body {
   transition: width 0.2s;
 }
 
+#weapon {
+  margin-top: 6px;
+  font-size: 20px;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 2px 2px 0 #000;
+  white-space: pre;
+}
+
 #minimap {
   position: absolute;
   left: 18px;

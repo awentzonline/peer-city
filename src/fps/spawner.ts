@@ -1,12 +1,14 @@
+import { WEAPONS } from './arsenal';
 import { TILE } from './city';
 import type { GameContext } from './context';
-import { Car, CarKind, CarMode, Ped, PedMode, Player } from './defs';
+import { Car, CarKind, CarMode, Ped, PedMode, Pickup, PickupKind, Player } from './defs';
 import { spawnOfficer } from './police';
 import { CAR_COLORS, PED_SKINS } from './specs';
 
 const PED_TARGET = 26;
 const CAR_TARGET = 13;
 const PARKED_TARGET = 8;
+const GUN_TARGET = 6;
 
 /**
  * Keeps the neighbourhood around the local player populated.
@@ -88,6 +90,16 @@ export class Spawner {
           color: Math.floor(Math.random() * CAR_COLORS.length),
           mode: CarMode.Parked,
         });
+      }
+    }
+
+    let guns = 0;
+    for (const p of world.query(focus.x, focus.y, 120, Pickup)) if (p.state.kind === PickupKind.Weapon) guns++;
+    if (guns < GUN_TARGET && Math.random() < share * 0.35) {
+      const pt = city.randomWalkableNear(focus.x, focus.y, 45, 110);
+      if (pt && !this.visibleToOthers(pt.x, pt.y)) {
+        const weapon = 1 + Math.floor(Math.random() * (WEAPONS.length - 1)); // anything but the pistol
+        world.spawn(Pickup, { x: pt.x, y: pt.y, kind: PickupKind.Weapon, weapon, amount: WEAPONS[weapon].ammo });
       }
     }
 

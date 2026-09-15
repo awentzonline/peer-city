@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { EntityViews } from '@engine/index';
 import { angleDiff, clamp, headingToYaw, signedAngle, type GameContext } from './context';
 import { Car, CarKind, CarMode, Ped, PedMode, Pickup, Player } from './defs';
-import { HUMAN, MAT, buildCar, buildHuman, buildPickup, disposeLabel, setLabel, type CarRig, type HumanRig, type PickupRig } from './models';
+import { HUMAN, MAT, buildCar, buildHuman, buildPickup, disposeLabel, setGunModel, setLabel, type CarRig, type HumanRig, type PickupRig } from './models';
 import type { PlayerController } from './player';
 import { COP_SKINS, PED_SKINS, carSpec, humanLook } from './specs';
 
@@ -19,6 +19,7 @@ interface HumanView {
   speed: number;
   dead: boolean;
   name: string;
+  weapon: number;
 }
 
 interface CarView {
@@ -33,7 +34,7 @@ function createHuman(ctx: GameContext, skin: number, cop: boolean, x: number, y:
   const rig = buildHuman(humanLook(skin, cop));
   rig.root.position.set(x, 0, y);
   ctx.scene.add(rig.root);
-  return { rig, lastX: x, lastY: y, phase: Math.random() * 6, speed: 0, dead: false, name: '' };
+  return { rig, lastX: x, lastY: y, phase: Math.random() * 6, speed: 0, dead: false, name: '', weapon: 0 };
 }
 
 function destroyHuman(ctx: GameContext, v: HumanView): void {
@@ -132,6 +133,10 @@ export function registerViews(ctx: GameContext, views: EntityViews, player: Play
       r.legL.rotation.z = swing;
       r.legR.rotation.z = -swing;
       r.armL.rotation.set(0, 0, -swing * 0.8);
+      if (v.weapon !== s.weapon) {
+        v.weapon = s.weapon;
+        setGunModel(r.gun, s.weapon);
+      }
       r.gun.visible = true;
       r.gun.position.set(s.hx, s.hz, s.hy);
       r.gun.rotation.set(signedAngle(s.aimPitch), headingToYaw(s.aimYaw), 0);
@@ -238,7 +243,7 @@ export function registerViews(ctx: GameContext, views: EntityViews, player: Play
 
   views.register(Pickup, {
     create: (e) => {
-      const rig = buildPickup(e.state.kind);
+      const rig = buildPickup(e.state.kind, e.state.weapon);
       rig.root.position.set(e.x, 0, e.y);
       ctx.scene.add(rig.root);
       return { rig, t: Math.random() * 6 } as { rig: PickupRig; t: number };

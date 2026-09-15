@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { Weapon, weaponSpec, type WeaponSpec } from './arsenal';
+import { assetGeometry } from './assets';
 import { CarKind, PickupKind } from './defs';
 import { CAR_COLORS, carSpec, type HumanLook } from './specs';
 import { labelTexture, radialTexture } from './textures';
@@ -81,23 +83,54 @@ export function blobShadow(sx: number, sz: number): THREE.Mesh {
 }
 
 // ---------------------------------------------------------------------------
-// Pistol
+// Guns
 // ---------------------------------------------------------------------------
 
-/** Where bullets leave a pistol, in its local space (the barrel points down -Z). */
-export const MUZZLE = new THREE.Vector3(0, 0.025, -0.2);
+/** Where bullets leave a gun, in its local space: the hand holds the origin and the barrel points down -Z. */
+export function gunMuzzle(weapon: number, out = new THREE.Vector3()): THREE.Vector3 {
+  const { muzzle } = weaponSpec(weapon);
+  return out.set(0, muzzle.up, -muzzle.forward);
+}
 
-export function buildPistol(): THREE.Group {
-  const geo = cached('pistol', () =>
-    merge([
-      box(0.04, 0.05, 0.22, 0, 0.025, -0.08, 0x2d2d31),
-      box(0.034, 0.115, 0.05, 0, -0.045, 0.01, 0x19191b),
-      box(0.036, 0.018, 0.06, 0, -0.005, -0.03, 0x19191b),
-      box(0.012, 0.018, 0.02, 0, 0.058, -0.17, 0x0c0c0c),
-    ]),
-  );
+function gunGeometry(weapon: number): THREE.BufferGeometry {
+  const spec = weaponSpec(weapon);
+  return cached(`gun:${spec.asset}`, () => fitGun(assetGeometry(spec.asset), spec));
+}
+
+export function buildGun(weapon: number): THREE.Group {
   const g = new THREE.Group();
-  g.add(new THREE.Mesh(geo, MAT.solid));
+  g.add(new THREE.Mesh(gunGeometry(weapon), MAT.solid));
+  return g;
+}
+
+/** Swap the model in a group made by buildGun (anything added to the group after it stays). */
+export function setGunModel(gun: THREE.Group, weapon: number): void {
+  (gun.children[0] as THREE.Mesh).geometry = gunGeometry(weapon);
+}
+
+/**
+ * Fits a weapon-pack model to the game: `length` meters long, barrel down -Z,
+ * and the middle of its front face on the muzzle, so the grip lands on the origin.
+ */
+function fitGun(src: THREE.BufferGeometry, spec: WeaponSpec): THREE.BufferGeometry {
+  const g = src.clone();
+  if (spec.barrel > 0) g.rotateY(Math.PI);
+  g.computeBoundingBox();
+  const k = spec.length / (g.boundingBox!.max.z - g.boundingBox!.min.z);
+  g.scale(k, k, k);
+  g.computeBoundingBox();
+  const { min, max } = g.boundingBox!;
+  const pos = g.getAttribute('position');
+  let y = 0;
+  let n = 0;
+  for (let i = 0; i < pos.count; i++) {
+    if (pos.getZ(i) > min.z + 0.004) continue;
+    y += pos.getY(i);
+    n++;
+  }
+  g.translate(-(min.x + max.x) / 2, spec.muzzle.up - y / n, -spec.muzzle.forward - min.z);
+  g.computeBoundingBox();
+  g.computeBoundingSphere();
   return g;
 }
 
@@ -159,7 +192,7 @@ export function buildHuman(look: HumanLook): HumanRig {
   const armL = pivot(arm, 0, HUMAN.shoulder, -HUMAN.shoulderZ);
   const armR = pivot(arm, 0, HUMAN.shoulder, HUMAN.shoulderZ);
 
-  const gun = buildPistol();
+  const gun = buildGun(Weapon.Pistol);
   gun.rotation.order = 'YXZ';
   gun.visible = false;
   root.add(gun);
@@ -345,9 +378,11 @@ export interface PickupRig {
   spin: THREE.Group;
 }
 
-export function buildPickup(kind: number): PickupRig {
-  const geo =
-    kind === PickupKind.Cash
+export function buildPickup(kind: number, weapon: number): PickupRig {
+  const isGun = kind === PickupKind.Weapon;
+  const geo = isGun
+    ? gunGeometry(weapon)
+    : kind === PickupKind.Cash
       ? cached('cash', () =>
           merge([box(0.42, 0.1, 0.22, 0, -0.05, 0, 0x2e9e4f), box(0.42, 0.1, 0.22, 0.03, 0.05, 0.02, 0x3cbf62), box(0.1, 0.22, 0.24, 0, 0, 0, 0xe8e0b0)]),
         )
@@ -363,12 +398,15 @@ export function buildPickup(kind: number): PickupRig {
   const root = new THREE.Group();
   const spin = new THREE.Group();
   spin.position.y = 0.6;
-  spin.add(new THREE.Mesh(geo, MAT.solid));
+  const mesh = new THREE.Mesh(geo, MAT.solid);
+  // guns are held at the grip; spin them about their middle
+  if (isGun) geo.boundingBox!.getCenter(mesh.position).negate();
+  spin.add(mesh);
   root.add(spin);
   const glow = new THREE.Sprite(
     new THREE.SpriteMaterial({
       map: glowTexture(),
-      color: kind === PickupKind.Cash ? 0x6eff7a : 0xff6b6b,
+      color: isGun ? weaponSpec(weapon).color : kind === PickupKind.Cash ? 0x6eff7a : 0xff6b6b,
       blending: THREE.AdditiveBlending,
       transparent: true,
       depthWrite: false,

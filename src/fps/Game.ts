@@ -4,7 +4,7 @@ import type { City } from './city';
 import { buildCity } from './cityMesh';
 import { registerCombat } from './combat';
 import type { GameContext } from './context';
-import { Car, CarKind, CarMode, Ped, PedMode, Pickup, Player } from './defs';
+import { Car, CarKind, CarMode, Ped, PedMode, Pickup, PickupKind, Player } from './defs';
 import { Effects } from './effects';
 import { Hands } from './hands';
 import type { Hud, MinimapDot } from './hud';
@@ -231,7 +231,7 @@ export class Game {
       if (c.state.kind === CarKind.Police && c.state.mode === CarMode.Chase) dots.push({ x: c.x, y: c.y, color: flash, size: 3 });
     }
     for (const p of world.all(Ped)) if (p.state.cop && p.state.mode === PedMode.Attack) dots.push({ x: p.x, y: p.y, color: flash, size: 2 });
-    for (const p of world.all(Pickup)) dots.push({ x: p.x, y: p.y, color: '#6eff7a', size: 2 });
+    for (const p of world.all(Pickup)) dots.push({ x: p.x, y: p.y, color: p.state.kind === PickupKind.Weapon ? '#ffb74a' : '#6eff7a', size: 2 });
     for (const p of world.all(Player)) if (p !== me && p.state.hp > 0) dots.push({ x: p.x, y: p.y, color: '#4fc3ff', size: 4 });
     // peers we're connected to but whose avatars are out of range still show at the rim
     for (const f of world.peerFoci()) dots.push({ x: f.x, y: f.y, color: 'rgba(79,195,255,0.6)', size: 3 });

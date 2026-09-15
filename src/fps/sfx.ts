@@ -1,8 +1,23 @@
 import type { Vec3 } from './context';
 
-export type SoundName = 'shot' | 'boom' | 'horn' | 'hit' | 'headshot' | 'pickup' | 'wasted' | 'busted' | 'crash' | 'door' | 'ricochet' | 'empty';
+export type SoundName =
+  | 'shot'
+  | 'rifle'
+  | 'shotgun'
+  | 'sniper'
+  | 'boom'
+  | 'horn'
+  | 'hit'
+  | 'headshot'
+  | 'pickup'
+  | 'wasted'
+  | 'busted'
+  | 'crash'
+  | 'door'
+  | 'ricochet'
+  | 'empty';
 
-const RANGE: Partial<Record<SoundName, number>> = { boom: 400, shot: 220, horn: 120 };
+const RANGE: Partial<Record<SoundName, number>> = { boom: 400, shot: 220, rifle: 240, shotgun: 240, sniper: 380, horn: 120 };
 
 /**
  * Tiny synthesized sound effects. No audio files. World sounds go through HRTF
@@ -117,6 +132,19 @@ export class Sfx {
       case 'shot':
         this.noiseBurst(out, 1.4, 0.2, 1700, 0.8);
         this.tone(out, 0.45, 0.09, 'square', 170, 55);
+        break;
+      case 'rifle':
+        this.noiseBurst(out, 1.3, 0.13, 2300, 0.9);
+        this.tone(out, 0.4, 0.06, 'square', 230, 70);
+        break;
+      case 'shotgun':
+        this.noiseBurst(out, 2.2, 0.38, 1100, 0.6, 'lowpass');
+        this.tone(out, 0.6, 0.16, 'square', 120, 40);
+        break;
+      case 'sniper':
+        this.noiseBurst(out, 1.8, 0.12, 3200, 0.8);
+        this.noiseBurst(out, 1.2, 0.7, 500, 0.7, 'lowpass');
+        this.tone(out, 0.55, 0.22, 'sawtooth', 160, 40);
         break;
       case 'boom':
         this.noiseBurst(out, 2.2, 1.3, 170, 0.7, 'lowpass');

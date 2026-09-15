@@ -5,6 +5,7 @@ export class DesktopInput {
   private buttons = 0;
   private mdx = 0;
   private mdy = 0;
+  private wheelSteps = 0;
   locked = false;
   onLockChange: ((locked: boolean) => void) | null = null;
 
@@ -34,6 +35,13 @@ export class DesktopInput {
       this.mdx += e.movementX;
       this.mdy += e.movementY;
     });
+    document.addEventListener(
+      'wheel',
+      (e) => {
+        if (this.locked && e.deltaY) this.wheelSteps += Math.sign(e.deltaY);
+      },
+      { passive: true },
+    );
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === this.el;
       if (!this.locked) this.buttons = 0;
@@ -69,7 +77,13 @@ export class DesktopInput {
     return out;
   }
 
+  /** Wheel notches this frame: positive is scrolling down. */
+  wheel(): number {
+    return this.wheelSteps;
+  }
+
   endFrame(): void {
     this.edges.clear();
+    this.wheelSteps = 0;
   }
 }

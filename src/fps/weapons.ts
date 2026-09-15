@@ -11,12 +11,28 @@ export interface BulletOptions {
   ignore?: number;
   /** Where the visible tracer starts, when aiming from the eye but shooting from a gun. */
   from?: Vec3;
+  /** For the sound others hear. */
+  weapon?: number;
+  /** Tracer without sound or muzzle flash, for the extra pellets of a shotgun blast. */
+  quiet?: boolean;
 }
 
 export interface BulletHit {
   entity: NetEntity | null;
   head: boolean;
   dist: number;
+}
+
+/** A random direction within roughly `spread` radians of the unit vector `aim`. */
+export function scatter(aim: Vec3, spread: number, out: Vec3): Vec3 {
+  out.x = aim.x + (Math.random() * 2 - 1) * spread;
+  out.y = aim.y + (Math.random() * 2 - 1) * spread;
+  out.z = aim.z + (Math.random() * 2 - 1) * spread;
+  const len = Math.hypot(out.x, out.y, out.z);
+  out.x /= len;
+  out.y /= len;
+  out.z /= len;
+  return out;
 }
 
 const HUMAN_RADIUS = 0.4;
@@ -126,7 +142,7 @@ export function fireBullet(ctx: GameContext, shooter: NetEntity, o: Vec3, d: Vec
   const impact = hit ? (hit.def === Car ? Impact.Metal : Impact.Flesh) : hitT < opts.range - 0.01 ? Impact.Wall : Impact.None;
   ctx.world.send(
     Shot,
-    { x: from.x, y: from.y, z: from.z, yaw: Math.atan2(ey, ex), pitch: Math.asin(ez / len), dist: len, impact, shooter: shooter.id },
+    { x: from.x, y: from.y, z: from.z, yaw: Math.atan2(ey, ex), pitch: Math.asin(ez / len), dist: len, impact, shooter: shooter.id, weapon: opts.weapon ?? 0, quiet: opts.quiet ?? false },
     { to: 'near', x: from.x, y: from.y, radius: 230 },
   );
   if (hit) {

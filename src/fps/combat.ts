@@ -1,3 +1,4 @@
+import { weaponSpec } from './arsenal';
 import { direction, signedAngle, type GameContext } from './context';
 import { Busted, Car, CarKind, CarMode, Damage, DamageCause, Explosion, Feed, Horn, Kill, Ped, PedMode, Pickup, PickupKind, Player, Shot } from './defs';
 import { PED_RADIUS, moveCircle, panicPeds } from './peds';
@@ -21,9 +22,10 @@ export function registerCombat(ctx: GameContext, player: PlayerController): void
     const shooter = world.getAs(Player, p.shooter);
     if (shooter) shooter.local.lastShot = ctx.now;
     direction(p.yaw, signedAngle(p.pitch), dir);
-    ctx.fx.muzzle(p.x, p.y, p.z);
     ctx.fx.tracer(p.x, p.y, p.z, p.x + dir.x * p.dist, p.y + dir.y * p.dist, p.z + dir.z * p.dist, p.impact);
-    ctx.sfx.play('shot', p);
+    if (p.quiet) return;
+    ctx.fx.muzzle(p.x, p.y, p.z);
+    ctx.sfx.play(weaponSpec(p.weapon).sound, p);
     panicPeds(ctx, p.x, p.y, 40);
   });
 
