@@ -10,6 +10,9 @@ export const enum Weapon {
   Sniper = 4,
 }
 
+/** Replicated in place of a weapon when a headset player's hands are empty. */
+export const NO_WEAPON = 255;
+
 export interface WeaponSpec {
   name: string;
   asset: AssetName;
@@ -139,45 +142,66 @@ export function weaponSpec(w: number): WeaponSpec {
   return WEAPONS[w] ?? WEAPONS[Weapon.Pistol];
 }
 
-/** The guns a player is carrying and their ammo. The pistol is always there and never runs dry. */
+/** Most guns of one kind you can carry: one for each hand. */
+export const MAX_OF_A_KIND = 2;
+
+/**
+ * The guns a player is carrying and their ammo. Everyone has a pair of pistols
+ * that never run dry. Other guns come in ones or twos, and guns of a kind
+ * share their ammo (on desktop you only ever hold one of them).
+ */
 export class Inventory {
   current: Weapon = Weapon.Pistol;
+  private readonly guns = new Map<Weapon, number>();
   private readonly rounds = new Map<Weapon, number>();
 
   has(w: Weapon): boolean {
-    return w === Weapon.Pistol || this.rounds.has(w);
+    return this.count(w) > 0;
   }
 
+  /** How many guns of a kind you carry. */
+  count(w: Weapon): number {
+    return w === Weapon.Pistol ? MAX_OF_A_KIND : (this.guns.get(w) ?? 0);
+  }
+
+  /** Rounds shared by the guns of a kind. */
   ammo(w: Weapon = this.current): number {
     return w === Weapon.Pistol ? Infinity : (this.rounds.get(w) ?? 0);
   }
 
-  /** Whether picking up this gun would add anything. */
+  /** Whether picking up this gun would add anything: room for another, or for its ammo. */
   wants(w: Weapon): boolean {
-    return w !== Weapon.Pistol && !!WEAPONS[w] && (this.rounds.get(w) ?? 0) < WEAPONS[w].maxAmmo;
+    if (w === Weapon.Pistol || !WEAPONS[w]) return false;
+    return this.count(w) < MAX_OF_A_KIND || this.ammo(w) < WEAPONS[w].maxAmmo;
   }
 
-  /** Picks up a gun or its ammo, switching to it if it's new. Returns the rounds actually added (0 when full). */
-  add(w: Weapon, ammo: number): number {
-    if (!this.wants(w) || ammo <= 0) return 0;
-    const had = this.rounds.get(w);
-    const total = Math.min(WEAPONS[w].maxAmmo, (had ?? 0) + ammo);
+  /**
+   * Picks up a gun and its ammo, switching to it if it's a new kind. Says
+   * whether you had room to keep the gun and how many rounds you took.
+   */
+  add(w: Weapon, ammo: number): { gun: boolean; rounds: number } {
+    if (!this.wants(w)) return { gun: false, rounds: 0 };
+    const had = this.count(w);
+    const gun = had < MAX_OF_A_KIND;
+    if (gun) this.guns.set(w, had + 1);
+    const before = this.ammo(w);
+    const total = Math.min(WEAPONS[w].maxAmmo, before + Math.max(0, ammo));
     this.rounds.set(w, total);
-    if (had === undefined) this.current = w;
-    return total - (had ?? 0);
+    if (had === 0) this.current = w;
+    return { gun, rounds: total - before };
   }
 
-  /** Uses one round. A gun that runs dry is dropped for the pistol. */
-  consume(): void {
-    const w = this.current;
-    if (w === Weapon.Pistol) return;
+  /** Uses one round of `w`. When a kind runs dry its guns are gone; if it was the current one, the pistols come out. */
+  consume(w: Weapon = this.current): void {
+    if (w === Weapon.Pistol || !this.has(w)) return;
     const left = this.ammo(w) - 1;
     if (left > 0) {
       this.rounds.set(w, left);
       return;
     }
     this.rounds.delete(w);
-    this.current = Weapon.Pistol;
+    this.guns.delete(w);
+    if (this.current === w) this.current = Weapon.Pistol;
   }
 
   select(w: Weapon): boolean {
@@ -196,17 +220,20 @@ export class Inventory {
     return this.current;
   }
 
-  /** Takes the current gun out of the inventory with its ammo, e.g. to drop it. Null for the pistol. */
+  /** Takes the current kind of gun out of the inventory with all its ammo, e.g. to drop it. Null for pistols. */
   takeCurrent(): { weapon: Weapon; ammo: number } | null {
     const w = this.current;
     if (w === Weapon.Pistol) return null;
     const ammo = this.ammo(w);
     this.rounds.delete(w);
+    this.guns.delete(w);
     this.current = Weapon.Pistol;
     return { weapon: w, ammo };
   }
 
+  /** Back to just the pistols. */
   clear(): void {
+    this.guns.clear();
     this.rounds.clear();
     this.current = Weapon.Pistol;
   }

@@ -58,6 +58,10 @@ export class XRHand {
 const v = new THREE.Vector3();
 const euler = new THREE.Euler(0, 0, 0, 'YXZ');
 const FORWARD = new THREE.Vector3(0, 0, -1);
+/** Simulated right-hand positions relative to the head: held out, at the hip, over the shoulder. */
+const SIM_REST = [0.2, -0.3, -0.35] as const;
+const SIM_HIP = [0.22, -0.68, -0.05] as const;
+const SIM_SHOULDER = [0.2, -0.12, 0.25] as const;
 
 /**
  * The player's physical frame of reference. `root` is the play-space origin in
@@ -155,7 +159,9 @@ export class Rig {
   /**
    * Simulated headset: mouse turns the head, arrow keys walk around a 3×3m
    * room, C crouches. Controllers: WASD left stick, Q/E right stick, left/right
-   * mouse the triggers, F = A, H = B, R = Y, Space = right grip, Shift = left grip.
+   * mouse the triggers, F = A, H = B, R = Y, X = right stick click, Space = right grip,
+   * Shift = left grip. Hold G or B to reach the right hand down to your hip or back
+   * over your shoulder, to try the holsters.
    */
   readSim(input: DesktopInput, dt: number): void {
     const [mx, my] = input.consumeMouse();
@@ -173,7 +179,8 @@ export class Rig {
     this.camera.quaternion.copy(this.headQuat);
 
     const r = this.right.object;
-    r.position.copy(this.headLocal).add(v.set(0.2, -0.3, -0.35).applyEuler(euler.set(0, this.simYaw, 0)));
+    const [rx, ry, rz] = input.down('KeyG') ? SIM_HIP : input.down('KeyB') ? SIM_SHOULDER : SIM_REST;
+    r.position.copy(this.headLocal).add(v.set(rx, ry, rz).applyEuler(euler.set(0, this.simYaw, 0)));
     r.quaternion.copy(this.headQuat);
     const l = this.left.object;
     l.position.copy(this.headLocal).add(v.set(-0.2, -0.4, -0.3).applyEuler(euler.set(0, this.simYaw, 0)));
@@ -188,7 +195,7 @@ export class Rig {
     this.left.trigger = input.mouse(2) ? 1 : 0;
     this.right.squeeze = key('Space');
     this.left.squeeze = key('ShiftLeft');
-    this.right.setButtons((this.right.trigger << Btn.Trigger) | (key('KeyF') << Btn.A) | (key('KeyH') << Btn.B));
+    this.right.setButtons((this.right.trigger << Btn.Trigger) | (key('KeyX') << Btn.Stick) | (key('KeyF') << Btn.A) | (key('KeyH') << Btn.B));
     this.left.setButtons((this.left.trigger << Btn.Trigger) | (key('KeyR') << Btn.B));
   }
 
@@ -206,7 +213,8 @@ export class Rig {
     return out;
   }
 
-  private headLocalYaw(): number {
+  /** Yaw of the headset within the play space. */
+  headLocalYaw(): number {
     v.copy(FORWARD).applyQuaternion(this.headQuat);
     return Math.atan2(-v.x, -v.z);
   }

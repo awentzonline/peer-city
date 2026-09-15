@@ -1,7 +1,8 @@
-import { Inventory, WEAPONS, weaponSpec } from './arsenal';
+import { Inventory, NO_WEAPON, WEAPONS, Weapon, weaponSpec } from './arsenal';
 import { angleDiff, clamp, direction, type CarEntity, type GameContext, type PedEntity, type PickupEntity, type PlayerEntity, type Vec3 } from './context';
 import { Car, CarKind, CarMode, Feed, Horn, Ped, PedMode, Pickup, PickupKind, Player } from './defs';
 import type { Hands } from './hands';
+import { GUN_IN_HAND } from './holsters';
 import type { DesktopInput } from './input';
 import { moveCircle } from './peds';
 import { CUFF_RANGE, isPoliceUnit, spawnOfficer } from './police';
@@ -19,6 +20,10 @@ const JUMP_SPEED = 6;
 const ARREST_MS = 3000;
 const MOUSE_SENSITIVITY = 0.0022;
 const SNAP_TURN = Math.PI / 6;
+/** VR stick locomotion: one fast top speed, ~95% reached in half a second, and stopping is quicker. */
+const VR_SPEED = 7;
+const VR_ACCEL = 6;
+const VR_BRAKE = 12;
 
 const deadzone = (v: number) => (Math.abs(v) < 0.15 ? 0 : v);
 
@@ -53,6 +58,7 @@ export class PlayerController {
   private readonly eye: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly tmp: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly gripPos: Vec3 = { x: 0, y: 0, z: 0 };
+  private readonly moveVel = { x: 0, y: 0 };
   private readonly pellet: Vec3 = { x: 0, y: 0, z: 0 };
   readonly inventory = new Inventory();
 
@@ -112,7 +118,8 @@ export class PlayerController {
     const now = ctx.now;
     const vr = ctx.rig.xr;
     s.vr = vr;
-    if (!vr) this.mouseLook();
+    if (vr) this.hands.vr.update(this.inventory);
+    else this.mouseLook();
     if (!s.car) ctx.sfx.engine(false, 0);
 
     if (s.hp === 0) {
@@ -152,8 +159,7 @@ export class PlayerController {
 
     this.switchWeapon();
     this.aimAndFire();
-    s.weapon = this.inventory.current;
-    ctx.hud.setWeapon(weaponSpec(s.weapon).name, this.inventory.ammo());
+    this.showWeapon();
 
     // wanted level cools off without fresh crimes
     if (s.wanted > 0 && now - this.lastCrime > 20000) {
@@ -229,10 +235,21 @@ export class PlayerController {
       const L = rig.left;
       const strafe = deadzone(L.stickX);
       const forward = -deadzone(L.stickY);
-      if (strafe || forward) {
-        const run = L.squeeze > 0.5 || L.down(Btn.Stick);
+      const mag = Math.hypot(strafe, forward);
+      const k = mag > 1 ? VR_SPEED / mag : VR_SPEED;
+      const h = rig.headHeading();
+      const c = Math.cos(h);
+      const sn = Math.sin(h);
+      const vel = this.moveVel;
+      const blend = 1 - Math.exp(-dt * (mag ? VR_ACCEL : VR_BRAKE));
+      vel.x += ((c * forward - sn * strafe) * k - vel.x) * blend;
+      vel.y += ((sn * forward + c * strafe) * k - vel.y) * blend;
+      if (dt > 0 && Math.abs(vel.x) + Math.abs(vel.y) > 0.01) {
         const p = { x: s.x, y: s.y };
-        this.step(p, strafe, forward, rig.headHeading(), run ? RUN : WALK, dt);
+        moveCircle(this.ctx.city, p, vel.x * dt, vel.y * dt, RADIUS);
+        // sliding along a wall keeps only the speed along it
+        vel.x = (p.x - s.x) / dt;
+        vel.y = (p.y - s.y) / dt;
         this.pushOutOfCars(p);
         rig.shift(p.x - s.x, p.y - s.y);
         s.x = p.x;
@@ -245,6 +262,8 @@ export class PlayerController {
       } else if (Math.abs(turn) < 0.3) {
         this.turnArmed = true;
       }
+    } else {
+      this.moveVel.x = this.moveVel.y = 0;
     }
 
     s.z = 0;
@@ -284,7 +303,7 @@ export class PlayerController {
     if (rig.xr) {
       throttle = -deadzone(rig.left.stickY);
       steer = deadzone(rig.left.stickX);
-      handbrake = rig.right.squeeze > 0.5;
+      handbrake = rig.right.down(Btn.Stick); // the grips are for grabbing guns
       exit = rig.right.pressed(Btn.A) || rig.left.pressed(Btn.A);
       horn = rig.right.pressed(Btn.B);
       if (rig.left.pressed(Btn.B)) {
@@ -336,19 +355,35 @@ export class PlayerController {
     return out;
   }
 
-  /** Mouse wheel or number keys on desktop; B on foot in VR. */
+  /** Mouse wheel or number keys. In VR you draw guns from your holsters instead. */
   private switchWeapon(): void {
-    const { rig } = this.ctx;
+    if (this.ctx.rig.xr) return;
     const inv = this.inventory;
     const before = inv.current;
-    if (rig.xr) {
-      if (!this.me!.state.car && rig.right.pressed(Btn.B)) inv.cycle(1);
-    } else {
-      const wheel = this.input.wheel();
-      if (wheel) inv.cycle(wheel > 0 ? 1 : -1);
-      for (let i = 0; i < WEAPONS.length; i++) if (this.input.pressed(`Digit${i + 1}`)) inv.select(i);
-    }
+    const wheel = this.input.wheel();
+    if (wheel) inv.cycle(wheel > 0 ? 1 : -1);
+    for (let i = 0; i < WEAPONS.length; i++) if (this.input.pressed(`Digit${i + 1}`)) inv.select(i);
     if (inv.current !== before) this.ctx.sfx.play('empty');
+  }
+
+  /** Replicate and display the gun in hand. In VR that's the right hand's, or the left's if the right is empty. */
+  private showWeapon(): void {
+    const { ctx } = this;
+    const { rig } = ctx;
+    const s = this.me!.state;
+    const inv = this.inventory;
+    if (rig.xr) {
+      const held = this.hands.vr.held(rig.right) ?? this.hands.vr.held(rig.left);
+      inv.current = held ?? Weapon.Pistol; // what you'd drop if you died now
+      s.weapon = held ?? NO_WEAPON;
+      if (held === null) {
+        ctx.hud.setWeapon('', Infinity);
+        return;
+      }
+    } else {
+      s.weapon = inv.current;
+    }
+    ctx.hud.setWeapon(weaponSpec(inv.current).name, inv.ammo());
   }
 
   private aimAndFire(): void {
@@ -357,20 +392,23 @@ export class PlayerController {
     const s = this.me!.state;
     this.hands.setWeapon(this.inventory.current);
     if (rig.xr) {
-      // Each hand holds the current gun; aim is wherever the controller points.
+      // Each hand fires whatever it holds; aim is wherever the controller points.
+      const { vr } = this.hands;
+      const shown = vr.held(rig.right) !== null || vr.held(rig.left) === null ? rig.right : rig.left;
       for (const hand of [rig.left, rig.right]) {
         if (!hand.connected) continue;
         const right = hand === rig.right;
-        if (right) {
-          rig.handPose(hand, this.hands.grip, this.gripPos, this.aim);
+        if (hand === shown) {
+          rig.handPose(hand, GUN_IN_HAND, this.gripPos, this.aim);
           this.setHandFields(this.gripPos, this.aim);
         }
-        if (hand.trigger < 0.6 || ctx.now < (right ? this.nextShot : this.nextShotLeft)) continue;
-        const fireMs = weaponSpec(this.inventory.current).fireMs;
+        const weapon = vr.held(hand);
+        if (weapon === null || hand.trigger < 0.6 || ctx.now < (right ? this.nextShot : this.nextShotLeft)) continue;
+        const fireMs = weaponSpec(weapon).fireMs;
         if (right) this.nextShot = ctx.now + fireMs;
         else this.nextShotLeft = ctx.now + fireMs;
-        rig.handPose(hand, this.hands.handMuzzle, this.muzzle, this.aim);
-        this.fire(this.muzzle, this.aim, undefined, hand);
+        rig.handPose(hand, vr.muzzle(hand), this.muzzle, this.aim);
+        this.fire(this.muzzle, this.aim, undefined, hand, weapon);
       }
       return;
     }
@@ -390,10 +428,9 @@ export class PlayerController {
     }
   }
 
-  private fire(origin: Vec3, aim: Vec3, from: Vec3 | undefined, hand: XRHand | undefined): void {
+  private fire(origin: Vec3, aim: Vec3, from: Vec3 | undefined, hand: XRHand | undefined, weapon: Weapon = this.inventory.current): void {
     const { ctx } = this;
     const me = this.me!;
-    const weapon = this.inventory.current;
     const spec = weaponSpec(weapon);
     let hitSomething = false;
     let head = false;
@@ -412,8 +449,9 @@ export class PlayerController {
       head ||= hit.head;
       hitPolice ||= isPoliceUnit(hit.entity);
     }
-    this.inventory.consume();
-    this.hands.recoil(hand);
+    this.inventory.consume(weapon);
+    if (hand) this.hands.vr.recoil(hand);
+    else this.hands.recoil();
     hand?.pulse(Math.min(1, 0.4 + spec.kick * 0.2), 35);
     if (hitSomething) {
       ctx.hud.hitMarker(head);
@@ -618,9 +656,10 @@ export class PlayerController {
       s.cash += amount;
     } else if (kind === PickupKind.Weapon) {
       const { name } = weaponSpec(weapon);
-      const isNew = !this.inventory.has(weapon);
-      const added = this.inventory.add(weapon, amount);
-      if (added) this.ctx.hud.message(isNew ? `Picked up the ${name}` : `+${added} ${name} ammo`);
+      const had = this.inventory.count(weapon);
+      const got = this.inventory.add(weapon, amount);
+      if (got.gun) this.ctx.hud.message(had ? `Picked up a second ${name}` : `Picked up the ${name}`);
+      else if (got.rounds) this.ctx.hud.message(`+${got.rounds} ${name} ammo`);
     } else {
       s.hp = Math.min(100, s.hp + amount);
     }

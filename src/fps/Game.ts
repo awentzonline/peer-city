@@ -149,7 +149,7 @@ export class Game {
     this.vrButton.hidden = true;
     if (document.pointerLockElement) document.exitPointerLock();
     this.ctx.hud.setLocked(true, true);
-    this.ctx.hud.message('VR: left stick move, right stick turn, triggers shoot, A enter car');
+    this.ctx.hud.message('VR: grip grabs the pistol on your right hip, trigger shoots, A enters cars');
   }
 
   private onSessionEnd(): void {

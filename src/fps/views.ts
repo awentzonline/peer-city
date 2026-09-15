@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { EntityViews } from '@engine/index';
+import { NO_WEAPON } from './arsenal';
 import { angleDiff, clamp, headingToYaw, signedAngle, type GameContext } from './context';
 import { Car, CarKind, CarMode, Ped, PedMode, Pickup, Player } from './defs';
 import { HUMAN, MAT, buildCar, buildHuman, buildPickup, disposeLabel, setGunModel, setLabel, type CarRig, type HumanRig, type PickupRig } from './models';
@@ -133,11 +134,11 @@ export function registerViews(ctx: GameContext, views: EntityViews, player: Play
       r.legL.rotation.z = swing;
       r.legR.rotation.z = -swing;
       r.armL.rotation.set(0, 0, -swing * 0.8);
-      if (v.weapon !== s.weapon) {
+      if (s.weapon !== NO_WEAPON && v.weapon !== s.weapon) {
         v.weapon = s.weapon;
         setGunModel(r.gun, s.weapon);
       }
-      r.gun.visible = true;
+      r.gun.visible = s.weapon !== NO_WEAPON;
       r.gun.position.set(s.hx, s.hz, s.hy);
       r.gun.rotation.set(signedAngle(s.aimPitch), headingToYaw(s.aimYaw), 0);
       aimArm(r, s.yaw, r.gun.position);

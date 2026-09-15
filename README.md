@@ -206,9 +206,10 @@ npm run dev    # http://localhost:5173/fps.html
 **Desktop:** WASD move · mouse look · click shoot · wheel / 1-5 switch gun · Shift run · Space jump / handbrake · **F** enter/exit
 car · **V** chase camera while driving · H horn · `` ` `` net stats · N mute
 
-**VR:** walk around your room for real, or use the left stick (click or grip to run). Right stick
-snap-turns. Each trigger fires the gun in that hand; **B** switches guns. **A/X** enter/exit a car. Driving: left stick
-steers and accelerates, right grip is the handbrake, **B** horns, **Y** recenters your seat. Cash, wanted
+**VR:** walk around your room for real, or use the left stick. Right stick snap-turns. Squeeze a grip to
+grab a gun off your body (pistol on the right hip, SMG on the left, long guns over your shoulders) and
+let go against your torso to stash it there; the trigger fires. **A/X** enter/exit a car. Driving: left
+stick steers and accelerates, clicking the right stick is the handbrake, **B** horns, **Y** recenters your seat. Cash, wanted
 level, health and the minimap are on your left wrist.
 
 What changes in 3D:
@@ -228,7 +229,9 @@ What changes in 3D:
 - **VR comfort:** no camera shake or forced camera motion in a headset. Damage and death tint the view
   instead.
 - `?xrsim` emulates a headset on desktop for testing the VR code paths. Mouse moves the head, arrow keys
-  walk the room, C crouches, WASD/Q/E are the sticks, mouse buttons the triggers, F = A, R = Y.
+  walk the room, C crouches, WASD/Q/E are the sticks, mouse buttons the triggers, F = A, R = Y,
+  Space/Shift the grips, X the right stick click. Hold G or B to move your right hand to your hip or over
+  your shoulder.
 
 - **Model assets.** Most of the world is still built in code, but models can come from asset files.
   Source models (FBX, OBJ or .blend) are converted to GLB with Blender and committed under `assets/`:
@@ -244,6 +247,12 @@ What changes in 3D:
   spawn around the streets (orange on the minimap); walk over one to take it and its ammo. Stats,
   model fitting (length, grip, barrel direction) and the inventory live in `src/fps/arsenal.ts`. The gun
   in your hand replicates, so others see what you're carrying, and it's dropped where you die.
+- **Holsters (VR).** Your whole torso is a holster (`src/fps/torso.ts`, `src/fps/holsters.ts`). Each hand
+  grabs its own gun with the grip; let go with your hand on your body and the gun stays frozen there,
+  relative to your torso, until you take it again. Let go anywhere else and it returns to its last spot.
+  There's no body tracking, so the torso hangs below your head and only turns once you look well to
+  one side. You can carry two of each gun, one for each hand, sharing their ammo; you start with a
+  pistol on each hip. Stick locomotion has one fast top speed that takes about half a second to reach.
 
 Source: `src/fps/`.
 
