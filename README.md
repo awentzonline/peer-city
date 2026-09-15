@@ -246,7 +246,8 @@ What changes in 3D:
 - **Guns are pickups.** Everyone starts with a pistol. An SMG, shotgun, assault rifle and sniper rifle
   spawn around the streets (orange on the minimap); walk over one to take it and its ammo. Stats,
   model fitting (length, grip, barrel direction) and the inventory live in `src/fps/arsenal.ts`. The gun
-  in your hand replicates, so others see what you're carrying, and it's dropped where you die.
+  in each hand replicates (headset players send both tracked hands, desktop players their gun hand), so
+  others see what you're holding, and it's dropped where you die.
 - **Holsters (VR).** Your whole torso is a holster (`src/fps/torso.ts`, `src/fps/holsters.ts`). Each hand
   grabs its own gun with the grip; let go with your hand on your body and the gun stays frozen there,
   relative to your torso, until you take it again. Let go anywhere else and it returns to its last spot.

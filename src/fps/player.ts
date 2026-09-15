@@ -366,22 +366,26 @@ export class PlayerController {
     if (inv.current !== before) this.ctx.sfx.play('empty');
   }
 
-  /** Replicate and display the gun in hand. In VR that's the right hand's, or the left's if the right is empty. */
+  /** Replicate the gun in each hand, and show one on the HUD: the right hand's, or the left's if the right is empty. */
   private showWeapon(): void {
     const { ctx } = this;
     const { rig } = ctx;
     const s = this.me!.state;
     const inv = this.inventory;
     if (rig.xr) {
-      const held = this.hands.vr.held(rig.right) ?? this.hands.vr.held(rig.left);
+      const right = this.hands.vr.held(rig.right);
+      const left = this.hands.vr.held(rig.left);
+      s.weapon = right ?? NO_WEAPON;
+      s.lweapon = left ?? NO_WEAPON;
+      const held = right ?? left;
       inv.current = held ?? Weapon.Pistol; // what you'd drop if you died now
-      s.weapon = held ?? NO_WEAPON;
       if (held === null) {
         ctx.hud.setWeapon('', Infinity);
         return;
       }
     } else {
       s.weapon = inv.current;
+      s.lweapon = NO_WEAPON;
     }
     ctx.hud.setWeapon(weaponSpec(inv.current).name, inv.ammo());
   }
@@ -394,14 +398,12 @@ export class PlayerController {
     if (rig.xr) {
       // Each hand fires whatever it holds; aim is wherever the controller points.
       const { vr } = this.hands;
-      const shown = vr.held(rig.right) !== null || vr.held(rig.left) === null ? rig.right : rig.left;
       for (const hand of [rig.left, rig.right]) {
         if (!hand.connected) continue;
         const right = hand === rig.right;
-        if (hand === shown) {
-          rig.handPose(hand, GUN_IN_HAND, this.gripPos, this.aim);
-          this.setHandFields(this.gripPos, this.aim);
-        }
+        // both hands replicate, holding a gun or not
+        rig.handPose(hand, GUN_IN_HAND, this.gripPos, this.aim);
+        this.setHandFields(this.gripPos, this.aim, !right);
         const weapon = vr.held(hand);
         if (weapon === null || hand.trigger < 0.6 || ctx.now < (right ? this.nextShot : this.nextShotLeft)) continue;
         const fireMs = weaponSpec(weapon).fireMs;
@@ -463,14 +465,16 @@ export class PlayerController {
     else if (ctx.world.query(me.state.x, me.state.y, 65).some(isPoliceUnit)) this.raiseWanted(1);
   }
 
-  /** Replicate where the gun is, so others see it in your hand. */
-  private setHandFields(pos: Vec3, aim: Vec3): void {
+  /** Replicate where a hand is and where it points, so others see it and the gun in it. */
+  private setHandFields(pos: Vec3, aim: Vec3, left = false): void {
     const s = this.me!.state;
-    s.hx = clamp(pos.x - s.x, -1.5, 1.5);
-    s.hy = clamp(pos.y - s.y, -1.5, 1.5);
-    s.hz = clamp(pos.z - s.z, 0, 2.5);
-    s.aimYaw = Math.atan2(aim.y, aim.x);
-    s.aimPitch = Math.asin(clamp(aim.z, -1, 1));
+    const x = clamp(pos.x - s.x, -1.5, 1.5);
+    const y = clamp(pos.y - s.y, -1.5, 1.5);
+    const z = clamp(pos.z - s.z, 0, 2.5);
+    const yaw = Math.atan2(aim.y, aim.x);
+    const pitch = Math.asin(clamp(aim.z, -1, 1));
+    if (left) Object.assign(s, { lhx: x, lhy: y, lhz: z, laimYaw: yaw, laimPitch: pitch });
+    else Object.assign(s, { hx: x, hy: y, hz: z, aimYaw: yaw, aimPitch: pitch });
   }
 
   /** Position the camera (desktop) or the play space (VR, while seated). Runs after simulation. */

@@ -20,7 +20,8 @@ interface HumanView {
   speed: number;
   dead: boolean;
   name: string;
-  weapon: number;
+  /** Gun models currently in the right and left hands. */
+  weapons: [number, number];
 }
 
 interface CarView {
@@ -35,7 +36,7 @@ function createHuman(ctx: GameContext, skin: number, cop: boolean, x: number, y:
   const rig = buildHuman(humanLook(skin, cop));
   rig.root.position.set(x, 0, y);
   ctx.scene.add(rig.root);
-  return { rig, lastX: x, lastY: y, phase: Math.random() * 6, speed: 0, dead: false, name: '', weapon: 0 };
+  return { rig, lastX: x, lastY: y, phase: Math.random() * 6, speed: 0, dead: false, name: '', weapons: [0, 0] };
 }
 
 function destroyHuman(ctx: GameContext, v: HumanView): void {
@@ -66,12 +67,32 @@ function pose(ctx: GameContext, v: HumanView, heading: number, dead: boolean): v
   r.shadow.visible = !dead;
 }
 
-/** Point the right arm from the shoulder at a target given in root space. */
-function aimArm(r: HumanRig, heading: number, target: THREE.Vector3): void {
-  shoulder.set(0, HUMAN.shoulder * r.body.scale.y, HUMAN.shoulderZ).applyAxisAngle(UP, -heading);
+/** Point an arm from its shoulder at a target given in root space. */
+function aimArm(r: HumanRig, heading: number, target: THREE.Vector3, left = false): void {
+  shoulder.set(0, HUMAN.shoulder * r.body.scale.y, left ? -HUMAN.shoulderZ : HUMAN.shoulderZ).applyAxisAngle(UP, -heading);
   reach.copy(target).sub(shoulder).applyAxisAngle(UP, heading);
   if (reach.lengthSq() < 1e-4) return;
-  r.armR.quaternion.setFromUnitVectors(DOWN, reach.normalize());
+  (left ? r.armL : r.armR).quaternion.setFromUnitVectors(DOWN, reach.normalize());
+}
+
+/**
+ * Put a replicated hand's gun in place and point that arm at it. An empty hand
+ * only reaches out for headset players, whose hands are really tracked;
+ * otherwise the arm is left swinging.
+ */
+function holdGun(v: HumanView, heading: number, side: 0 | 1, weapon: number, x: number, y: number, z: number, aimYaw: number, aimPitch: number, tracked: boolean): void {
+  const r = v.rig;
+  const gun = side ? r.gunL : r.gun;
+  const armed = weapon !== NO_WEAPON;
+  if (armed && v.weapons[side] !== weapon) {
+    v.weapons[side] = weapon;
+    setGunModel(gun, weapon);
+  }
+  gun.visible = armed;
+  if (!armed && !tracked) return;
+  gun.position.set(x, z, y);
+  gun.rotation.set(signedAngle(aimPitch), headingToYaw(aimYaw), 0);
+  aimArm(r, heading, gun.position, side === 1);
 }
 
 export function registerViews(ctx: GameContext, views: EntityViews, player: PlayerController): void {
@@ -113,7 +134,7 @@ export function registerViews(ctx: GameContext, views: EntityViews, player: Play
         r.head.rotation.set(0, -clamp(angleDiff(a, s.yaw), -1.3, 1.3), clamp(signedAngle(s.pitch), -0.8, 0.8));
         r.armL.rotation.set(0, 0, -1);
         r.armR.rotation.set(0, 0, -1);
-        r.gun.visible = false;
+        r.gun.visible = r.gunL.visible = false;
         r.shadow.visible = false;
         v.lastX = e.x;
         v.lastY = e.y;
@@ -125,7 +146,7 @@ export function registerViews(ctx: GameContext, views: EntityViews, player: Play
       r.shadow.position.y = 0.04 - s.z;
       pose(ctx, v, s.yaw, dead);
       if (dead) {
-        r.gun.visible = false;
+        r.gun.visible = r.gunL.visible = false;
         return;
       }
       r.body.scale.y = clamp(s.head / 1.65, 0.55, 1.15); // VR players crouching for real
@@ -134,14 +155,9 @@ export function registerViews(ctx: GameContext, views: EntityViews, player: Play
       r.legL.rotation.z = swing;
       r.legR.rotation.z = -swing;
       r.armL.rotation.set(0, 0, -swing * 0.8);
-      if (s.weapon !== NO_WEAPON && v.weapon !== s.weapon) {
-        v.weapon = s.weapon;
-        setGunModel(r.gun, s.weapon);
-      }
-      r.gun.visible = s.weapon !== NO_WEAPON;
-      r.gun.position.set(s.hx, s.hz, s.hy);
-      r.gun.rotation.set(signedAngle(s.aimPitch), headingToYaw(s.aimYaw), 0);
-      aimArm(r, s.yaw, r.gun.position);
+      r.armR.rotation.set(0, 0, swing * 0.8);
+      holdGun(v, s.yaw, 0, s.weapon, s.hx, s.hy, s.hz, s.aimYaw, s.aimPitch, s.vr);
+      holdGun(v, s.yaw, 1, s.lweapon, s.lhx, s.lhy, s.lhz, s.laimYaw, s.laimPitch, s.vr);
     },
     destroy: (v) => destroyHuman(ctx, v),
   });

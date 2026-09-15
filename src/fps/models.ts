@@ -149,7 +149,9 @@ export interface HumanRig {
   legR: THREE.Group;
   armL: THREE.Group;
   armR: THREE.Group;
+  /** Guns in the right and left hands. */
   gun: THREE.Group;
+  gunL: THREE.Group;
   shadow: THREE.Mesh;
   label: THREE.Sprite;
 }
@@ -193,9 +195,12 @@ export function buildHuman(look: HumanLook): HumanRig {
   const armR = pivot(arm, 0, HUMAN.shoulder, HUMAN.shoulderZ);
 
   const gun = buildGun(Weapon.Pistol);
-  gun.rotation.order = 'YXZ';
-  gun.visible = false;
-  root.add(gun);
+  const gunL = buildGun(Weapon.Pistol);
+  for (const g of [gun, gunL]) {
+    g.rotation.order = 'YXZ';
+    g.visible = false;
+    root.add(g);
+  }
   const shadow = blobShadow(0.9, 0.9);
   root.add(shadow);
   const label = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false }));
@@ -203,7 +208,7 @@ export function buildHuman(look: HumanLook): HumanRig {
   label.position.y = 2.2;
   label.visible = false;
   root.add(label);
-  return { root, body, head: headGroup, legL, legR, armL, armR, gun, shadow, label };
+  return { root, body, head: headGroup, legL, legR, armL, armR, gun, gunL, shadow, label };
 }
 
 export function setLabel(sprite: THREE.Sprite, text: string): void {
