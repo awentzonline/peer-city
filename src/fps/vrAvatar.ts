@@ -1,11 +1,11 @@
-import { weaponSpec, type Weapon } from './arsenal';
-import type { AvatarFrontend, AvatarSim, ShotResult } from './avatar';
+import type { AvatarFrontend, AvatarSim } from './avatar';
 import { direction, type GameContext, type Vec3 } from './context';
-import { GUN_IN_HAND, Holsters } from './holsters';
+import { GRIP_IN_HAND, Holsters } from './holsters';
 import { Side, handIntent, idleIntent, type AvatarIntent, type HandIntent, type TrackedHead } from './intent';
 import type { MinimapFeed } from './minimap';
 import { Platform } from './platform';
 import { Btn, type Rig, type XRHand, type XrPoseSource } from './rig';
+import type { Tool, UseEffect } from './tool';
 import { VrHud } from './vrhud';
 
 const SNAP_TURN = Math.PI / 6;
@@ -14,8 +14,8 @@ const TRIGGER = 0.6;
 const deadzone = (v: number) => (Math.abs(v) < 0.15 ? 0 : v);
 
 /**
- * A headset. Walk round your room or use the left stick; the right stick snap-turns. Guns live in holsters
- * on your body and each hand fires the one it grabbed. Sitting in a car calibrates your head to the
+ * A headset. Walk round your room or use the left stick; the right stick snap-turns. Tools live in holsters
+ * on your body and each hand uses the one it grabbed. Sitting in a car calibrates your head to the
  * driver's seat. Nothing moves the camera against your will: damage tints the view and buzzes the
  * controllers instead of shaking. The HUD is on your left wrist.
  *
@@ -68,11 +68,11 @@ export class VrAvatar implements AvatarFrontend {
     this.head.pitch = rig.headPitch();
     intent.strafe = deadzone(left.stickX);
     intent.forward = -deadzone(left.stickY);
-    intent.brake = right.down(Btn.Stick); // the grips are for grabbing guns
+    intent.brake = right.down(Btn.Stick); // the grips are for grabbing tools
     intent.horn = right.pressed(Btn.B);
     intent.interact = right.pressed(Btn.A) || left.pressed(Btn.A);
 
-    // Holsters turn grips into which gun each hand holds; the rules only see what's in the hand.
+    // Holsters turn grips into which tool each hand holds; the rules only see what's in the hand.
     this.holsters.update(sim.inventory);
     this.readHand(right, this.hands[Side.Right]);
     this.readHand(left, this.hands[Side.Left]);
@@ -91,11 +91,11 @@ export class VrAvatar implements AvatarFrontend {
 
   private readHand(hand: XRHand, out: HandIntent): void {
     out.tracked = hand.connected;
-    out.weapon = this.holsters.held(hand);
+    out.tool = this.holsters.held(hand);
     out.trigger = hand.trigger >= TRIGGER;
     if (!hand.connected) return;
-    this.rig.handPose(hand, GUN_IN_HAND, out.grip, out.aim);
-    this.rig.handPose(hand, this.holsters.muzzle(hand), out.muzzle, out.aim);
+    this.rig.handPose(hand, GRIP_IN_HAND, out.grip, out.pointing);
+    this.rig.handPose(hand, this.holsters.tip(hand), out.tip, out.aim, this.holsters.forward(hand));
   }
 
   present(dt: number): void {
@@ -137,12 +137,12 @@ export class VrAvatar implements AvatarFrontend {
     rig.right.pulse(0.5, 90);
   }
 
-  fired(side: Side | null, weapon: Weapon, result: ShotResult): void {
+  used(side: Side | null, _tool: Tool, effect: UseEffect): void {
     if (side === null) return;
     const hand = side === Side.Left ? this.rig.left : this.rig.right;
-    this.holsters.recoil(hand);
-    hand.pulse(Math.min(1, 0.4 + weaponSpec(weapon).kick * 0.2), 35);
-    if (result !== 'miss') hand.pulse(1, 60);
+    this.holsters.recoil(hand, effect.kick);
+    if (effect.kick > 0) hand.pulse(Math.min(1, 0.4 + effect.kick * 0.2), 35);
+    if (effect.hit && effect.hit !== 'miss') hand.pulse(1, 60);
   }
 
   died(): void {}

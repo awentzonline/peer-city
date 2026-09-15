@@ -1,8 +1,12 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { Inventory, Weapon } from '../src/fps/arsenal';
+import { PISTOL, RIFLE, TOOLS } from '../src/fps/arsenal';
+import type { Vec3 } from '../src/fps/context';
 import { Holsters } from '../src/fps/holsters';
+import { Inventory } from '../src/fps/inventory';
+import { toolMesh } from '../src/fps/models';
 import { Rig, type XRHand } from '../src/fps/rig';
+import { Tool, Toolbox } from '../src/fps/tool';
 
 // Stand-in gun models (1m-long boxes), so no GLB loading is needed.
 vi.mock('../src/fps/assets', async () => {
@@ -22,18 +26,17 @@ const LEFT_HIP: Spot = [-0.22, -0.68, -0.05];
 const RIGHT_SHOULDER: Spot = [0.2, -0.12, 0.25];
 const OUT_FRONT: Spot = [0.2, -0.3, -0.35];
 
-interface GunView {
-  weapon: Weapon;
+interface ItemView {
+  tool: Tool;
   group: THREE.Group;
 }
 
-function setup() {
+function setup(inv = new Inventory(TOOLS)) {
   const rig = new Rig(new THREE.Scene(), 1);
   rig.setMode('sim'); // both controllers connected
   rig.headLocal.set(0, 1.65, 0);
   const holsters = new Holsters(rig);
-  const inv = new Inventory();
-  inv.add(Weapon.Rifle, 30);
+  if (inv.tools === TOOLS) inv.add(RIFLE, 30);
   holsters.update(inv);
   /** Put a hand somewhere relative to the head. */
   const reach = (hand: XRHand, [x, y, z]: Spot) => hand.object.position.copy(rig.headLocal).add(new THREE.Vector3(x, y, z));
@@ -41,18 +44,18 @@ function setup() {
     hand.squeeze = v;
     holsters.update(inv);
   };
-  const guns = (w: Weapon) => (holsters as unknown as { guns: GunView[] }).guns.filter((g) => g.weapon === w).map((g) => g.group);
-  return { rig, holsters, inv, right: rig.right, left: rig.left, reach, squeeze, guns };
+  const items = (tool: Tool) => (holsters as unknown as { items: ItemView[] }).items.filter((g) => g.tool === tool).map((g) => g.group);
+  return { rig, holsters, inv, right: rig.right, left: rig.left, reach, squeeze, items };
 }
 
 describe('Holsters (VR)', () => {
   it('keeps everything carried on the body and starts with empty hands', () => {
-    const { holsters, right, left, guns } = setup();
+    const { holsters, right, left, items } = setup();
     expect(holsters.held(right)).toBeNull();
     expect(holsters.held(left)).toBeNull();
-    expect(guns(Weapon.Pistol)).toHaveLength(2);
-    expect(guns(Weapon.Rifle)).toHaveLength(1);
-    for (const g of [...guns(Weapon.Pistol), ...guns(Weapon.Rifle)]) expect(g.parent).toBe(holsters.torso.object);
+    expect(items(PISTOL)).toHaveLength(2);
+    expect(items(RIFLE)).toHaveLength(1);
+    for (const g of [...items(PISTOL), ...items(RIFLE)]) expect(g.parent).toBe(holsters.torso.object);
   });
 
   it('grabs a pistol from the hip and the rifle from over the shoulder, and nothing out in front', () => {
@@ -64,13 +67,13 @@ describe('Holsters (VR)', () => {
 
     reach(right, RIGHT_HIP);
     squeeze(right, 1);
-    expect(holsters.held(right)).toBe(Weapon.Pistol);
+    expect(holsters.held(right)).toBe(PISTOL);
     reach(right, OUT_FRONT);
     squeeze(right, 0);
 
     reach(right, RIGHT_SHOULDER);
     squeeze(right, 1);
-    expect(holsters.held(right)).toBe(Weapon.Rifle);
+    expect(holsters.held(right)).toBe(RIFLE);
   });
 
   it('draws a pistol in each hand', () => {
@@ -79,17 +82,17 @@ describe('Holsters (VR)', () => {
     reach(left, LEFT_HIP);
     squeeze(right, 1);
     squeeze(left, 1);
-    expect(holsters.held(right)).toBe(Weapon.Pistol);
-    expect(holsters.held(left)).toBe(Weapon.Pistol);
+    expect(holsters.held(right)).toBe(PISTOL);
+    expect(holsters.held(left)).toBe(PISTOL);
   });
 
   it('stashes a second gun of a kind when you pick one up', () => {
-    const { holsters, inv, right, reach, squeeze, guns } = setup();
+    const { holsters, inv, right, reach, squeeze, items } = setup();
     reach(right, RIGHT_SHOULDER);
     squeeze(right, 1);
-    inv.add(Weapon.Rifle, 30);
+    inv.add(RIFLE, 30);
     holsters.update(inv);
-    const rifles = guns(Weapon.Rifle);
+    const rifles = items(RIFLE);
     expect(rifles).toHaveLength(2);
     expect(rifles.filter((g) => g.parent === holsters.torso.object)).toHaveLength(1);
   });
@@ -103,7 +106,7 @@ describe('Holsters (VR)', () => {
     expect(holsters.held(right)).toBeNull();
     squeeze(right, 0);
     squeeze(right, 1);
-    expect(holsters.held(right)).toBe(Weapon.Pistol);
+    expect(holsters.held(right)).toBe(PISTOL);
   });
 
   it('returns a gun let go in the air, and freezes one let go against the body', () => {
@@ -117,7 +120,7 @@ describe('Holsters (VR)', () => {
     // the same pistol comes back out of the right hip
     reach(right, RIGHT_HIP);
     squeeze(right, 1);
-    expect(holsters.held(right)).toBe(Weapon.Pistol);
+    expect(holsters.held(right)).toBe(PISTOL);
     const chest: Spot = [0.05, -0.45, -0.1];
     reach(right, chest);
     squeeze(right, 0);
@@ -130,16 +133,53 @@ describe('Holsters (VR)', () => {
     squeeze(right, 0);
     reach(right, chest);
     squeeze(right, 1);
-    expect(holsters.held(right)).toBe(Weapon.Pistol);
+    expect(holsters.held(right)).toBe(PISTOL);
   });
 
   it('empties the hand when the gun in it runs dry', () => {
     const { holsters, inv, right, reach, squeeze } = setup();
     reach(right, RIGHT_SHOULDER);
     squeeze(right, 1);
-    expect(holsters.held(right)).toBe(Weapon.Rifle);
-    for (let i = 0; i < 30; i++) inv.consume(Weapon.Rifle);
+    expect(holsters.held(right)).toBe(RIFLE);
+    for (let i = 0; i < 30; i++) inv.spend(RIFLE);
     holsters.update(inv);
     expect(holsters.held(right)).toBeNull();
+  });
+
+  it('holds a tool at its grip angle, and aims it the way it is drawn', () => {
+    // a torch turned a quarter left in the hand and tipped up, stashed right where the hand will be
+    const pitch = 0.3;
+    const torch = new Tool({
+      name: 'Torch',
+      model: { build: () => new THREE.BoxGeometry(0.04, 0.04, 1), length: 0.3 },
+      grip: { tip: [0, 0, -0.25], yaw: Math.PI / 2, pitch },
+      stash: [{ at: [0.3, -0.33, -0.25] }],
+      color: 0xffffff,
+    });
+    const inv = new Inventory(new Toolbox([torch]));
+    inv.add(torch, 0);
+    const { rig, holsters, right, reach, squeeze, items } = setup(inv);
+    reach(right, [0.3, -0.5, -0.2]);
+    squeeze(right, 1);
+    expect(holsters.held(right)).toBe(torch);
+
+    const tip: Vec3 = { x: 0, y: 0, z: 0 };
+    const aim: Vec3 = { x: 0, y: 0, z: 0 };
+    rig.handPose(right, holsters.tip(right), tip, aim, holsters.forward(right));
+    // three.js (x, y, z) is the game's (x, z, y): to the left of the hand and up
+    const hand = right.object.position;
+    expect(aim.x).toBeCloseTo(-Math.cos(pitch), 6);
+    expect(aim.y).toBeCloseTo(0, 6);
+    expect(aim.z).toBeCloseTo(Math.sin(pitch), 6);
+    expect(tip.x).toBeCloseTo(hand.x - 0.25 * Math.cos(pitch), 6);
+    expect(tip.y).toBeCloseTo(hand.z + 0.05, 6);
+    expect(tip.z).toBeCloseTo(hand.y - 0.03 + 0.25 * Math.sin(pitch), 6);
+
+    const mesh = toolMesh(items(torch)[0]);
+    mesh.updateWorldMatrix(true, false);
+    const drawn = new THREE.Vector3(0, 0, -1).transformDirection(mesh.matrixWorld);
+    expect(drawn.x).toBeCloseTo(aim.x, 6);
+    expect(drawn.y).toBeCloseTo(aim.z, 6);
+    expect(drawn.z).toBeCloseTo(aim.y, 6);
   });
 });

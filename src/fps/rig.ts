@@ -195,15 +195,15 @@ export class Rig {
     return Math.asin(clamp(v.y, -1, 1));
   }
 
-  /** World position of a point in a controller's space, and the controller's pointing direction. */
-  handPose(hand: XRHand, local: THREE.Vector3, pos: Vec3, dir: Vec3): void {
+  /** World position of a point in a controller's space, and of a direction in it: by default, where the controller points. */
+  handPose(hand: XRHand, local: THREE.Vector3, pos: Vec3, dir: Vec3, forward: THREE.Vector3 = FORWARD): void {
     this.root.updateMatrixWorld();
     const m = hand.object.matrixWorld;
     v.copy(local).applyMatrix4(m);
     pos.x = v.x;
     pos.y = v.z;
     pos.z = v.y;
-    v.copy(FORWARD).transformDirection(m);
+    v.copy(forward).transformDirection(m);
     dir.x = v.x;
     dir.y = v.z;
     dir.z = v.y;

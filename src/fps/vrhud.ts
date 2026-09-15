@@ -108,7 +108,7 @@ export class VrHud {
     ctx.font = 'bold 36px Trebuchet MS, sans-serif';
     ctx.textAlign = 'left';
     ctx.fillStyle = '#fff';
-    ctx.fillText(hud.weaponText, 36, 168);
+    ctx.fillText(hud.toolText, 36, 168);
     hud.drawMinimap(this.mapCtx, 340, view.x, view.y, view.heading, view.dots);
     ctx.drawImage(this.map, 106, 186, 300, 300);
     tex.needsUpdate = true;

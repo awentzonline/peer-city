@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import type { EntityViews } from '@engine/index';
-import { NO_WEAPON } from './arsenal';
+import { PISTOL, TOOLS } from './arsenal';
 import { angleDiff, clamp, headingToYaw, signedAngle, type GameContext } from './context';
 import { Car, CarKind, CarMode, Ped, PedMode, Pickup, Player } from './defs';
-import { HUMAN, MAT, buildCar, buildHuman, buildPickup, disposeLabel, setGunModel, setLabel, type CarRig, type HumanRig, type PickupRig } from './models';
+import { HUMAN, MAT, buildCar, buildHuman, buildPickup, disposeLabel, setLabel, setToolModel, type CarRig, type HumanRig, type PickupRig } from './models';
 import { Platform } from './platform';
 import { COP_SKINS, PED_SKINS, carSpec, humanLook } from './specs';
+import { NO_TOOL } from './tool';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const DOWN = new THREE.Vector3(0, -1, 0);
@@ -20,8 +21,8 @@ interface HumanView {
   speed: number;
   dead: boolean;
   name: string;
-  /** Gun models currently in the right and left hands. */
-  weapons: [number, number];
+  /** Ids of the tool models currently in the right and left hands. */
+  tools: [number, number];
 }
 
 interface CarView {
@@ -35,8 +36,9 @@ interface CarView {
 function createHuman(ctx: GameContext, skin: number, cop: boolean, x: number, y: number): HumanView {
   const rig = buildHuman(humanLook(skin, cop));
   rig.root.position.set(x, 0, y);
+  if (cop) setToolModel(rig.tool, PISTOL);
   ctx.scene.add(rig.root);
-  return { rig, lastX: x, lastY: y, phase: Math.random() * 6, speed: 0, dead: false, name: '', weapons: [0, 0] };
+  return { rig, lastX: x, lastY: y, phase: Math.random() * 6, speed: 0, dead: false, name: '', tools: [NO_TOOL, NO_TOOL] };
 }
 
 function destroyHuman(ctx: GameContext, v: HumanView): void {
@@ -76,23 +78,24 @@ function aimArm(r: HumanRig, heading: number, target: THREE.Vector3, left = fals
 }
 
 /**
- * Put a replicated hand's gun in place and point that arm at it. An empty hand
- * only reaches out for headset players, whose hands are really tracked;
+ * Put a replicated hand's tool in place and point that arm at it. The hand's
+ * pose is replicated, and the model turns in it by the tool's grip. An empty
+ * hand only reaches out for headset players, whose hands are really tracked;
  * otherwise the arm is left swinging.
  */
-function holdGun(v: HumanView, heading: number, side: 0 | 1, weapon: number, x: number, y: number, z: number, aimYaw: number, aimPitch: number, tracked: boolean): void {
+function holdTool(v: HumanView, heading: number, side: 0 | 1, id: number, x: number, y: number, z: number, aimYaw: number, aimPitch: number, tracked: boolean): void {
   const r = v.rig;
-  const gun = side ? r.gunL : r.gun;
-  const armed = weapon !== NO_WEAPON;
-  if (armed && v.weapons[side] !== weapon) {
-    v.weapons[side] = weapon;
-    setGunModel(gun, weapon);
+  const group = side ? r.toolL : r.tool;
+  const tool = TOOLS.get(id);
+  if (tool && v.tools[side] !== id) {
+    v.tools[side] = id;
+    setToolModel(group, tool);
   }
-  gun.visible = armed;
-  if (!armed && !tracked) return;
-  gun.position.set(x, z, y);
-  gun.rotation.set(signedAngle(aimPitch), headingToYaw(aimYaw), 0);
-  aimArm(r, heading, gun.position, side === 1);
+  group.visible = !!tool;
+  if (!tool && !tracked) return;
+  group.position.set(x, z, y);
+  group.rotation.set(signedAngle(aimPitch), headingToYaw(aimYaw), 0);
+  aimArm(r, heading, group.position, side === 1);
 }
 
 /** What the views need from the local player's frontend and role. */
@@ -142,7 +145,7 @@ export function registerViews(ctx: GameContext, views: EntityViews, local: Local
         r.head.rotation.set(0, -clamp(angleDiff(a, s.yaw), -1.3, 1.3), clamp(signedAngle(s.pitch), -0.8, 0.8));
         r.armL.rotation.set(0, 0, -1);
         r.armR.rotation.set(0, 0, -1);
-        r.gun.visible = r.gunL.visible = false;
+        r.tool.visible = r.toolL.visible = false;
         r.shadow.visible = false;
         v.lastX = e.x;
         v.lastY = e.y;
@@ -154,7 +157,7 @@ export function registerViews(ctx: GameContext, views: EntityViews, local: Local
       r.shadow.position.y = 0.04 - s.z;
       pose(ctx, v, s.yaw, dead);
       if (dead) {
-        r.gun.visible = r.gunL.visible = false;
+        r.tool.visible = r.toolL.visible = false;
         return;
       }
       r.body.scale.y = clamp(s.head / 1.65, 0.55, 1.15); // VR players crouching for real
@@ -165,8 +168,8 @@ export function registerViews(ctx: GameContext, views: EntityViews, local: Local
       r.armL.rotation.set(0, 0, -swing * 0.8);
       r.armR.rotation.set(0, 0, swing * 0.8);
       const tracked = s.platform === Platform.Vr;
-      holdGun(v, s.yaw, 0, s.weapon, s.hx, s.hy, s.hz, s.aimYaw, s.aimPitch, tracked);
-      holdGun(v, s.yaw, 1, s.lweapon, s.lhx, s.lhy, s.lhz, s.laimYaw, s.laimPitch, tracked);
+      holdTool(v, s.yaw, 0, s.tool, s.hx, s.hy, s.hz, s.aimYaw, s.aimPitch, tracked);
+      holdTool(v, s.yaw, 1, s.ltool, s.lhx, s.lhy, s.lhz, s.laimYaw, s.laimPitch, tracked);
     },
     destroy: (v) => destroyHuman(ctx, v),
   });
@@ -180,7 +183,7 @@ export function registerViews(ctx: GameContext, views: EntityViews, local: Local
       r.root.position.set(e.x, 0, e.y);
       pose(ctx, v, s.angle, dead);
       if (dead) {
-        r.gun.visible = false;
+        r.tool.visible = false;
         return;
       }
       const swing = stride(v, e.x, e.y, dt);
@@ -188,13 +191,13 @@ export function registerViews(ctx: GameContext, views: EntityViews, local: Local
       r.legR.rotation.z = -swing;
       r.armL.rotation.set(0, 0, -swing * 0.8);
       const aiming = s.cop && s.mode === PedMode.Attack;
-      r.gun.visible = aiming;
+      r.tool.visible = aiming;
       if (aiming) {
         const c = Math.cos(s.angle);
         const sn = Math.sin(s.angle);
-        r.gun.position.set(c * 0.55 - sn * 0.2, 1.4, sn * 0.55 + c * 0.2);
-        r.gun.rotation.set(0, headingToYaw(s.angle), 0);
-        aimArm(r, s.angle, r.gun.position);
+        r.tool.position.set(c * 0.55 - sn * 0.2, 1.4, sn * 0.55 + c * 0.2);
+        r.tool.rotation.set(0, headingToYaw(s.angle), 0);
+        aimArm(r, s.angle, r.tool.position);
       } else {
         r.armR.rotation.set(0, 0, swing * 0.8);
       }
@@ -269,7 +272,7 @@ export function registerViews(ctx: GameContext, views: EntityViews, local: Local
 
   views.register(Pickup, {
     create: (e) => {
-      const rig = buildPickup(e.state.kind, e.state.weapon);
+      const rig = buildPickup(e.state.kind, TOOLS.get(e.state.tool));
       rig.root.position.set(e.x, 0, e.y);
       ctx.scene.add(rig.root);
       return { rig, t: Math.random() * 6 } as { rig: PickupRig; t: number };

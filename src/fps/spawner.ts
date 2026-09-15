@@ -1,4 +1,4 @@
-import { WEAPONS } from './arsenal';
+import { TOOLS } from './arsenal';
 import { TILE } from './city';
 import type { GameContext } from './context';
 import { Car, CarKind, CarMode, Ped, PedMode, Pickup, PickupKind, Player } from './defs';
@@ -8,7 +8,9 @@ import { CAR_COLORS, PED_SKINS } from './specs';
 const PED_TARGET = 26;
 const CAR_TARGET = 13;
 const PARKED_TARGET = 8;
-const GUN_TARGET = 6;
+const TOOL_TARGET = 6;
+/** Tools that turn up in the streets: everything that isn't issued. */
+const LOOT = TOOLS.all.filter((t) => t.issued === 0);
 
 /**
  * Keeps the neighbourhood around the local player populated.
@@ -93,13 +95,13 @@ export class Spawner {
       }
     }
 
-    let guns = 0;
-    for (const p of world.query(focus.x, focus.y, 120, Pickup)) if (p.state.kind === PickupKind.Weapon) guns++;
-    if (guns < GUN_TARGET && Math.random() < share * 0.35) {
+    let tools = 0;
+    for (const p of world.query(focus.x, focus.y, 120, Pickup)) if (p.state.kind === PickupKind.Tool) tools++;
+    if (tools < TOOL_TARGET && LOOT.length && Math.random() < share * 0.35) {
       const pt = city.randomWalkableNear(focus.x, focus.y, 45, 110);
       if (pt && !this.visibleToOthers(pt.x, pt.y)) {
-        const weapon = 1 + Math.floor(Math.random() * (WEAPONS.length - 1)); // anything but the pistol
-        world.spawn(Pickup, { x: pt.x, y: pt.y, kind: PickupKind.Weapon, weapon, amount: WEAPONS[weapon].ammo });
+        const tool = LOOT[Math.floor(Math.random() * LOOT.length)];
+        world.spawn(Pickup, { x: pt.x, y: pt.y, kind: PickupKind.Tool, tool: tool.id, amount: tool.charges?.pickup ?? 0 });
       }
     }
 

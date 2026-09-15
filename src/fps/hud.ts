@@ -1,6 +1,6 @@
-import { NO_WEAPON, weaponSpec } from './arsenal';
 import type { AvatarSim } from './avatar';
 import { TILE, type City } from './city';
+import { NO_TOOL } from './tool';
 
 export interface MinimapDot {
   x: number;
@@ -19,8 +19,8 @@ export class Hud {
   wanted = 0;
   hp = 100;
   hint = '';
-  /** Gun in hand and its ammo, e.g. "SMG 120". */
-  weaponText = '';
+  /** Tool in hand and its charges, e.g. "SMG 120". */
+  toolText = '';
   readonly banner = { text: '', color: '#fff', until: 0 };
   readonly feed: { text: string; until: number }[] = [];
   /** Bumped whenever something the VR panels show changes. */
@@ -30,7 +30,7 @@ export class Hud {
   private readonly cashEl = document.getElementById('cash')!;
   private readonly wantedEl = document.getElementById('wanted')!;
   private readonly healthFill = document.getElementById('health-fill')!;
-  private readonly weaponEl = document.getElementById('weapon')!;
+  private readonly toolEl = document.getElementById('tool')!;
   private readonly feedEl = document.getElementById('feed')!;
   private readonly bannerEl = document.getElementById('banner')!;
   private readonly hintEl = document.getElementById('hint')!;
@@ -82,11 +82,11 @@ export class Hud {
   }
 
   /** Doesn't bump `version`: the wrist panel redraws on its own timer, and this changes with every shot. */
-  setWeapon(name: string, ammo: number): void {
-    const text = Number.isFinite(ammo) ? `${name}  ${ammo}` : name;
-    if (text === this.weaponText) return;
-    this.weaponText = text;
-    this.weaponEl.textContent = text;
+  setTool(name: string, charges: number): void {
+    const text = Number.isFinite(charges) ? `${name}  ${charges}` : name;
+    if (text === this.toolText) return;
+    this.toolText = text;
+    this.toolEl.textContent = text;
   }
 
   setHint(text: string): void {
@@ -96,16 +96,16 @@ export class Hud {
     this.version++;
   }
 
-  /** An avatar's status, hint and gun readout. `button` is what gets you into a car on this platform. */
+  /** An avatar's status, hint and tool readout. `button` is what gets you into a car on this platform. */
   showAvatar(sim: AvatarSim, button: string): void {
     const s = sim.me?.state;
     if (!s) return;
     this.setStatus(s.cash, s.wanted, s.hp);
     this.setHint(sim.cuffed ? 'The cops have hold of you. Run!' : sim.nearCar ? `Press ${button} to take the car` : '');
     if (s.hp === 0 || sim.arrested) return;
-    const armed = s.weapon !== NO_WEAPON || s.lweapon !== NO_WEAPON;
-    if (armed) this.setWeapon(weaponSpec(sim.inventory.current).name, sim.inventory.ammo());
-    else this.setWeapon('', Infinity);
+    const tool = sim.inventory.current;
+    if (tool && (s.tool !== NO_TOOL || s.ltool !== NO_TOOL)) this.setTool(tool.name, sim.inventory.charges(tool));
+    else this.setTool('', Infinity);
   }
 
   message(text: string): void {

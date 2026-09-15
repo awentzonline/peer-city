@@ -1,51 +1,41 @@
 import * as THREE from 'three';
-import { MAX_OF_A_KIND, WEAPONS, Weapon, weaponSpec, type Inventory } from './arsenal';
-import { buildGun, gunMuzzle } from './models';
+import type { Inventory } from './inventory';
+import { buildTool, toolForward, toolMesh, toolTip } from './models';
 import type { Rig, XRHand } from './rig';
+import type { StashSpot, Tool } from './tool';
 import { Torso } from './torso';
 
-/** Where a held gun's grip sits in a controller's target-ray space. */
-export const GUN_IN_HAND = new THREE.Vector3(0, -0.03, 0.05);
-/** How close (m) a hand has to be to a stashed gun to grab it. */
+/** Where a held tool's grip sits in a controller's target-ray space. */
+export const GRIP_IN_HAND = new THREE.Vector3(0, -0.03, 0.05);
+const FORWARD = new THREE.Vector3(0, 0, -1);
+/** How close (m) a hand has to be to a stashed tool to grab it. */
 const REACH = 0.1;
 /** Grip hysteresis, so a half-squeezed grip doesn't flicker between grabbing and letting go. */
 const GRIP_ON = 0.6;
 const GRIP_OFF = 0.35;
+/** For a tool that doesn't say where it goes: hanging down the front of the belly. */
+const DEFAULT_SPOT: StashSpot = { at: [0.12, -0.45, -0.2], pitch: -Math.PI / 2 };
 
 interface Pose {
   position: THREE.Vector3;
   quaternion: THREE.Quaternion;
 }
 
-function pose(x: number, y: number, z: number, pitch: number, roll = 0): Pose {
+function stashPose({ at, pitch = 0, roll = 0 }: StashSpot): Pose {
   const quaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, roll)).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, 0, 0)));
-  return { position: new THREE.Vector3(x, y, z), quaternion };
+  return { position: new THREE.Vector3(at[0], at[1], at[2]), quaternion };
 }
 
-const DOWN = -Math.PI / 2;
-const UP = Math.PI / 2;
-/**
- * Where your first and second gun of each kind are stashed when you get them, in torso space:
- * pistols on the hips, SMGs down the chest, long guns crossed on the back.
- */
-const STARTING_SPOTS: Record<Weapon, Pose[]> = {
-  [Weapon.Pistol]: [pose(0.22, -0.5, -0.05, DOWN), pose(-0.22, -0.5, -0.05, DOWN)],
-  [Weapon.Smg]: [pose(0.14, -0.3, -0.16, DOWN), pose(-0.14, -0.3, -0.16, DOWN)],
-  [Weapon.Shotgun]: [pose(0.1, -0.5, 0.27, UP, -0.2), pose(-0.1, -0.5, 0.27, UP, 0.2)],
-  [Weapon.Rifle]: [pose(0.08, -0.35, 0.2, UP, -0.4), pose(-0.08, -0.35, 0.2, UP, 0.4)],
-  [Weapon.Sniper]: [pose(0.1, -0.4, 0.3, UP, -0.25), pose(-0.1, -0.4, 0.3, UP, 0.25)],
-};
-
-interface Gun {
-  weapon: Weapon;
-  /** First or second of its kind, for its starting spot. */
+interface Carried {
+  tool: Tool;
+  /** First, second, ... of its kind, for its starting spot. */
   index: number;
+  /** Made by buildTool: the grip is its origin. */
   group: THREE.Group;
-  laser: THREE.Line;
-  /** Model bounds in the group's space, for reaching for it. */
-  box: THREE.Box3;
+  laser: THREE.Line | null;
   hand: HandState | null;
   kick: number;
+  kickScale: number;
   /** Where it was last stashed, in torso space. */
   spot: Pose;
 }
@@ -54,23 +44,24 @@ interface HandState {
   hand: XRHand;
   glove: THREE.Mesh;
   gripping: boolean;
-  gun: Gun | null;
-  hover: Gun | null;
+  item: Carried | null;
+  hover: Carried | null;
 }
 
 const point = new THREE.Vector3();
 const local = new THREE.Vector3();
 
 /**
- * A headset player's guns. Every gun you carry lives somewhere on your body.
+ * A headset player's tools. Every tool you carry lives somewhere on your body.
  * Squeeze a grip near one to take it; let go with your hand on your torso and
  * it stays exactly there, or anywhere else and it goes back to where it was.
  */
 export class Holsters {
   readonly torso: Torso;
-  private readonly guns: Gun[] = [];
+  private readonly items: Carried[] = [];
   private readonly hands: HandState[];
-  private readonly muzzleOut = new THREE.Vector3();
+  private readonly tipOut = new THREE.Vector3();
+  private readonly forwardOut = new THREE.Vector3();
   private readonly laserGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, -30)]);
   private readonly laserMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
   private readonly gloveGeo = new THREE.BoxGeometry(0.075, 0.08, 0.11);
@@ -84,36 +75,45 @@ export class Holsters {
       glove.position.set(0, -0.09, 0.12);
       glove.visible = false;
       hand.object.add(glove);
-      return { hand, glove, gripping: false, gun: null, hover: null };
+      return { hand, glove, gripping: false, item: null, hover: null };
     });
   }
 
-  /** The gun in a hand, or null if it's empty. */
-  held(hand: XRHand): Weapon | null {
-    return this.state(hand).gun?.weapon ?? null;
+  /** The tool in a hand, or null if it's empty. */
+  held(hand: XRHand): Tool | null {
+    return this.state(hand).item?.tool ?? null;
   }
 
-  /** Muzzle of the gun in a hand, in the controller's space. Shared: use it before calling again. */
-  muzzle(hand: XRHand): THREE.Vector3 {
-    const gun = this.state(hand).gun;
-    this.muzzleOut.copy(GUN_IN_HAND);
-    return gun ? this.muzzleOut.add(gunMuzzle(gun.weapon, local)) : this.muzzleOut;
+  /** The tip of the tool in a hand (or the grip, if it's empty), in the controller's space. Shared: use it before calling again. */
+  tip(hand: XRHand): THREE.Vector3 {
+    const item = this.state(hand).item;
+    this.tipOut.copy(GRIP_IN_HAND);
+    return item ? this.tipOut.add(toolTip(item.tool, local)) : this.tipOut;
   }
 
-  recoil(hand: XRHand): void {
-    const gun = this.state(hand).gun;
-    if (gun) gun.kick = 1;
+  /** Which way the tool in a hand points (or the controller, if it's empty), in the controller's space. Shared too. */
+  forward(hand: XRHand): THREE.Vector3 {
+    const item = this.state(hand).item;
+    return item ? toolForward(item.tool, this.forwardOut) : this.forwardOut.copy(FORWARD);
   }
 
-  /** Follow the body, keep a gun on it for everything carried, and handle grabbing and stashing. */
+  /** Kick the tool in a hand back, `kick` times as hard as a pistol. */
+  recoil(hand: XRHand, kick: number): void {
+    const item = this.state(hand).item;
+    if (!item || kick <= 0) return;
+    item.kick = 1;
+    item.kickScale = Math.min(1.6, kick);
+  }
+
+  /** Follow the body, keep a tool on it for everything carried, and handle grabbing and stashing. */
   update(inventory: Inventory): void {
     this.torso.update();
-    for (let w = 0; w < WEAPONS.length; w++) this.carry(w, inventory.count(w));
+    for (const tool of inventory.tools.all) this.carry(tool, inventory.count(tool));
 
     for (const h of this.hands) {
       if (!h.hand.connected) continue;
       const gripping = h.hand.squeeze > (h.gripping ? GRIP_OFF : GRIP_ON);
-      if (h.gun) {
+      if (h.item) {
         if (!gripping) this.stash(h);
       } else {
         const near = this.reachable(h);
@@ -125,9 +125,9 @@ export class Holsters {
     }
   }
 
-  /** Take the body, guns and gloves back off the rig. */
+  /** Take the body, tools and gloves back off the rig. */
   dispose(): void {
-    for (const gun of this.guns) gun.group.removeFromParent(); // including any in a hand
+    for (const item of this.items) item.group.removeFromParent(); // including any in a hand
     for (const h of this.hands) h.glove.removeFromParent();
     this.torso.dispose();
     this.laserGeo.dispose();
@@ -142,13 +142,13 @@ export class Holsters {
     const decay = Math.exp(-dt * 14);
     for (const h of this.hands) {
       h.glove.visible = visible && h.hand.connected;
-      const gun = h.gun;
-      if (!gun) continue;
-      gun.group.visible = visible && h.hand.connected;
-      const k = Math.min(1.6, weaponSpec(gun.weapon).kick);
-      gun.kick *= decay;
-      gun.group.rotation.x = gun.kick * 0.5 * k;
-      gun.group.position.z = GUN_IN_HAND.z + gun.kick * 0.03 * k;
+      const item = h.item;
+      if (!item) continue;
+      item.group.visible = visible && h.hand.connected;
+      const k = item.kickScale;
+      item.kick *= decay;
+      item.group.rotation.x = item.kick * 0.5 * k;
+      item.group.position.z = GRIP_IN_HAND.z + item.kick * 0.03 * k;
     }
   }
 
@@ -157,105 +157,102 @@ export class Holsters {
   }
 
   private gripPoint(h: HandState): THREE.Vector3 {
-    return h.hand.object.localToWorld(point.copy(GUN_IN_HAND));
+    return h.hand.object.localToWorld(point.copy(GRIP_IN_HAND));
   }
 
-  /** The stashed gun nearest the hand, if any is within reach. */
-  private reachable(h: HandState): Gun | null {
+  /** The stashed tool nearest the hand, if any is within reach. */
+  private reachable(h: HandState): Carried | null {
     const p = this.gripPoint(h);
-    let best: Gun | null = null;
+    let best: Carried | null = null;
     let bestD = REACH;
-    for (const gun of this.guns) {
-      if (gun.hand) continue;
-      const d = gun.box.distanceToPoint(gun.group.worldToLocal(local.copy(p)));
+    for (const item of this.items) {
+      if (item.hand) continue;
+      const mesh = toolMesh(item.group);
+      const d = mesh.geometry.boundingBox!.distanceToPoint(mesh.worldToLocal(local.copy(p)));
       if (d < bestD) {
         bestD = d;
-        best = gun;
+        best = item;
       }
     }
     return best;
   }
 
-  private grab(h: HandState, gun: Gun): void {
-    gun.hand = h;
-    h.gun = gun;
+  private grab(h: HandState, item: Carried): void {
+    item.hand = h;
+    h.item = item;
     h.hover = null;
-    h.hand.object.add(gun.group);
-    gun.group.position.copy(GUN_IN_HAND);
-    gun.group.quaternion.identity();
-    gun.laser.visible = true;
+    h.hand.object.add(item.group);
+    item.group.position.copy(GRIP_IN_HAND);
+    item.group.quaternion.identity();
+    if (item.laser) item.laser.visible = true;
     h.hand.pulse(0.6, 40);
   }
 
   private stash(h: HandState): void {
-    const gun = h.gun!;
-    h.gun = null;
-    gun.hand = null;
-    gun.kick = 0;
-    gun.laser.visible = false;
-    gun.group.visible = true;
-    gun.group.position.copy(GUN_IN_HAND);
-    gun.group.quaternion.identity();
+    const item = h.item!;
+    h.item = null;
+    item.hand = null;
+    item.kick = 0;
+    if (item.laser) item.laser.visible = false;
+    item.group.visible = true;
+    item.group.position.copy(GRIP_IN_HAND);
+    item.group.quaternion.identity();
     if (this.torso.contains(this.gripPoint(h))) {
       // stays exactly where you let go of it
-      this.torso.object.attach(gun.group);
-      gun.spot.position.copy(gun.group.position);
-      gun.spot.quaternion.copy(gun.group.quaternion);
+      this.torso.object.attach(item.group);
+      item.spot.position.copy(item.group.position);
+      item.spot.quaternion.copy(item.group.quaternion);
       h.hand.pulse(0.4, 30);
     } else {
-      this.putBack(gun);
+      this.putBack(item);
     }
   }
 
-  private putBack(gun: Gun): void {
-    this.torso.object.add(gun.group);
-    gun.group.position.copy(gun.spot.position);
-    gun.group.quaternion.copy(gun.spot.quaternion);
+  private putBack(item: Carried): void {
+    this.torso.object.add(item.group);
+    item.group.position.copy(item.spot.position);
+    item.group.quaternion.copy(item.spot.quaternion);
   }
 
-  /** Add or remove guns of a kind to match the inventory, dropping stashed ones before held ones. */
-  private carry(weapon: Weapon, want: number): void {
+  /** Add or remove tools of a kind to match the inventory, dropping stashed ones before held ones. */
+  private carry(tool: Tool, want: number): void {
     let have = 0;
-    for (const g of this.guns) if (g.weapon === weapon) have++;
+    for (const item of this.items) if (item.tool === tool) have++;
     for (const heldToo of [false, true]) {
-      for (let i = this.guns.length - 1; i >= 0 && have > want; i--) {
-        const g = this.guns[i];
-        if (g.weapon !== weapon || (g.hand && !heldToo)) continue;
-        this.remove(g);
+      for (let i = this.items.length - 1; i >= 0 && have > want; i--) {
+        const item = this.items[i];
+        if (item.tool !== tool || (item.hand && !heldToo)) continue;
+        this.remove(item);
         have--;
       }
     }
-    for (; have < Math.min(want, MAX_OF_A_KIND); have++) {
-      const firstTaken = this.guns.some((g) => g.weapon === weapon && g.index === 0);
-      this.add(weapon, firstTaken ? 1 : 0);
+    for (; have < Math.min(want, tool.max); have++) {
+      let index = 0;
+      while (this.items.some((item) => item.tool === tool && item.index === index)) index++;
+      this.add(tool, index);
     }
   }
 
-  private add(weapon: Weapon, index: number): void {
-    const group = buildGun(weapon);
-    const laser = new THREE.Line(this.laserGeo, this.laserMat);
-    laser.position.copy(gunMuzzle(weapon));
-    laser.visible = false;
-    group.add(laser);
-    const start = STARTING_SPOTS[weapon][index];
-    const gun: Gun = {
-      weapon,
-      index,
-      group,
-      laser,
-      box: (group.children[0] as THREE.Mesh).geometry.boundingBox!,
-      hand: null,
-      kick: 0,
-      spot: { position: start.position.clone(), quaternion: start.quaternion.clone() },
-    };
-    this.guns.push(gun);
-    this.putBack(gun);
+  private add(tool: Tool, index: number): void {
+    const group = buildTool(tool);
+    let laser: THREE.Line | null = null;
+    if (tool.laser) {
+      // in the model's own space, so it leaves the tip whichever way the tool is held
+      laser = new THREE.Line(this.laserGeo, this.laserMat);
+      laser.position.set(tool.grip.tip[0], tool.grip.tip[1], tool.grip.tip[2]);
+      laser.visible = false;
+      toolMesh(group).add(laser);
+    }
+    const start = stashPose(tool.stash[Math.min(index, tool.stash.length - 1)] ?? DEFAULT_SPOT);
+    const item: Carried = { tool, index, group, laser, hand: null, kick: 0, kickScale: 1, spot: start };
+    this.items.push(item);
+    this.putBack(item);
   }
 
-  private remove(gun: Gun): void {
-    if (gun.hand) gun.hand.gun = null;
-    for (const h of this.hands) if (h.hover === gun) h.hover = null;
-    gun.group.removeFromParent();
-    this.guns.splice(this.guns.indexOf(gun), 1);
+  private remove(item: Carried): void {
+    if (item.hand) item.hand.item = null;
+    for (const h of this.hands) if (h.hover === item) h.hover = null;
+    item.group.removeFromParent();
+    this.items.splice(this.items.indexOf(item), 1);
   }
 }

@@ -11,8 +11,8 @@ export interface BulletOptions {
   ignore?: number;
   /** Where the visible tracer starts, when aiming from the eye but shooting from a gun. */
   from?: Vec3;
-  /** For the sound others hear. */
-  weapon?: number;
+  /** The gun's tool id, for the sound others hear. */
+  tool?: number;
   /** Tracer without sound or muzzle flash, for the extra pellets of a shotgun blast. */
   quiet?: boolean;
 }
@@ -142,7 +142,7 @@ export function fireBullet(ctx: GameContext, shooter: NetEntity, o: Vec3, d: Vec
   const impact = hit ? (hit.def === Car ? Impact.Metal : Impact.Flesh) : hitT < opts.range - 0.01 ? Impact.Wall : Impact.None;
   ctx.world.send(
     Shot,
-    { x: from.x, y: from.y, z: from.z, yaw: Math.atan2(ey, ex), pitch: Math.asin(ez / len), dist: len, impact, shooter: shooter.id, weapon: opts.weapon ?? 0, quiet: opts.quiet ?? false },
+    { x: from.x, y: from.y, z: from.z, yaw: Math.atan2(ey, ex), pitch: Math.asin(ez / len), dist: len, impact, shooter: shooter.id, tool: opts.tool ?? 0, quiet: opts.quiet ?? false },
     { to: 'near', x: from.x, y: from.y, radius: 230 },
   );
   if (hit) {

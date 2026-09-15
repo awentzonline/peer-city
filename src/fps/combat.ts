@@ -1,6 +1,7 @@
-import { weaponSpec } from './arsenal';
+import { TOOLS } from './arsenal';
 import { direction, signedAngle, type GameContext } from './context';
 import { Busted, Car, CarKind, CarMode, Damage, DamageCause, Explosion, Feed, Horn, Kill, Ped, PedMode, Pickup, PickupKind, Player, Shot } from './defs';
+import { Gun } from './gun';
 import { PED_RADIUS, moveCircle, panicPeds } from './peds';
 import type { AvatarSim } from './avatar';
 import { wreckCar } from './vehicles';
@@ -25,7 +26,8 @@ export function registerCombat(ctx: GameContext, player: AvatarSim): void {
     ctx.fx.tracer(p.x, p.y, p.z, p.x + dir.x * p.dist, p.y + dir.y * p.dist, p.z + dir.z * p.dist, p.impact);
     if (p.quiet) return;
     ctx.fx.muzzle(p.x, p.y, p.z);
-    ctx.sfx.play(weaponSpec(p.weapon).sound, p);
+    const gun = TOOLS.get(p.tool);
+    ctx.sfx.play(gun instanceof Gun ? gun.sound : 'shot', p);
     panicPeds(ctx, p.x, p.y, 40);
   });
 

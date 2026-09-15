@@ -1,14 +1,16 @@
-import { Inventory, NO_WEAPON, Weapon, weaponSpec } from './arsenal';
+import { TOOLS } from './arsenal';
 import { angleDiff, clamp, direction, type CarEntity, type GameContext, type PedEntity, type PickupEntity, type PlayerEntity, type Vec3 } from './context';
 import { Car, CarKind, CarMode, Feed, Horn, Ped, PedMode, Pickup, PickupKind, Player } from './defs';
+import { HeldTool } from './heldTool';
 import { Side, type AvatarIntent, type HandIntent, type TrackedHead } from './intent';
+import { Inventory } from './inventory';
 import { moveCircle } from './peds';
 import { Platform } from './platform';
-import { CUFF_RANGE, isPoliceUnit, spawnOfficer } from './police';
+import { CUFF_RANGE, spawnOfficer } from './police';
 import type { Frontend, Role } from './role';
 import { PED_SKINS, carExtents, carSpec } from './specs';
+import { NO_TOOL, type DropReason, type Tool, type Toolbox, type UseEffect } from './tool';
 import { driveCar } from './vehicles';
-import { fireBullet, scatter } from './weapons';
 
 const WALK = 4.2;
 const RUN = 7.2;
@@ -22,7 +24,12 @@ const TRACKED_SPEED = 7;
 const TRACKED_ACCEL = 6;
 const TRACKED_BRAKE = 12;
 
-export type ShotResult = 'miss' | 'body' | 'head';
+function copy(out: Vec3, p: Vec3): Vec3 {
+  out.x = p.x;
+  out.y = p.y;
+  out.z = p.z;
+  return out;
+}
 
 /**
  * How the avatar's rules reach back to the device playing it. `AvatarSim` calls these and each platform
@@ -38,8 +45,8 @@ export interface AvatarBody {
   /** Sat down in a driver's seat. */
   seated(): void;
   hurt(amount: number): void;
-  /** A shot left the gun in a hand, or the crosshair gun (`side` null). */
-  fired(side: Side | null, weapon: Weapon, result: ShotResult): void;
+  /** The tool in a hand, or the crosshair tool (`side` null), was used: recoil, haptics, hit markers. */
+  used(side: Side | null, tool: Tool, effect: UseEffect): void;
   died(): void;
 }
 
@@ -49,10 +56,10 @@ export interface AvatarFrontend extends Frontend<AvatarIntent>, AvatarBody {
   readonly showSelf: boolean;
 }
 
-const NO_BODY: AvatarBody = { platform: Platform.Desktop, moved() {}, placed() {}, seated() {}, hurt() {}, fired() {}, died() {} };
+const NO_BODY: AvatarBody = { platform: Platform.Desktop, moved() {}, placed() {}, seated() {}, hurt() {}, used() {}, died() {} };
 
 /**
- * The avatar role: the local player's `Player` on foot and driving, shooting, pickups, wanted level,
+ * The avatar role: the local player's `Player` on foot and driving, using tools, pickups, wanted level,
  * death and arrest. It only sees `AvatarIntent`s and talks back through `body`, so the same rules serve
  * every platform and run headless in tests.
  *
@@ -71,9 +78,9 @@ export class AvatarSim implements Role<AvatarIntent, AvatarFrontend> {
   nearCar: CarEntity | undefined;
   /** An officer has hold of you this frame. */
   cuffed = false;
-  readonly inventory = new Inventory();
-  /** When each hand, by `Side`, can fire next. The crosshair gun is the right hand's. */
-  private readonly nextShot = [0, 0];
+  readonly inventory: Inventory;
+  /** What each hand, by `Side`, is holding. The crosshair tool is the right hand's. */
+  private readonly hands: [HeldTool, HeldTool];
   private respawnAt = 0;
   private arrestedUntil = 0;
   private lastCrime = 0;
@@ -87,14 +94,17 @@ export class AvatarSim implements Role<AvatarIntent, AvatarFrontend> {
    */
   private readonly carried = { x: 0, y: 0 };
   private posesStale = false;
-  private readonly muzzle: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly aim: Vec3 = { x: 0, y: 0, z: 0 };
-  private readonly eye: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly grip: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly moveVel = { x: 0, y: 0 };
-  private readonly pellet: Vec3 = { x: 0, y: 0, z: 0 };
 
-  constructor(private readonly ctx: GameContext) {}
+  constructor(
+    readonly ctx: GameContext,
+    tools: Toolbox = TOOLS,
+  ) {
+    this.inventory = new Inventory(tools);
+    this.hands = [new HeldTool(this), new HeldTool(this)];
+  }
 
   attach(body: AvatarBody): void {
     this.body = body;
@@ -193,8 +203,8 @@ export class AvatarSim implements Role<AvatarIntent, AvatarFrontend> {
       this.collectPickups();
     }
 
-    if (intent.hands) this.fireHands(intent.hands);
-    else this.fireCrosshair(intent);
+    if (intent.hands) this.useHands(intent.hands, dt);
+    else this.useCrosshair(intent, dt);
 
     // wanted level cools off without fresh crimes
     if (s.wanted > 0 && now - this.lastCrime > 20000) {
@@ -364,49 +374,66 @@ export class AvatarSim implements Role<AvatarIntent, AvatarFrontend> {
     return out;
   }
 
-  /** One selected gun, fired from the eyes through the middle of the view, with the gun hand held out in front. */
-  private fireCrosshair(intent: AvatarIntent): void {
-    const { ctx, inventory: inv } = this;
+  /** The selected tool, used from the eyes through the middle of the view, with its hand held out in front. */
+  private useCrosshair(intent: AvatarIntent, dt: number): void {
+    const { inventory: inv } = this;
     const s = this.me!.state;
     const before = inv.current;
-    if (intent.cycleWeapon) inv.cycle(intent.cycleWeapon > 0 ? 1 : -1);
-    if (intent.selectWeapon !== null) inv.select(intent.selectWeapon);
-    if (inv.current !== before) ctx.sfx.play('empty');
+    if (intent.cycleTool) inv.cycle(intent.cycleTool > 0 ? 1 : -1);
+    if (intent.selectTool) inv.select(intent.selectTool);
+    if (inv.current !== before) this.ctx.sfx.play('empty');
 
     const heading = intent.head?.heading ?? this.heading;
     direction(heading, intent.head?.pitch ?? this.pitch, this.aim);
     const c = Math.cos(heading);
     const sn = Math.sin(heading);
-    this.muzzle.x = s.x + c * 0.45 - sn * 0.22;
-    this.muzzle.y = s.y + sn * 0.45 + c * 0.22;
-    this.muzzle.z = s.z + EYE - 0.3;
-    this.setHandFields(this.muzzle, this.aim, Side.Right);
-    if (intent.fire && ctx.now >= this.nextShot[Side.Right]) {
-      this.nextShot[Side.Right] = ctx.now + weaponSpec(inv.current).fireMs;
-      this.fire(this.eyePosition(this.eye), this.aim, intent.tracerFrom ?? undefined, null, inv.current);
-    }
-    s.weapon = inv.current;
-    s.lweapon = NO_WEAPON;
+    this.grip.x = s.x + c * 0.45 - sn * 0.22;
+    this.grip.y = s.y + sn * 0.45 + c * 0.22;
+    this.grip.z = s.z + EYE - 0.3;
+    this.setHandFields(this.grip, this.aim, Side.Right);
+
+    this.hands[Side.Left].hold(null);
+    const hand = this.hands[Side.Right];
+    hand.side = null;
+    hand.hold(inv.current);
+    this.eyePosition(hand.origin);
+    copy(hand.aim, this.aim);
+    copy(hand.tip, intent.tip ?? hand.origin);
+    hand.update(intent.trigger, dt);
+    s.tool = inv.current?.id ?? NO_TOOL;
+    s.ltool = NO_TOOL;
   }
 
-  /** Each tracked hand fires whatever it holds, wherever it points. Both replicate, holding a gun or not. */
-  private fireHands(hands: [HandIntent, HandIntent]): void {
-    const { ctx } = this;
+  /** Each tracked hand uses whatever tool it holds, wherever it points. Both replicate, holding one or not. */
+  private useHands(hands: [HandIntent, HandIntent], dt: number): void {
     const s = this.me!.state;
     for (const side of [Side.Left, Side.Right]) {
-      const hand = hands[side];
-      if (!hand.tracked || this.posesStale) continue;
-      this.setHandFields(this.carry(hand.grip, this.grip), hand.aim, side);
-      const weapon = hand.weapon;
-      if (weapon === null || !hand.trigger || ctx.now < this.nextShot[side]) continue;
-      this.nextShot[side] = ctx.now + weaponSpec(weapon).fireMs;
-      this.fire(this.carry(hand.muzzle, this.muzzle), hand.aim, undefined, side, weapon);
+      const intent = hands[side];
+      const hand = this.hands[side];
+      hand.side = side;
+      hand.hold(intent.tool);
+      if (!intent.tracked || this.posesStale) continue;
+      this.setHandFields(this.carry(intent.grip, this.grip), intent.pointing, side);
+      this.carry(intent.tip, hand.origin);
+      copy(hand.aim, intent.aim);
+      copy(hand.tip, hand.origin);
+      hand.update(intent.trigger, dt);
     }
-    const right = hands[Side.Right].weapon;
-    const left = hands[Side.Left].weapon;
-    s.weapon = right ?? NO_WEAPON;
-    s.lweapon = left ?? NO_WEAPON;
-    this.inventory.current = right ?? left ?? Weapon.Pistol; // what you'd drop if you died now
+    const right = hands[Side.Right].tool;
+    const left = hands[Side.Left].tool;
+    s.tool = right?.id ?? NO_TOOL;
+    s.ltool = left?.id ?? NO_TOOL;
+    this.inventory.current = right ?? left ?? this.inventory.fallback; // what you'd drop if you died now
+  }
+
+  /** Use up charges of a tool. Running out takes the kind away. */
+  spend(tool: Tool, n = 1): void {
+    if (this.inventory.spend(tool, n)) this.drop(tool, 'spent', 0);
+  }
+
+  private drop(tool: Tool, reason: DropReason, charges: number, dx = 0): void {
+    const s = this.me!.state;
+    tool.onDrop(this, { reason, charges, x: s.x + dx, y: s.y });
   }
 
   /** A point read from the device before this frame's moves, moved along with the avatar. */
@@ -417,36 +444,7 @@ export class AvatarSim implements Role<AvatarIntent, AvatarFrontend> {
     return out;
   }
 
-  private fire(origin: Vec3, aim: Vec3, from: Vec3 | undefined, side: Side | null, weapon: Weapon): void {
-    const { ctx } = this;
-    const me = this.me!;
-    const spec = weaponSpec(weapon);
-    let hitSomething = false;
-    let head = false;
-    let hitPolice = false;
-    for (let i = 0; i < spec.pellets; i++) {
-      const hit = fireBullet(ctx, me, origin, spec.spread ? scatter(aim, spec.spread, this.pellet) : aim, {
-        range: spec.range,
-        ignore: me.state.car || undefined,
-        from,
-        weapon,
-        quiet: i > 0,
-        damage: (e, isHead) => (e.def === Car ? spec.car : isHead ? spec.head : spec.body),
-      });
-      if (!hit.entity) continue;
-      hitSomething = true;
-      head ||= hit.head;
-      hitPolice ||= isPoliceUnit(hit.entity);
-    }
-    this.inventory.consume(weapon);
-    this.body.fired(side, weapon, !hitSomething ? 'miss' : head ? 'head' : 'body');
-    if (hitSomething) ctx.sfx.play(head ? 'headshot' : 'hit');
-    // shooting at police is 2 stars; shooting anywhere near them is 1
-    if (hitPolice) this.raiseWanted(2);
-    else if (ctx.world.query(me.state.x, me.state.y, 65).some(isPoliceUnit)) this.raiseWanted(1);
-  }
-
-  /** Replicate where a hand is and where it points, so others see it and the gun in it. */
+  /** Replicate where a hand is and where it points, so others see it and the tool in it. */
   private setHandFields(pos: Vec3, aim: Vec3, side: Side): void {
     const s = this.me!.state;
     const x = clamp(pos.x - s.x, -1.5, 1.5);
@@ -577,8 +575,11 @@ export class AvatarSim implements Role<AvatarIntent, AvatarFrontend> {
     const me = this.me!;
     for (const pk of ctx.world.query(me.state.x, me.state.y, 1.3, Pickup)) {
       if (this.collecting.has(pk.id)) continue;
-      // leave guns you can't carry more ammo for
-      if (pk.state.kind === PickupKind.Weapon && !this.inventory.wants(pk.state.weapon)) continue;
+      // leave tools you have no room for, or for more of their charges
+      if (pk.state.kind === PickupKind.Tool) {
+        const tool = this.inventory.tools.get(pk.state.tool);
+        if (!tool || !this.inventory.wants(tool)) continue;
+      }
       this.collecting.add(pk.id);
       // Ownership doubles as a lock: only one player can win the pickup.
       void ctx.world.requestOwnership(pk).then((ok) => {
@@ -592,15 +593,12 @@ export class AvatarSim implements Role<AvatarIntent, AvatarFrontend> {
 
   private applyPickup(pk: PickupEntity): void {
     const s = this.me!.state;
-    const { kind, amount, weapon } = pk.state;
+    const { kind, amount } = pk.state;
     if (kind === PickupKind.Cash) {
       s.cash += amount;
-    } else if (kind === PickupKind.Weapon) {
-      const { name } = weaponSpec(weapon);
-      const had = this.inventory.count(weapon);
-      const got = this.inventory.add(weapon, amount);
-      if (got.gun) this.ctx.hud.message(had ? `Picked up a second ${name}` : `Picked up the ${name}`);
-      else if (got.rounds) this.ctx.hud.message(`+${got.rounds} ${name} ammo`);
+    } else if (kind === PickupKind.Tool) {
+      const tool = this.inventory.tools.get(pk.state.tool);
+      if (tool) tool.onPickup(this, this.inventory.add(tool, amount));
     } else {
       s.hp = Math.min(100, s.hp + amount);
     }
@@ -615,7 +613,7 @@ export class AvatarSim implements Role<AvatarIntent, AvatarFrontend> {
   }
 
   /** Raise the wanted level to at least `level` and restart the cool-off. */
-  private raiseWanted(level: number): void {
+  raiseWanted(level: number): void {
     const s = this.me!.state;
     s.wanted = Math.max(s.wanted, level);
     this.lastCrime = this.ctx.now;
@@ -631,10 +629,10 @@ export class AvatarSim implements Role<AvatarIntent, AvatarFrontend> {
     this.body.died();
     ctx.hud.showBanner('WASTED', '#e53935', 4000);
     ctx.sfx.play('wasted');
-    // the gun in your hand falls where you died; the rest of your arsenal is lost
-    const gun = this.inventory.takeCurrent();
-    this.inventory.clear();
-    if (gun) ctx.world.spawn(Pickup, { x: me.state.x - 1, y: me.state.y, kind: PickupKind.Weapon, weapon: gun.weapon, amount: gun.ammo });
+    // the tool in your hand falls where you died; the rest of your things are lost
+    const held = this.inventory.takeCurrent();
+    for (const lost of this.inventory.clear()) this.drop(lost.tool, 'lost', lost.charges);
+    if (held) this.drop(held.tool, 'dropped', held.charges, -1);
     const dropped = Math.floor(me.state.cash * 0.25);
     if (dropped > 0) {
       me.state.cash -= dropped;
@@ -657,7 +655,7 @@ export class AvatarSim implements Role<AvatarIntent, AvatarFrontend> {
     ctx.hud.showBanner('BUSTED', '#4fc3ff', ARREST_MS);
     ctx.sfx.play('busted');
     me.state.cash = Math.floor(me.state.cash / 2);
-    this.inventory.clear(); // confiscated
+    for (const lost of this.inventory.clear()) this.drop(lost.tool, 'lost', lost.charges); // confiscated
     me.state.wanted = 0; // every officer on the case stands down
     ctx.world.send(Feed, { text: `${me.state.name} got busted` }, { to: 'all' });
   }

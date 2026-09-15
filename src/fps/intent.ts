@@ -1,7 +1,7 @@
-import type { Weapon } from './arsenal';
 import type { Vec3 } from './context';
+import type { Tool } from './tool';
 
-/** A hand's index in `AvatarIntent.hands`. In replicated state the right hand holds `weapon`, the left `lweapon`. */
+/** A hand's index in `AvatarIntent.hands`. In replicated state the right hand holds `tool`, the left `ltool`. */
 export const enum Side {
   Right = 0,
   Left = 1,
@@ -17,14 +17,17 @@ export interface TrackedHead extends Vec3 {
 export interface HandIntent {
   /** A controller is tracking this hand. An untracked hand keeps its last replicated pose. */
   tracked: boolean;
-  /** World position of the grip. */
+  /** World position of the grip, and the unit direction the hand points. */
   grip: Vec3;
-  /** Unit direction the hand points. */
+  pointing: Vec3;
+  /**
+   * World position of the tip of the tool in the hand, and the unit direction the tool points. They
+   * differ from the grip's by how the tool sits in the hand (`Tool.grip`). An empty hand's are the grip's.
+   */
+  tip: Vec3;
   aim: Vec3;
-  /** World position of the muzzle of the gun in the hand. */
-  muzzle: Vec3;
-  /** The gun in the hand, or null. The device decides, e.g. by grabbing one out of a holster. */
-  weapon: Weapon | null;
+  /** The tool in the hand, or null. The device decides, e.g. by grabbing one out of a holster. */
+  tool: Tool | null;
   trigger: boolean;
 }
 
@@ -42,8 +45,8 @@ export interface AvatarIntent {
   turn: number;
   lookUp: number;
   /**
-   * Tracked hands, by `Side`: each fires the gun it holds wherever it points. Null for a crosshair: the
-   * selected gun fires from the eyes through the middle of the view.
+   * Tracked hands, by `Side`: each uses the tool it holds wherever it points. Null for a crosshair: the
+   * selected tool is used from the eyes through the middle of the view.
    */
   hands: [HandIntent, HandIntent] | null;
   /** -1..1 relative to where the head faces. On foot that's walking; in a car, steering and throttle. */
@@ -57,18 +60,18 @@ export interface AvatarIntent {
   /** Get into or out of a car. */
   interact: boolean;
   /** Crosshair trigger. */
-  fire: boolean;
-  /** Where a crosshair shot's tracer appears to leave from (a first-person gun model), or null for the eyes. */
-  tracerFrom: Vec3 | null;
-  /** Crosshair: step through the guns carried (-1, 0 or 1), or take one out. */
-  cycleWeapon: number;
-  selectWeapon: Weapon | null;
+  trigger: boolean;
+  /** Where the crosshair tool's tip is seen (a first-person model), for effects such as tracers, or null for the eyes. */
+  tip: Vec3 | null;
+  /** Crosshair: step through the tools carried (-1, 0 or 1), or take one out. */
+  cycleTool: number;
+  selectTool: Tool | null;
 }
 
 const vec = (): Vec3 => ({ x: 0, y: 0, z: 0 });
 
 export function handIntent(): HandIntent {
-  return { tracked: false, grip: vec(), aim: { x: 1, y: 0, z: 0 }, muzzle: vec(), weapon: null, trigger: false };
+  return { tracked: false, grip: vec(), pointing: { x: 1, y: 0, z: 0 }, tip: vec(), aim: { x: 1, y: 0, z: 0 }, tool: null, trigger: false };
 }
 
 /** Nothing pressed, with a virtual head and a crosshair. Frontends keep one and overwrite it every frame. */
@@ -85,9 +88,9 @@ export function idleIntent(): AvatarIntent {
     brake: false,
     horn: false,
     interact: false,
-    fire: false,
-    tracerFrom: null,
-    cycleWeapon: 0,
-    selectWeapon: null,
+    trigger: false,
+    tip: null,
+    cycleTool: 0,
+    selectTool: null,
   };
 }

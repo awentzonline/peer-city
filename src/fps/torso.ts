@@ -8,7 +8,7 @@ const TWIST = 0.6;
 /** The torso's origin is the base of the neck, this far below and behind the eyes. */
 const NECK_DROP = 0.2;
 const NECK_BACK = 0.1;
-/** Where guns can be stashed, in torso space (+X right, -Z forward): thighs to just above the shoulders, chest to back. */
+/** Where tools can be stashed, in torso space (+X right, -Z forward): thighs to just above the shoulders, chest to back. */
 const ZONE = new THREE.Box3(new THREE.Vector3(-0.32, -0.8, -0.3), new THREE.Vector3(0.32, 0.15, 0.32));
 const v = new THREE.Vector3();
 

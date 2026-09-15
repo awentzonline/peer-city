@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { NO_WEAPON, Weapon } from '../src/fps/arsenal';
-import { AvatarSim, type AvatarBody, type ShotResult } from '../src/fps/avatar';
+import { PISTOL, RIFLE, SMG } from '../src/fps/arsenal';
+import { AvatarSim, type AvatarBody } from '../src/fps/avatar';
 import { City, TILE } from '../src/fps/city';
 import type { GameContext } from '../src/fps/context';
 import { ACTIONS, Car, CarKind, CarMode, ENTITIES } from '../src/fps/defs';
 import { Side, handIntent, idleIntent, type AvatarIntent, type HandIntent, type TrackedHead } from '../src/fps/intent';
 import { Platform } from '../src/fps/platform';
+import { NO_TOOL, type HitResult, type Tool, type UseEffect } from '../src/fps/tool';
 import { Sim } from './harness';
 
 const city = new City(20260914);
@@ -21,7 +22,7 @@ const stub = () => new Proxy({}, { get: () => () => {} });
 class TestBody implements AvatarBody {
   platform = Platform.Vr;
   readonly head: TrackedHead = { x: 0, y: 0, z: 1.7, heading: 0, pitch: 0 };
-  readonly shots: [Side | null, Weapon, ShotResult][] = [];
+  readonly shots: [Side | null, Tool, HitResult | undefined][] = [];
   seats = 0;
   placedAt: { x: number; y: number } | null = null;
 
@@ -42,8 +43,8 @@ class TestBody implements AvatarBody {
 
   hurt(): void {}
 
-  fired(side: Side | null, weapon: Weapon, result: ShotResult): void {
-    this.shots.push([side, weapon, result]);
+  used(side: Side | null, tool: Tool, effect: UseEffect): void {
+    this.shots.push([side, tool, effect.hit]);
   }
 
   died(): void {}
@@ -76,11 +77,11 @@ function setup() {
   return { world, avatar, body, me, s, frames, standAt };
 }
 
-function hand(weapon: Weapon | null, x: number, y: number): HandIntent {
+function hand(tool: Tool | null, x: number, y: number): HandIntent {
   const h = handIntent();
-  Object.assign(h, { tracked: true, weapon, trigger: true, aim: { x: 0, y: 0, z: 1 } });
+  Object.assign(h, { tracked: true, tool, trigger: true, pointing: { x: 0, y: 0, z: 1 }, aim: { x: 0, y: 0, z: 1 } });
   Object.assign(h.grip, { x, y, z: 1.3 });
-  Object.assign(h.muzzle, { x, y, z: 1.5 });
+  Object.assign(h.tip, { x, y, z: 1.5 });
   return h;
 }
 
@@ -157,41 +158,41 @@ describe('AvatarSim', () => {
   it('fires the gun in each tracked hand, spending their shared ammo', () => {
     const { avatar, body, s, frames, standAt } = setup();
     standAt(s.x, s.y);
-    avatar.inventory.add(Weapon.Smg, 30);
-    avatar.inventory.add(Weapon.Smg, 30);
-    const before = avatar.inventory.ammo(Weapon.Smg);
+    avatar.inventory.add(SMG, 30);
+    avatar.inventory.add(SMG, 30);
+    const before = avatar.inventory.charges(SMG);
     const intent = idleIntent();
     intent.head = body.head;
-    intent.hands = [hand(Weapon.Smg, s.x + 0.2, s.y), hand(Weapon.Smg, s.x - 0.2, s.y)];
+    intent.hands = [hand(SMG, s.x + 0.2, s.y), hand(SMG, s.x - 0.2, s.y)];
 
     frames(1, intent);
-    expect(avatar.inventory.ammo(Weapon.Smg)).toBe(before - 2);
+    expect(avatar.inventory.charges(SMG)).toBe(before - 2);
     expect(body.shots).toEqual([
-      [Side.Left, Weapon.Smg, 'miss'],
-      [Side.Right, Weapon.Smg, 'miss'],
+      [Side.Left, SMG, 'miss'],
+      [Side.Right, SMG, 'miss'],
     ]);
-    expect([s.weapon, s.lweapon]).toEqual([Weapon.Smg, Weapon.Smg]);
+    expect([s.tool, s.ltool]).toEqual([SMG.id, SMG.id]);
     expect(s.platform).toBe(Platform.Vr);
 
     // put the left gun away: the right one is what's replicated and what you'd drop
-    intent.hands[Side.Left].weapon = null;
+    intent.hands[Side.Left].tool = null;
     frames(1, intent);
-    expect([s.weapon, s.lweapon]).toEqual([Weapon.Smg, NO_WEAPON]);
-    expect(avatar.inventory.current).toBe(Weapon.Smg);
+    expect([s.tool, s.ltool]).toEqual([SMG.id, NO_TOOL]);
+    expect(avatar.inventory.current).toBe(SMG);
   });
 
   it('switches the crosshair gun and fires it from the eyes', () => {
     const { avatar, body, s, frames } = setup();
     body.platform = Platform.Desktop;
-    avatar.inventory.add(Weapon.Rifle, 30);
-    expect(avatar.inventory.current).toBe(Weapon.Rifle);
+    avatar.inventory.add(RIFLE, 30);
+    expect(avatar.inventory.current).toBe(RIFLE);
     avatar.pitch = 1.4; // at the sky
     const intent = idleIntent();
-    intent.selectWeapon = Weapon.Pistol;
-    intent.fire = true;
+    intent.selectTool = PISTOL;
+    intent.trigger = true;
     frames(1, intent);
-    expect(body.shots).toEqual([[null, Weapon.Pistol, 'miss']]);
-    expect([s.weapon, s.lweapon]).toEqual([Weapon.Pistol, NO_WEAPON]);
+    expect(body.shots).toEqual([[null, PISTOL, 'miss']]);
+    expect([s.tool, s.ltool]).toEqual([PISTOL.id, NO_TOOL]);
     expect(s.platform).toBe(Platform.Desktop);
   });
 

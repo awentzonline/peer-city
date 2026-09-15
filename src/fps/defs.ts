@@ -15,7 +15,7 @@ export const Player = defineEntity({
     yaw: t.angle(10), // where the head faces
     pitch: t.angle(10),
     head: t.fixed(0.02, 1.65), // head height above the feet (VR players crouch for real)
-    hx: t.fixed(0.02), // right hand (the gun hand on desktop) relative to the feet, world axes
+    hx: t.fixed(0.02), // right hand (the crosshair tool's hand on desktop) relative to the feet, world axes
     hy: t.fixed(0.02),
     hz: t.fixed(0.02, 1.35),
     aimYaw: t.angle(10), // where the right hand points
@@ -33,8 +33,8 @@ export const Player = defineEntity({
     cash: t.uint(32),
     kills: t.uint(16),
     platform: t.uint(8), // what it's played on (see platform.ts); headset players' empty hands are tracked too
-    weapon: t.uint(8), // gun in the right hand (see arsenal.ts; 255 = empty)
-    lweapon: t.uint(8, 255), // gun in the left hand
+    tool: t.uint(8), // tool in the right hand, by id in TOOLS (see arsenal.ts; 255 = empty)
+    ltool: t.uint(8, 255), // tool in the left hand
   },
   priority: 3,
   snapDistance: 20,
@@ -112,12 +112,12 @@ export const Ped = defineEntity({
 export const enum PickupKind {
   Cash = 0,
   Health = 1,
-  Weapon = 2, // `weapon`, with `amount` rounds
+  Tool = 2, // `tool` (an id in TOOLS), with `amount` charges
 }
 
 export const Pickup = defineEntity({
   name: 'pickup',
-  fields: { x: t.fixed(0.05), y: t.fixed(0.05), kind: t.uint(8), amount: t.uint(16), weapon: t.uint(8) },
+  fields: { x: t.fixed(0.05), y: t.fixed(0.05), kind: t.uint(8), amount: t.uint(16), tool: t.uint(8) },
   migratable: true,
   cullDistance: 210,
   interpolate: [],
@@ -144,7 +144,7 @@ export const Shot = defineAction('shot', {
   dist: t.fixed(0.05),
   impact: t.uint(8),
   shooter: t.ref(),
-  weapon: t.uint(8),
+  tool: t.uint(8), // the gun's tool id, for its sound
   quiet: t.bool(), // extra shotgun pellets: tracer only
 });
 

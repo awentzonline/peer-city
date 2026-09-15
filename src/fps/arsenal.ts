@@ -1,240 +1,113 @@
-import type { AssetName } from './assets';
-import type { SoundName } from './sfx';
+import { Gun } from './gun';
+import { Toolbox } from './tool';
 
-/** Weapons, in slot order (number keys 1-5). Replicated as a uint8 on players, pickups and shots. */
-export const enum Weapon {
-  Pistol = 0,
-  Smg = 1,
-  Shotgun = 2,
-  Rifle = 3,
-  Sniper = 4,
-}
+const DOWN = -Math.PI / 2;
+const UP = Math.PI / 2;
+/** For models exported with their barrel pointing +Z. */
+const BACKWARDS = [0, Math.PI, 0] as const;
 
-/** Replicated in place of a weapon when a headset player's hands are empty. */
-export const NO_WEAPON = 255;
-
-export interface WeaponSpec {
-  name: string;
-  asset: AssetName;
-  /** Which way the barrel points down the model's Z axis once exported to glTF. */
-  barrel: 1 | -1;
-  /** Overall length in meters. */
-  length: number;
-  /** Where the hand holds it: the muzzle is this far forward and up of the grip, in meters. */
-  muzzle: { forward: number; up: number };
-  fireMs: number;
-  range: number;
-  body: number;
-  head: number;
-  car: number;
-  /** Bullets per shot, fanned out within `spread` radians. */
-  pellets: number;
-  spread: number;
-  /** Rounds in a pickup, and the most you can carry. Pistol ammo is unlimited. */
-  ammo: number;
-  maxAmmo: number;
-  /** Recoil strength, 1 = pistol. */
-  kick: number;
-  sound: SoundName;
-  /** Pickup glow and minimap colour. */
-  color: number;
-}
-
-export const WEAPONS: readonly WeaponSpec[] = [
-  {
-    name: 'Pistol',
-    asset: 'pistol',
-    barrel: 1,
-    length: 0.2,
-    muzzle: { forward: 0.2, up: 0.025 },
-    fireMs: 160,
-    range: 160,
-    body: 22,
-    head: 60,
-    car: 8,
-    pellets: 1,
-    spread: 0,
-    ammo: 0,
-    maxAmmo: 0,
-    kick: 1,
-    sound: 'shot',
-    color: 0xffffff,
-  },
-  {
-    name: 'SMG',
-    asset: 'smg',
-    barrel: -1,
-    length: 0.62,
-    muzzle: { forward: 0.36, up: 0.04 },
-    fireMs: 80,
-    range: 110,
-    body: 14,
-    head: 35,
-    car: 5,
-    pellets: 1,
-    spread: 0.035,
-    ammo: 120,
-    maxAmmo: 360,
-    kick: 0.6,
-    sound: 'rifle',
-    color: 0x4fc3ff,
-  },
-  {
-    name: 'Shotgun',
-    asset: 'shotgun',
-    barrel: -1,
-    length: 0.75,
-    muzzle: { forward: 0.55, up: 0.05 },
-    fireMs: 850,
-    range: 45,
-    body: 14,
-    head: 30,
-    car: 5,
-    pellets: 8,
-    spread: 0.09,
-    ammo: 16,
-    maxAmmo: 48,
-    kick: 2.2,
-    sound: 'shotgun',
-    color: 0xff9f43,
-  },
-  {
-    name: 'Assault Rifle',
-    asset: 'rifle',
-    barrel: -1,
-    length: 0.88,
-    muzzle: { forward: 0.62, up: 0.05 },
-    fireMs: 110,
-    range: 200,
-    body: 26,
-    head: 70,
-    car: 10,
-    pellets: 1,
-    spread: 0.012,
-    ammo: 90,
-    maxAmmo: 270,
-    kick: 0.9,
-    sound: 'rifle',
-    color: 0xff5252,
-  },
-  {
-    name: 'Sniper Rifle',
-    asset: 'sniper',
-    barrel: -1,
-    length: 1.1,
-    muzzle: { forward: 0.78, up: 0.05 },
-    fireMs: 1200,
-    range: 400,
-    body: 90,
-    head: 250,
-    car: 35,
-    pellets: 1,
-    spread: 0,
-    ammo: 10,
-    maxAmmo: 30,
-    kick: 2.5,
-    sound: 'sniper',
-    color: 0xb388ff,
-  },
-];
-
-export function weaponSpec(w: number): WeaponSpec {
-  return WEAPONS[w] ?? WEAPONS[Weapon.Pistol];
-}
-
-/** Most guns of one kind you can carry: one for each hand. */
-export const MAX_OF_A_KIND = 2;
-
-/**
- * The guns a player is carrying and their ammo. Everyone has a pair of pistols
- * that never run dry. Other guns come in ones or twos, and guns of a kind
- * share their ammo (on desktop you only ever hold one of them).
+/*
+ * Peer City's tools, in slot order (number keys). Stashes: pistols on the hips, SMGs down the chest, long
+ * guns crossed on the back.
  */
-export class Inventory {
-  current: Weapon = Weapon.Pistol;
-  private readonly guns = new Map<Weapon, number>();
-  private readonly rounds = new Map<Weapon, number>();
 
-  has(w: Weapon): boolean {
-    return this.count(w) > 0;
-  }
+export const PISTOL = new Gun({
+  name: 'Pistol',
+  model: { asset: 'pistol', orient: BACKWARDS, length: 0.2 },
+  grip: { tip: [0, 0.025, -0.2] },
+  stash: [
+    { at: [0.22, -0.5, -0.05], pitch: DOWN },
+    { at: [-0.22, -0.5, -0.05], pitch: DOWN },
+  ],
+  color: 0xffffff,
+  issued: 2,
+  cooldownMs: 160,
+  range: 160,
+  body: 22,
+  head: 60,
+  car: 8,
+  kick: 1,
+  sound: 'shot',
+});
 
-  /** How many guns of a kind you carry. */
-  count(w: Weapon): number {
-    return w === Weapon.Pistol ? MAX_OF_A_KIND : (this.guns.get(w) ?? 0);
-  }
+export const SMG = new Gun({
+  name: 'SMG',
+  model: { asset: 'smg', length: 0.62 },
+  grip: { tip: [0, 0.04, -0.36] },
+  stash: [
+    { at: [0.14, -0.3, -0.16], pitch: DOWN },
+    { at: [-0.14, -0.3, -0.16], pitch: DOWN },
+  ],
+  color: 0x4fc3ff,
+  charges: { pickup: 120, max: 360 },
+  cooldownMs: 80,
+  range: 110,
+  body: 14,
+  head: 35,
+  car: 5,
+  spread: 0.035,
+  kick: 0.6,
+  sound: 'rifle',
+});
 
-  /** Rounds shared by the guns of a kind. */
-  ammo(w: Weapon = this.current): number {
-    return w === Weapon.Pistol ? Infinity : (this.rounds.get(w) ?? 0);
-  }
+export const SHOTGUN = new Gun({
+  name: 'Shotgun',
+  model: { asset: 'shotgun', length: 0.75 },
+  grip: { tip: [0, 0.05, -0.55] },
+  stash: [
+    { at: [0.1, -0.5, 0.27], pitch: UP, roll: -0.2 },
+    { at: [-0.1, -0.5, 0.27], pitch: UP, roll: 0.2 },
+  ],
+  color: 0xff9f43,
+  charges: { pickup: 16, max: 48 },
+  cooldownMs: 850,
+  range: 45,
+  body: 14,
+  head: 30,
+  car: 5,
+  pellets: 8,
+  spread: 0.09,
+  kick: 2.2,
+  sound: 'shotgun',
+});
 
-  /** Whether picking up this gun would add anything: room for another, or for its ammo. */
-  wants(w: Weapon): boolean {
-    if (w === Weapon.Pistol || !WEAPONS[w]) return false;
-    return this.count(w) < MAX_OF_A_KIND || this.ammo(w) < WEAPONS[w].maxAmmo;
-  }
+export const RIFLE = new Gun({
+  name: 'Assault Rifle',
+  model: { asset: 'rifle', length: 0.88 },
+  grip: { tip: [0, 0.05, -0.62] },
+  stash: [
+    { at: [0.08, -0.35, 0.2], pitch: UP, roll: -0.4 },
+    { at: [-0.08, -0.35, 0.2], pitch: UP, roll: 0.4 },
+  ],
+  color: 0xff5252,
+  charges: { pickup: 90, max: 270 },
+  cooldownMs: 110,
+  range: 200,
+  body: 26,
+  head: 70,
+  car: 10,
+  spread: 0.012,
+  kick: 0.9,
+  sound: 'rifle',
+});
 
-  /**
-   * Picks up a gun and its ammo, switching to it if it's a new kind. Says
-   * whether you had room to keep the gun and how many rounds you took.
-   */
-  add(w: Weapon, ammo: number): { gun: boolean; rounds: number } {
-    if (!this.wants(w)) return { gun: false, rounds: 0 };
-    const had = this.count(w);
-    const gun = had < MAX_OF_A_KIND;
-    if (gun) this.guns.set(w, had + 1);
-    const before = this.ammo(w);
-    const total = Math.min(WEAPONS[w].maxAmmo, before + Math.max(0, ammo));
-    this.rounds.set(w, total);
-    if (had === 0) this.current = w;
-    return { gun, rounds: total - before };
-  }
+export const SNIPER = new Gun({
+  name: 'Sniper Rifle',
+  model: { asset: 'sniper', length: 1.1 },
+  grip: { tip: [0, 0.05, -0.78] },
+  stash: [
+    { at: [0.1, -0.4, 0.3], pitch: UP, roll: -0.25 },
+    { at: [-0.1, -0.4, 0.3], pitch: UP, roll: 0.25 },
+  ],
+  color: 0xb388ff,
+  charges: { pickup: 10, max: 30 },
+  cooldownMs: 1200,
+  range: 400,
+  body: 90,
+  head: 250,
+  car: 35,
+  kick: 2.5,
+  sound: 'sniper',
+});
 
-  /** Uses one round of `w`. When a kind runs dry its guns are gone; if it was the current one, the pistols come out. */
-  consume(w: Weapon = this.current): void {
-    if (w === Weapon.Pistol || !this.has(w)) return;
-    const left = this.ammo(w) - 1;
-    if (left > 0) {
-      this.rounds.set(w, left);
-      return;
-    }
-    this.rounds.delete(w);
-    this.guns.delete(w);
-    if (this.current === w) this.current = Weapon.Pistol;
-  }
-
-  select(w: Weapon): boolean {
-    if (!this.has(w)) return false;
-    this.current = w;
-    return true;
-  }
-
-  /** Switch to the next (+1) or previous (-1) gun carried. */
-  cycle(dir: 1 | -1): Weapon {
-    const n = WEAPONS.length;
-    for (let i = 1; i < n; i++) {
-      const w = (((this.current + dir * i) % n) + n) % n;
-      if (this.has(w)) return (this.current = w);
-    }
-    return this.current;
-  }
-
-  /** Takes the current kind of gun out of the inventory with all its ammo, e.g. to drop it. Null for pistols. */
-  takeCurrent(): { weapon: Weapon; ammo: number } | null {
-    const w = this.current;
-    if (w === Weapon.Pistol) return null;
-    const ammo = this.ammo(w);
-    this.rounds.delete(w);
-    this.guns.delete(w);
-    this.current = Weapon.Pistol;
-    return { weapon: w, ammo };
-  }
-
-  /** Back to just the pistols. */
-  clear(): void {
-    this.guns.clear();
-    this.rounds.clear();
-    this.current = Weapon.Pistol;
-  }
-}
+export const TOOLS = new Toolbox([PISTOL, SMG, SHOTGUN, RIFLE, SNIPER]);

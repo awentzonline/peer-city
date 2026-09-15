@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { Weapon, weaponSpec, type WeaponSpec } from './arsenal';
 import { assetGeometry } from './assets';
 import { CarKind, PickupKind } from './defs';
 import { CAR_COLORS, carSpec, type HumanLook } from './specs';
 import { labelTexture, radialTexture } from './textures';
+import type { Tool } from './tool';
 
 /**
  * Low-poly procedural models. Parts are vertex-coloured boxes merged into a
@@ -83,40 +83,88 @@ export function blobShadow(sx: number, sz: number): THREE.Mesh {
 }
 
 // ---------------------------------------------------------------------------
-// Guns
+// Tools
 // ---------------------------------------------------------------------------
 
-/** Where bullets leave a gun, in its local space: the hand holds the origin and the barrel points down -Z. */
-export function gunMuzzle(weapon: number, out = new THREE.Vector3()): THREE.Vector3 {
-  const { muzzle } = weaponSpec(weapon);
-  return out.set(0, muzzle.up, -muzzle.forward);
+const EMPTY = new THREE.BufferGeometry();
+const toolGeometries = new WeakMap<Tool, THREE.BufferGeometry>();
+const gripQuaternions = new WeakMap<Tool, THREE.Quaternion>();
+
+/** How a tool is turned in the hand, from its grip angles. Shared: don't change it. */
+export function gripQuaternion(tool: Tool): THREE.Quaternion {
+  let q = gripQuaternions.get(tool);
+  if (!q) {
+    const { pitch, yaw, roll } = tool.grip;
+    q = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, yaw, roll, 'YXZ'));
+    gripQuaternions.set(tool, q);
+  }
+  return q;
 }
 
-function gunGeometry(weapon: number): THREE.BufferGeometry {
-  const spec = weaponSpec(weapon);
-  return cached(`gun:${spec.asset}`, () => fitGun(assetGeometry(spec.asset), spec));
+/** Where a tool's tip is in the hand's space: the grip is the origin and the hand points down -Z. */
+export function toolTip(tool: Tool, out = new THREE.Vector3()): THREE.Vector3 {
+  const [x, y, z] = tool.grip.tip;
+  return out.set(x, y, z).applyQuaternion(gripQuaternion(tool));
 }
 
-export function buildGun(weapon: number): THREE.Group {
-  const g = new THREE.Group();
-  g.add(new THREE.Mesh(gunGeometry(weapon), MAT.solid));
+/** Which way a tool points in the hand's space, as a unit vector. */
+export function toolForward(tool: Tool, out = new THREE.Vector3()): THREE.Vector3 {
+  return out.set(0, 0, -1).applyQuaternion(gripQuaternion(tool));
+}
+
+/** A tool's model fitted to its grip, shared by everything showing the kind. */
+function toolGeometry(tool: Tool): THREE.BufferGeometry {
+  let g = toolGeometries.get(tool);
+  if (!g) {
+    const { asset, build } = tool.model;
+    if (asset) {
+      g = fitTool(assetGeometry(asset), tool);
+    } else {
+      const src = build!();
+      g = fitTool(src, tool);
+      src.dispose();
+    }
+    toolGeometries.set(tool, g);
+  }
   return g;
 }
 
-/** Swap the model in a group made by buildGun (anything added to the group after it stays). */
-export function setGunModel(gun: THREE.Group, weapon: number): void {
-  (gun.children[0] as THREE.Mesh).geometry = gunGeometry(weapon);
+/**
+ * A tool as it's held. The group is the hand: its origin is the grip and it points down -Z, so place and
+ * aim the group. The model inside it (`toolMesh`) is turned by the tool's grip angles. Null leaves it empty.
+ */
+export function buildTool(tool: Tool | null): THREE.Group {
+  const group = new THREE.Group();
+  group.add(new THREE.Mesh(EMPTY, MAT.solid));
+  setToolModel(group, tool);
+  return group;
+}
+
+/** The model in a group made by buildTool. Its space is the tool's own: the grip at the origin, the tip at `grip.tip`. */
+export function toolMesh(group: THREE.Group): THREE.Mesh {
+  return group.children[0] as THREE.Mesh;
+}
+
+/** Swap the tool in a group made by buildTool (anything added to the group after it stays). */
+export function setToolModel(group: THREE.Group, tool: Tool | null): void {
+  const mesh = toolMesh(group);
+  mesh.visible = !!tool;
+  mesh.geometry = tool ? toolGeometry(tool) : EMPTY;
+  if (tool) mesh.quaternion.copy(gripQuaternion(tool));
+  else mesh.quaternion.identity();
 }
 
 /**
- * Fits a weapon-pack model to the game: `length` meters long, barrel down -Z,
- * and the middle of its front face on the muzzle, so the grip lands on the origin.
+ * Fits a model to a tool: turned by `model.orient`, `model.length` meters long,
+ * and the middle of its front face on `grip.tip`, so the grip lands on the origin.
  */
-function fitGun(src: THREE.BufferGeometry, spec: WeaponSpec): THREE.BufferGeometry {
+function fitTool(src: THREE.BufferGeometry, tool: Tool): THREE.BufferGeometry {
+  const { orient, length } = tool.model;
+  const [tx, ty, tz] = tool.grip.tip;
   const g = src.clone();
-  if (spec.barrel > 0) g.rotateY(Math.PI);
+  if (orient) g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(orient[0], orient[1], orient[2])));
   g.computeBoundingBox();
-  const k = spec.length / (g.boundingBox!.max.z - g.boundingBox!.min.z);
+  const k = length / (g.boundingBox!.max.z - g.boundingBox!.min.z);
   g.scale(k, k, k);
   g.computeBoundingBox();
   const { min, max } = g.boundingBox!;
@@ -128,7 +176,7 @@ function fitGun(src: THREE.BufferGeometry, spec: WeaponSpec): THREE.BufferGeomet
     y += pos.getY(i);
     n++;
   }
-  g.translate(-(min.x + max.x) / 2, spec.muzzle.up - y / n, -spec.muzzle.forward - min.z);
+  g.translate(tx - (min.x + max.x) / 2, ty - y / n, tz - min.z);
   g.computeBoundingBox();
   g.computeBoundingSphere();
   return g;
@@ -149,9 +197,9 @@ export interface HumanRig {
   legR: THREE.Group;
   armL: THREE.Group;
   armR: THREE.Group;
-  /** Guns in the right and left hands. */
-  gun: THREE.Group;
-  gunL: THREE.Group;
+  /** Tools in the right and left hands, made by buildTool. */
+  tool: THREE.Group;
+  toolL: THREE.Group;
   shadow: THREE.Mesh;
   label: THREE.Sprite;
 }
@@ -194,9 +242,9 @@ export function buildHuman(look: HumanLook): HumanRig {
   const armL = pivot(arm, 0, HUMAN.shoulder, -HUMAN.shoulderZ);
   const armR = pivot(arm, 0, HUMAN.shoulder, HUMAN.shoulderZ);
 
-  const gun = buildGun(Weapon.Pistol);
-  const gunL = buildGun(Weapon.Pistol);
-  for (const g of [gun, gunL]) {
+  const tool = buildTool(null);
+  const toolL = buildTool(null);
+  for (const g of [tool, toolL]) {
     g.rotation.order = 'YXZ';
     g.visible = false;
     root.add(g);
@@ -208,7 +256,7 @@ export function buildHuman(look: HumanLook): HumanRig {
   label.position.y = 2.2;
   label.visible = false;
   root.add(label);
-  return { root, body, head: headGroup, legL, legR, armL, armR, gun, gunL, shadow, label };
+  return { root, body, head: headGroup, legL, legR, armL, armR, tool, toolL, shadow, label };
 }
 
 export function setLabel(sprite: THREE.Sprite, text: string): void {
@@ -383,10 +431,11 @@ export interface PickupRig {
   spin: THREE.Group;
 }
 
-export function buildPickup(kind: number, weapon: number): PickupRig {
-  const isGun = kind === PickupKind.Weapon;
-  const geo = isGun
-    ? gunGeometry(weapon)
+/** `tool` is the kind of tool in a tool pickup (null if this peer doesn't know it). */
+export function buildPickup(kind: number, tool: Tool | null): PickupRig {
+  const held = kind === PickupKind.Tool ? tool : null;
+  const geo = held
+    ? toolGeometry(held)
     : kind === PickupKind.Cash
       ? cached('cash', () =>
           merge([box(0.42, 0.1, 0.22, 0, -0.05, 0, 0x2e9e4f), box(0.42, 0.1, 0.22, 0.03, 0.05, 0.02, 0x3cbf62), box(0.1, 0.22, 0.24, 0, 0, 0, 0xe8e0b0)]),
@@ -404,14 +453,14 @@ export function buildPickup(kind: number, weapon: number): PickupRig {
   const spin = new THREE.Group();
   spin.position.y = 0.6;
   const mesh = new THREE.Mesh(geo, MAT.solid);
-  // guns are held at the grip; spin them about their middle
-  if (isGun) geo.boundingBox!.getCenter(mesh.position).negate();
+  // tools are held at the grip; spin them about their middle
+  if (held) geo.boundingBox!.getCenter(mesh.position).negate();
   spin.add(mesh);
   root.add(spin);
   const glow = new THREE.Sprite(
     new THREE.SpriteMaterial({
       map: glowTexture(),
-      color: isGun ? weaponSpec(weapon).color : kind === PickupKind.Cash ? 0x6eff7a : 0xff6b6b,
+      color: held ? held.color : kind === PickupKind.Cash ? 0x6eff7a : 0xff6b6b,
       blending: THREE.AdditiveBlending,
       transparent: true,
       depthWrite: false,

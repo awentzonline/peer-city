@@ -30,7 +30,7 @@ facts, never one device's controls.** Input and presentation are per-platform la
  (keyboard/mouse,                (plain data)   (headless)         │
   WebXR, touch)                                     │               ▼
                               role callbacks <──────┘       other peers' views
- camera, HUD, models <── Frontend.present()   (e.g. AvatarBody: moved, placed, hurt, fired)
+ camera, HUD, models <── Frontend.present()   (e.g. AvatarBody: moved, placed, hurt, used)
 ```
 
 All in `src/fps/`:
@@ -47,14 +47,15 @@ All in `src/fps/`:
 - **The avatar role**
   - `intent.ts`: `AvatarIntent`. A head is either tracked (`head`: room-scale, the device owns where it
     faces) or virtual (`turn`, `lookUp`: the rules own the heading, since cars carry it round). Hands are
-    either tracked (`hands`: each fires what it holds, where it points) or a crosshair (`fire`,
-    `cycleWeapon`, `selectWeapon`). Movement, run, jump, brake, horn and interact are shared.
+    either tracked (`hands`: each uses the tool it holds, where it points) or a crosshair (`trigger`,
+    `cycleTool`, `selectTool`). Movement, run, jump, brake, horn and interact are shared.
   - `avatar.ts`: `AvatarSim`, the rules: walking (including tracked-head room-scale following and eased
-    stick locomotion), cars, firing, pickups, wanted level, death and arrest. `AvatarBody` is how it reaches
-    back to the device: `moved`, `placed`, `seated`, `hurt`, `fired`, `died`. Combat calls `hurt`,
+    stick locomotion), cars, tools (see "Adding a tool"), pickups, wanted level, death and arrest.
+    `AvatarBody` is how it reaches back to the device: `moved`, `placed`, `seated`, `hurt`, `used`, `died`.
+    Combat calls `hurt`,
     `nudge`, `die`, `busted` and `crime` on it.
-  - `desktopAvatar.ts`: `DesktopAvatar`. Keys and mouse, crosshair with tracers leaving the gun model
-    (`desktopGun.ts`), chase camera, death orbit, DOM HUD, camera shake.
+  - `desktopAvatar.ts`: `DesktopAvatar`. Keys and mouse, crosshair with tracers leaving the tool model
+    (`desktopTool.ts`), chase camera, death orbit, DOM HUD, camera shake.
   - `vrAvatar.ts`: `VrAvatar`. Snap turn and seat recentering (device-only, so the rules never see
     them), holsters deciding what each hand holds, play space moved by `AvatarBody` callbacks, seat
     calibration, tint and haptics instead of shake, wrist HUD. Poses come from an `XrPoseSource`:
@@ -79,7 +80,7 @@ Things that aren't obvious from the types:
 
 1. Write a frontend implementing `AvatarFrontend`, with `platform = Platform.Touch`.
 2. `read`: drags become `turn` / `lookUp` (virtual head), a virtual stick becomes `strafe` / `forward`,
-   buttons become `fire`, `jump`, `interact`, `selectWeapon`; `hands` stays null (crosshair).
+   buttons become `trigger`, `jump`, `interact`, `selectTool`; `hands` stays null (crosshair).
 3. `present`: camera (first or third person), a touch HUD, and the `AvatarBody` callbacks it cares about.
 4. In `Game`, pick it from the lobby (or a `?touchsim` flag for testing with a mouse).
 
@@ -97,6 +98,41 @@ Things that aren't obvious from the types:
    - `registerCombat` takes an `AvatarSim`; its avatar handlers only apply when there's a local avatar.
    - `registerViews` needs a `LocalView`; an overseer's is "never show self, no steering wheel".
 
+## Adding a tool
+
+Tools are what an avatar carries and holds: guns now, and anything else a game needs. All in `src/fps/`:
+
+- `tool.ts`: `Tool`, one object per kind, and `Toolbox`, a game's kinds in slot order. A tool's id, which is
+  what `Player.tool` / `ltool` and pickups replicate, is its place in the toolbox.
+- `inventory.ts`: what an avatar carries. Issued tools (the pistols) can't be lost and never run out;
+  others go up to `max` of a kind, sharing their `charges`.
+- `heldTool.ts` runs each hand's hooks. `gun.ts` is `Gun`, a subclass. `arsenal.ts` is Peer City's toolbox.
+
+1. Subclass `Tool` (or `Gun`) and override the hooks you need. They run in the rules, on the avatar's
+   owner, the same on every platform and headless in tests:
+   - `onPickup(avatar, got)` and `onDrop(avatar, drop)`: into and out of the inventory. `drop.reason` is
+     `dropped` (by default that leaves a pickup), `lost` (death or arrest) or `spent` (charges ran out).
+   - `onEquip(hand)` and `onUnequip(hand)`: into and out of a hand, by grabbing from a holster or selecting.
+   - `onUse(hand)` when the trigger's pulled, and again every `cooldownMs` while it's held if `automatic`;
+     `onRelease(hand)`; `onHold(hand, dt)` every frame.
+   - `hand` is a `ToolUse`: `side` (null for the crosshair), `origin` and `aim` to act from, `tip` for
+     effects, `pressedAt`, `spend(n)`, and `effect({ kick, hit })`, which reaches the frontend as
+     `AvatarBody.used` for recoil, haptics and hit markers.
+   - Every hand holding a kind shares its one tool object, so keep per-hand state in a `WeakMap` keyed by
+     the `ToolUse`.
+2. Say how it looks and sits in the hand:
+   - `model`: an `asset`, or `build()` for geometry made in code; `orient` turns it so its tip points down
+     -Z, and it's scaled to `length`.
+   - `grip.tip`: where the tip is from where the hand holds it, in meters (+X right, +Y up, -Z forward).
+     The model's front face is centred on it.
+   - `grip.pitch`, `yaw` and `roll`: the angle it's held at. The rules aim from the same tip and direction the
+     frontends draw, and others see it held at that angle too.
+   - `stash`: where the first, second... of the kind go on a headset player's body.
+3. Add it to the `Toolbox` in `arsenal.ts`. That changes ids, so every peer needs the same build.
+4. Change the world the usual way from hooks (spawn entities, send actions, write the avatar's state). If a
+   tool needs to show more than recoil and hit markers on the device, add to `UseEffect` and handle it in
+   each frontend's `used`.
+
 ## Later: mobile
 
 - Detection and lobby: "Play on phone" when a coarse pointer or touch is detected.
@@ -106,7 +142,7 @@ Things that aren't obvious from the types:
 ## Parked: fairness
 
 Not a priority. If mixed-platform combat ever needs it: aim assist in touch frontends (the rules still get
-a plain aim), per-platform balance knobs next to `WEAPONS` in `arsenal.ts`, and sanity checks (distance,
+a plain aim), per-platform balance knobs on the tools in `arsenal.ts`, and sanity checks (distance,
 line of sight, fire rate) in the victim owner's `Damage` handler in `combat.ts`.
 
 ## Open questions for the project owner

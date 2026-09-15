@@ -243,11 +243,14 @@ What changes in 3D:
   `src/fps/assets.ts` loads them before the game starts and bakes their materials into vertex colours,
   so a model is a single draw call with the shared material. The guns come from
   [Zsky's Weapons Pack](https://www.patreon.com/Zsky) (CC BY 4.0).
-- **Guns are pickups.** Everyone starts with a pistol. An SMG, shotgun, assault rifle and sniper rifle
-  spawn around the streets (orange on the minimap); walk over one to take it and its ammo. Stats,
-  model fitting (length, grip, barrel direction) and the inventory live in `src/fps/arsenal.ts`. The gun
-  in each hand replicates (headset players send both tracked hands, desktop players their gun hand), so
-  others see what you're holding, and it's dropped where you die.
+- **Guns are tools, and tools are pickups.** Everyone starts with a pistol. An SMG, shotgun, assault rifle
+  and sniper rifle spawn around the streets (orange on the minimap); walk over one to take it and its
+  ammo. A gun is one kind of hand-held `Tool` (`src/fps/tool.ts`): a model, a grip (where the tip is and
+  the angle it's held at), VR stash spots, charges, and hooks for pickup, drop, equip, use, release and
+  hold. `Gun` (`src/fps/gun.ts`) subclasses it, Peer City's tools are listed in `src/fps/arsenal.ts`, and
+  "Adding a tool" in [docs/crossplay-plan.md](docs/crossplay-plan.md) walks through making another. The
+  tool in each hand replicates (headset players send both tracked hands, desktop players their crosshair
+  hand), so others see what you're holding, and it's dropped where you die.
 - **Holsters (VR).** Your whole torso is a holster (`src/fps/torso.ts`, `src/fps/holsters.ts`). Each hand
   grabs its own gun with the grip; let go with your hand on your body and the gun stays frozen there,
   relative to your torso, until you take it again. Let go anywhere else and it returns to its last spot.

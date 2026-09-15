@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { Inventory, Weapon } from '../src/fps/arsenal';
-import { DesktopGun } from '../src/fps/desktopGun';
+import { PISTOL, RIFLE, TOOLS } from '../src/fps/arsenal';
+import { DesktopTool } from '../src/fps/desktopTool';
 import { Holsters } from '../src/fps/holsters';
+import { Inventory } from '../src/fps/inventory';
 import { Rig } from '../src/fps/rig';
 
 // Stand-in gun models (1m-long boxes), so no GLB loading is needed.
@@ -29,12 +30,13 @@ function contents(rig: Rig): THREE.Object3D[] {
  * back off when they're disposed, or they'd float around in the next platform's view.
  */
 describe('first-person models leave the rig as they found it', () => {
-  it('desktop gun', () => {
+  it('desktop tool', () => {
     const rig = new Rig(new THREE.Scene(), 1);
     const before = contents(rig);
-    const gun = new DesktopGun(rig);
+    const held = new DesktopTool(rig);
+    held.setTool(PISTOL);
     expect(contents(rig).length).toBeGreaterThan(before.length);
-    gun.dispose();
+    held.dispose();
     expect(contents(rig)).toEqual(before);
   });
 
@@ -43,13 +45,13 @@ describe('first-person models leave the rig as they found it', () => {
     rig.setMode('sim'); // both controllers connected
     const before = contents(rig);
     const holsters = new Holsters(rig);
-    const inv = new Inventory();
-    inv.add(Weapon.Rifle, 30);
+    const inv = new Inventory(TOOLS);
+    inv.add(RIFLE, 30);
     holsters.update(inv);
     rig.right.object.position.copy(rig.headLocal).add(new THREE.Vector3(0.22, -0.68, -0.05)); // right hip
     rig.right.squeeze = 1;
     holsters.update(inv);
-    expect(holsters.held(rig.right)).toBe(Weapon.Pistol);
+    expect(holsters.held(rig.right)).toBe(PISTOL);
 
     holsters.dispose();
     expect(contents(rig)).toEqual(before);
