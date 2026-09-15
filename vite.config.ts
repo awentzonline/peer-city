@@ -2,6 +2,8 @@ import { defineConfig } from 'vite';
 import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
+  // Relative URLs in the build, so it works under any path prefix (e.g. GitHub Pages at /<repo>/).
+  base: './',
   resolve: {
     alias: {
       '@engine': fileURLToPath(new URL('./src/engine', import.meta.url)),
