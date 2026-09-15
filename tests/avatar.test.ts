@@ -7,6 +7,7 @@ import { ACTIONS, Car, CarKind, CarMode, ENTITIES } from '../src/fps/defs';
 import { Side, handIntent, idleIntent, type AvatarIntent, type HandIntent, type TrackedHead } from '../src/fps/intent';
 import { Platform } from '../src/fps/platform';
 import { NO_TOOL, type HitResult, type Tool, type UseEffect } from '../src/fps/tool';
+import { carBlocked } from '../src/fps/vehicles';
 import { Sim } from './harness';
 
 const city = new City(20260914);
@@ -14,6 +15,14 @@ const city = new City(20260914);
 const building = city.buildings.find((b) => b.height > 8 && city.heightAt(b.tx - 1, b.ty) === 0 && !city.isSolidTile(b.tx - 1, b.ty))!;
 const wallX = building.tx * TILE;
 const alongY = (building.ty + 0.5) * TILE;
+// a spot in an eastbound lane with room for a car, open road ahead and clear ground beside it
+const lane = (() => {
+  const y = city.laneCoord(0, Math.floor(city.hRoads.length / 2));
+  for (let x = city.size / 2; x < city.size; x += TILE) {
+    if (!carBlocked(city, x, y, 0, CarKind.Sedan) && city.raycast(x, y, 0, 12) >= 12 && !city.circleBlocked(x, y - 2.5, 0.35)) return { x, y };
+  }
+  throw new Error('no open lane');
+})();
 
 /** Anything a headless test doesn't care about: every property is a do-nothing function. */
 const stub = () => new Proxy({}, { get: () => () => {} });
@@ -197,9 +206,11 @@ describe('AvatarSim', () => {
   });
 
   it('gets into a nearby car, drives it and gets back out', async () => {
-    const { world, body, me, s, frames } = setup();
+    const { world, body, me, s, frames, standAt } = setup();
     body.platform = Platform.Desktop;
-    const car = world.spawn(Car, { x: s.x, y: s.y + 2.5, kind: CarKind.Sedan, mode: CarMode.Parked });
+    // not beside the random spawn point, where the car could start inside a building and never move
+    standAt(lane.x, lane.y - 2.5);
+    const car = world.spawn(Car, { x: lane.x, y: lane.y, angle: 0, kind: CarKind.Sedan, mode: CarMode.Parked });
     const intent = idleIntent();
     intent.interact = true;
     frames(1, intent);
