@@ -255,7 +255,8 @@ What changes in 3D:
   one side. You can carry two of each gun, one for each hand, sharing their ammo; you start with a
   pistol on each hip. Stick locomotion has one fast top speed that takes about half a second to reach.
 
-Source: `src/fps/`.
+Source: `src/fps/`. Where it's heading, VR, desktop and mobile players each getting their own
+experience in the same world: [docs/crossplay-plan.md](docs/crossplay-plan.md).
 
 ---
 
