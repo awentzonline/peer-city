@@ -1,29 +1,6 @@
-import * as THREE from 'three';
+import { disposePanel, panel } from '../crossplay/panel';
+import type { Rig } from '../crossplay/rig';
 import type { Hud, MinimapDot } from './hud';
-import type { Rig } from './rig';
-
-interface Panel {
-  mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
-  ctx: CanvasRenderingContext2D;
-  tex: THREE.CanvasTexture;
-  w: number;
-  h: number;
-}
-
-function panel(width: number, height: number, w: number, h: number, overlay: boolean): Panel {
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(width, height),
-    new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: !overlay, fog: false }),
-  );
-  mesh.renderOrder = overlay ? 999 : 10;
-  mesh.visible = false;
-  return { mesh, ctx: canvas.getContext('2d')!, tex, w, h };
-}
 
 export interface MapView {
   x: number;
@@ -74,12 +51,8 @@ export class VrHud {
   }
 
   dispose(): void {
-    for (const { mesh, tex } of [this.wrist, this.info]) {
-      mesh.removeFromParent();
-      mesh.geometry.dispose();
-      mesh.material.dispose();
-      tex.dispose();
-    }
+    disposePanel(this.wrist);
+    disposePanel(this.info);
   }
 
   private drawWrist(view: MapView): void {

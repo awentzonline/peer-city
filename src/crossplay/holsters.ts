@@ -27,7 +27,7 @@ function stashPose({ at, pitch = 0, roll = 0 }: StashSpot): Pose {
 }
 
 interface Carried {
-  tool: Tool;
+  tool: Tool<any>;
   /** First, second, ... of its kind, for its starting spot. */
   index: number;
   /** Made by buildTool: the grip is its origin. */
@@ -44,6 +44,8 @@ interface HandState {
   hand: XRHand;
   glove: THREE.Mesh;
   gripping: boolean;
+  /** Squeezing without taking anything: reaching for something in the world. */
+  grabbing: boolean;
   item: Carried | null;
   hover: Carried | null;
 }
@@ -75,13 +77,23 @@ export class Holsters {
       glove.position.set(0, -0.09, 0.12);
       glove.visible = false;
       hand.object.add(glove);
-      return { hand, glove, gripping: false, item: null, hover: null };
+      return { hand, glove, gripping: false, grabbing: false, item: null, hover: null };
     });
   }
 
   /** The tool in a hand, or null if it's empty. */
-  held(hand: XRHand): Tool | null {
+  held(hand: XRHand): Tool<any> | null {
     return this.state(hand).item?.tool ?? null;
+  }
+
+  /** The model of the tool in a hand (made by buildTool, so `toolMesh` is in the tool's own space), or null. */
+  model(hand: XRHand): THREE.Group | null {
+    return this.state(hand).item?.group ?? null;
+  }
+
+  /** Whether an empty hand is squeezing on nothing it carries, i.e. reaching for something in the world. */
+  grabbing(hand: XRHand): boolean {
+    return this.state(hand).grabbing;
   }
 
   /** The tip of the tool in a hand (or the grip, if it's empty), in the controller's space. Shared: use it before calling again. */
@@ -106,12 +118,15 @@ export class Holsters {
   }
 
   /** Follow the body, keep a tool on it for everything carried, and handle grabbing and stashing. */
-  update(inventory: Inventory): void {
+  update(inventory: Inventory<any>): void {
     this.torso.update();
     for (const tool of inventory.tools.all) this.carry(tool, inventory.count(tool));
 
     for (const h of this.hands) {
-      if (!h.hand.connected) continue;
+      if (!h.hand.connected) {
+        h.grabbing = false;
+        continue;
+      }
       const gripping = h.hand.squeeze > (h.gripping ? GRIP_OFF : GRIP_ON);
       if (h.item) {
         if (!gripping) this.stash(h);
@@ -121,6 +136,7 @@ export class Holsters {
         h.hover = near;
         if (gripping && !h.gripping && near) this.grab(h, near);
       }
+      h.grabbing = gripping && !h.item && (h.grabbing || !h.gripping);
       h.gripping = gripping;
     }
   }
@@ -215,7 +231,7 @@ export class Holsters {
   }
 
   /** Add or remove tools of a kind to match the inventory, dropping stashed ones before held ones. */
-  private carry(tool: Tool, want: number): void {
+  private carry(tool: Tool<any>, want: number): void {
     let have = 0;
     for (const item of this.items) if (item.tool === tool) have++;
     for (const heldToo of [false, true]) {
@@ -233,7 +249,7 @@ export class Holsters {
     }
   }
 
-  private add(tool: Tool, index: number): void {
+  private add(tool: Tool<any>, index: number): void {
     const group = buildTool(tool);
     let laser: THREE.Line | null = null;
     if (tool.laser) {

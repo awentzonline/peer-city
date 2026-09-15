@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { Rig } from '../src/fps/rig';
-import { Torso } from '../src/fps/torso';
+import { Rig } from '../src/crossplay/rig';
+import { Torso } from '../src/crossplay/torso';
 
 const UP = new THREE.Vector3(0, 1, 0);
 

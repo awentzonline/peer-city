@@ -1,28 +1,16 @@
 import * as THREE from 'three';
 import type { EntityViews } from '@engine/index';
+import { aimArm, bodyView, poseBody, stride, type BodyView } from '../crossplay/avatarView';
+import { HUMAN, buildHuman, disposeLabel, setLabel, setToolModel } from '../crossplay/models';
 import { PISTOL, TOOLS } from './arsenal';
 import { angleDiff, clamp, headingToYaw, signedAngle, type GameContext } from './context';
 import { Car, CarKind, CarMode, Ped, PedMode, Pickup, Player } from './defs';
-import { HUMAN, MAT, buildCar, buildHuman, buildPickup, disposeLabel, setLabel, setToolModel, type CarRig, type HumanRig, type PickupRig } from './models';
-import { Platform } from './platform';
+import { MAT, buildCar, buildPickup, type CarRig, type PickupRig } from './models';
 import { COP_SKINS, PED_SKINS, carSpec, humanLook } from './specs';
-import { NO_TOOL } from './tool';
 
-const UP = new THREE.Vector3(0, 1, 0);
-const DOWN = new THREE.Vector3(0, -1, 0);
-const shoulder = new THREE.Vector3();
-const reach = new THREE.Vector3();
-
-interface HumanView {
-  rig: HumanRig;
-  lastX: number;
-  lastY: number;
-  phase: number;
-  speed: number;
+interface HumanView extends BodyView {
   dead: boolean;
   name: string;
-  /** Ids of the tool models currently in the right and left hands. */
-  tools: [number, number];
 }
 
 interface CarView {
@@ -38,23 +26,12 @@ function createHuman(ctx: GameContext, skin: number, cop: boolean, x: number, y:
   rig.root.position.set(x, 0, y);
   if (cop) setToolModel(rig.tool, PISTOL);
   ctx.scene.add(rig.root);
-  return { rig, lastX: x, lastY: y, phase: Math.random() * 6, speed: 0, dead: false, name: '', tools: [NO_TOOL, NO_TOOL] };
+  return { ...bodyView(rig, x, y), dead: false, name: '' };
 }
 
 function destroyHuman(ctx: GameContext, v: HumanView): void {
   ctx.scene.remove(v.rig.root);
   disposeLabel(v.rig.label);
-}
-
-/** Walk cycle from how far the rendered position moved; returns the limb swing angle. */
-function stride(v: HumanView, x: number, y: number, dt: number): number {
-  const moved = Math.hypot(x - v.lastX, y - v.lastY);
-  v.lastX = x;
-  v.lastY = y;
-  const speed = moved / Math.max(dt, 0.001);
-  v.speed += ((speed > 15 ? 0 : speed) - v.speed) * Math.min(1, dt * 8);
-  v.phase += v.speed * dt * 2.2;
-  return Math.min(v.speed / 4, 1) * 0.65 * Math.sin(v.phase);
 }
 
 function pose(ctx: GameContext, v: HumanView, heading: number, dead: boolean): void {
@@ -67,35 +44,6 @@ function pose(ctx: GameContext, v: HumanView, heading: number, dead: boolean): v
   r.body.rotation.set(0, -heading, dead ? Math.PI / 2 : 0);
   r.body.position.y = dead ? 0.14 : 0;
   r.shadow.visible = !dead;
-}
-
-/** Point an arm from its shoulder at a target given in root space. */
-function aimArm(r: HumanRig, heading: number, target: THREE.Vector3, left = false): void {
-  shoulder.set(0, HUMAN.shoulder * r.body.scale.y, left ? -HUMAN.shoulderZ : HUMAN.shoulderZ).applyAxisAngle(UP, -heading);
-  reach.copy(target).sub(shoulder).applyAxisAngle(UP, heading);
-  if (reach.lengthSq() < 1e-4) return;
-  (left ? r.armL : r.armR).quaternion.setFromUnitVectors(DOWN, reach.normalize());
-}
-
-/**
- * Put a replicated hand's tool in place and point that arm at it. The hand's
- * pose is replicated, and the model turns in it by the tool's grip. An empty
- * hand only reaches out for headset players, whose hands are really tracked;
- * otherwise the arm is left swinging.
- */
-function holdTool(v: HumanView, heading: number, side: 0 | 1, id: number, x: number, y: number, z: number, aimYaw: number, aimPitch: number, tracked: boolean): void {
-  const r = v.rig;
-  const group = side ? r.toolL : r.tool;
-  const tool = TOOLS.get(id);
-  if (tool && v.tools[side] !== id) {
-    v.tools[side] = id;
-    setToolModel(group, tool);
-  }
-  group.visible = !!tool;
-  if (!tool && !tracked) return;
-  group.position.set(x, z, y);
-  group.rotation.set(signedAngle(aimPitch), headingToYaw(aimYaw), 0);
-  aimArm(r, heading, group.position, side === 1);
 }
 
 /** What the views need from the local player's frontend and role. */
@@ -160,16 +108,7 @@ export function registerViews(ctx: GameContext, views: EntityViews, local: Local
         r.tool.visible = r.toolL.visible = false;
         return;
       }
-      r.body.scale.y = clamp(s.head / 1.65, 0.55, 1.15); // VR players crouching for real
-      r.head.rotation.set(0, 0, clamp(signedAngle(s.pitch), -0.9, 0.9));
-      const swing = stride(v, e.x, e.y, dt);
-      r.legL.rotation.z = swing;
-      r.legR.rotation.z = -swing;
-      r.armL.rotation.set(0, 0, -swing * 0.8);
-      r.armR.rotation.set(0, 0, swing * 0.8);
-      const tracked = s.platform === Platform.Vr;
-      holdTool(v, s.yaw, 0, s.tool, s.hx, s.hy, s.hz, s.aimYaw, s.aimPitch, tracked);
-      holdTool(v, s.yaw, 1, s.ltool, s.lhx, s.lhy, s.lhz, s.laimYaw, s.laimPitch, tracked);
+      poseBody(v, s, e.x, e.y, dt, TOOLS);
     },
     destroy: (v) => destroyHuman(ctx, v),
   });

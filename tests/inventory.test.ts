@@ -1,7 +1,7 @@
 import { BufferGeometry } from 'three';
 import { describe, expect, it } from 'vitest';
 import { PISTOL, RIFLE, SHOTGUN, SMG, SNIPER, TOOLS } from '../src/fps/arsenal';
-import { Inventory } from '../src/fps/inventory';
+import { Inventory } from '../src/crossplay/inventory';
 import { Tool, Toolbox } from '../src/fps/tool';
 
 const inventory = () => new Inventory(TOOLS);

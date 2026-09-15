@@ -1,3 +1,4 @@
+import type { HumanLook } from '../crossplay/models';
 import { CarKind } from './defs';
 
 /** Physical dimensions shared by simulation and rendering. Meters; car-local x forward, y up, z right. */
@@ -82,20 +83,12 @@ const HAIR = [0x2c1b0e, 0x6b4423, 0xd4a017, 0x1a1a1a, 0xa52a2a, 0xbbbbbb];
 export const PED_SKINS = 30;
 export const COP_SKINS = 6;
 
-export interface HumanLook {
-  shirt: number;
-  pants: number;
-  skin: number;
-  hair: number;
-  cop: boolean;
-}
-
 export function humanLook(skin: number, cop: boolean): HumanLook {
   return {
     shirt: cop ? 0x23346e : SHIRTS[skin % SHIRTS.length],
     pants: cop ? 0x151c33 : PANTS[(skin * 5) % PANTS.length],
     skin: SKIN_TONES[(skin * 7) % SKIN_TONES.length],
     hair: HAIR[(skin * 3) % HAIR.length],
-    cop,
+    ...(cop ? { hat: 0x1f2a52, badge: 0xffd54a } : {}),
   };
 }

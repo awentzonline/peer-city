@@ -1,12 +1,13 @@
+import { DesktopTool } from '../crossplay/desktopTool';
+import type { DesktopInput } from '../crossplay/input';
+import type { Side } from '../crossplay/intent';
+import { Platform } from '../crossplay/platform';
+import type { Rig } from '../crossplay/rig';
+import type { Tool, UseEffect } from '../crossplay/tool';
 import type { AvatarFrontend, AvatarSim } from './avatar';
 import { direction, type GameContext, type Vec3 } from './context';
-import { DesktopTool } from './desktopTool';
-import type { DesktopInput } from './input';
-import { idleIntent, type AvatarIntent, type Side } from './intent';
+import { idleIntent, type AvatarIntent } from './intent';
 import type { MinimapFeed } from './minimap';
-import { Platform } from './platform';
-import type { Rig } from './rig';
-import type { Tool, UseEffect } from './tool';
 
 const MOUSE_SENSITIVITY = 0.0022;
 

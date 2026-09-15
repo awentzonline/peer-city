@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { clamp } from './context';
+import { clamp } from './math';
 import type { DesktopInput } from './input';
 import { Btn, type Rig, type XrPoseSource } from './rig';
 

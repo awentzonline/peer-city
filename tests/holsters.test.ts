@@ -1,15 +1,15 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
+import { Holsters } from '../src/crossplay/holsters';
+import { Inventory } from '../src/crossplay/inventory';
+import type { Vec3 } from '../src/crossplay/math';
+import { toolMesh } from '../src/crossplay/models';
+import { Rig, type XRHand } from '../src/crossplay/rig';
 import { PISTOL, RIFLE, TOOLS } from '../src/fps/arsenal';
-import type { Vec3 } from '../src/fps/context';
-import { Holsters } from '../src/fps/holsters';
-import { Inventory } from '../src/fps/inventory';
-import { toolMesh } from '../src/fps/models';
-import { Rig, type XRHand } from '../src/fps/rig';
 import { Tool, Toolbox } from '../src/fps/tool';
 
 // Stand-in gun models (1m-long boxes), so no GLB loading is needed.
-vi.mock('../src/fps/assets', async () => {
+vi.mock('../src/crossplay/assets', async () => {
   const T = await import('three');
   return {
     assetGeometry: () => {
@@ -31,7 +31,7 @@ interface ItemView {
   group: THREE.Group;
 }
 
-function setup(inv = new Inventory(TOOLS)) {
+function setup(inv: Inventory = new Inventory(TOOLS)) {
   const rig = new Rig(new THREE.Scene(), 1);
   rig.setMode('sim'); // both controllers connected
   rig.headLocal.set(0, 1.65, 0);

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { City, TILE } from '../src/fps/city';
-import { Rig } from '../src/fps/rig';
+import { Rig } from '../src/crossplay/rig';
 
 const TAU = Math.PI * 2;
 const wrap = (a: number) => ((a % TAU) + TAU) % TAU;

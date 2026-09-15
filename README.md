@@ -240,18 +240,19 @@ What changes in 3D:
   blender -b --factory-startup -P scripts/assets/convert.py -- assets/models/weapons path/to/Pistol_01.fbx
   ```
 
-  `src/fps/assets.ts` loads them before the game starts and bakes their materials into vertex colours,
-  so a model is a single draw call with the shared material. The guns come from
+  `src/crossplay/assets.ts` loads them before the game starts (Peer City lists its files in
+  `src/fps/assets.ts`) and bakes their materials into vertex colours, so a model is a single draw call
+  with the shared material. The guns come from
   [Zsky's Weapons Pack](https://www.patreon.com/Zsky) (CC BY 4.0).
 - **Guns are tools, and tools are pickups.** Everyone starts with a pistol. An SMG, shotgun, assault rifle
   and sniper rifle spawn around the streets (orange on the minimap); walk over one to take it and its
-  ammo. A gun is one kind of hand-held `Tool` (`src/fps/tool.ts`): a model, a grip (where the tip is and
+  ammo. A gun is one kind of hand-held `Tool` (`src/crossplay/tool.ts`): a model, a grip (where the tip is and
   the angle it's held at), VR stash spots, charges, and hooks for pickup, drop, equip, use, release and
   hold. `Gun` (`src/fps/gun.ts`) subclasses it, Peer City's tools are listed in `src/fps/arsenal.ts`, and
   "Adding a tool" in [docs/crossplay-plan.md](docs/crossplay-plan.md) walks through making another. The
   tool in each hand replicates (headset players send both tracked hands, desktop players their crosshair
   hand), so others see what you're holding, and it's dropped where you die.
-- **Holsters (VR).** Your whole torso is a holster (`src/fps/torso.ts`, `src/fps/holsters.ts`). Each hand
+- **Holsters (VR).** Your whole torso is a holster (`src/crossplay/torso.ts`, `src/crossplay/holsters.ts`). Each hand
   grabs its own gun with the grip; let go with your hand on your body and the gun stays frozen there,
   relative to your torso, until you take it again. Let go anywhere else and it returns to its last spot.
   There's no body tracking, so the torso hangs below your head and only turns once you look well to
@@ -262,10 +263,83 @@ What changes in 3D:
   avatar from a plain `AvatarIntent` and runs headless in tests. Per-platform frontends (`DesktopAvatar`,
   `VrAvatar`) read devices into that intent, draw the result, and handle the rules' callbacks, like
   pushing a VR play space back from a wall. Other roles (say, a touch player directing NPCs from above)
-  plug into the same `Role` / `Frontend` contracts in `src/fps/role.ts`.
+  plug into the same `Role` / `Frontend` contracts in `src/crossplay/role.ts`.
 
-Source: `src/fps/`. Where it's heading, VR, desktop and mobile players each getting their own
-experience, and sometimes their own role, in the same world: [docs/crossplay-plan.md](docs/crossplay-plan.md).
+Source: `src/fps/`, on the shared crossplay layer in `src/crossplay/` (below). Where it's heading, VR,
+desktop and mobile players each getting their own experience, and sometimes their own role, in the same
+world: [docs/crossplay-plan.md](docs/crossplay-plan.md).
+
+---
+
+## The crossplay layer (`src/crossplay/`)
+
+What a 3D game on the engine needs to be played on desktop and in a headset at once, without being about
+any one game. It came out of building a second game (Peer Wilds) on what Peer City 3D had:
+
+| Module | What it is |
+| --- | --- |
+| `role.ts`, `platform.ts` | `Role` (a game's rules, fed an intent) and `Frontend` (one platform's input and presentation); the `Seat` swaps frontends when a headset session starts or ends |
+| `avatar.ts` | `Avatar`: a body that walks with a virtual head or follows a tracked one round the room (pushing the play space back from walls), and hands that use tools from a crosshair or wherever tracked hands point. `BODY_FIELDS` are its replicated fields, spread into a game's player entity. A game subclasses it and says how the body collides and where the ground is |
+| `intent.ts` | `AvatarIntent`, `HandIntent`: what a player wants in terms of the body. Games extend it (Peer City adds driving) |
+| `tool.ts`, `heldTool.ts`, `inventory.ts` | hand-held tools with hooks, grips, charges and VR stash spots. Each game has its own base tool saying what picking up and dropping one does in its world |
+| `holsters.ts`, `torso.ts` | a headset player's tools, carried on the body and grabbed with the grips |
+| `rig.ts`, `xrsim.ts`, `input.ts`, `stage.ts` | the play space and its XR poses (or `?xrsim`'s fake ones), keyboard and mouse, and the renderer and loop that keeps simulating in a background tab |
+| `models.ts`, `avatarView.ts`, `desktopTool.ts` | people and tools built from vertex-coloured parts, drawing another player's replicated body and hands, the first-person tool on desktop |
+| `particles.ts`, `audio.ts`, `panel.ts`, `assets.ts`, `textures.ts`, `math.ts` | GPU particles, spatial synthesized sound, canvas panels for headset HUDs, GLB loading |
+
+---
+
+## Peer Wilds (survival, farming and hunting)
+
+`/wilds.html` is a third game on the engine: survive on a wild island with other players and no server.
+Hunt deer and rabbits with a bow, fell trees for firewood, till the soil and grow carrots, cook meat, and
+keep a fire going through the night, when the cold makes you hungry and wolves come out.
+
+```bash
+npm run dev    # http://localhost:5173/wilds.html
+```
+
+The same tools work on desktop and in a headset, but in VR they're hands-on:
+
+| | Desktop | VR |
+| --- | --- | --- |
+| Axe | click to chop or strike | swing it into a trunk or an animal |
+| Bow | hold click to draw, let go | take an arrow from over your shoulder, touch it to the bow, pull the trigger, draw back, let go |
+| Hoe | click the ground | chop it down into the soil |
+| Seeds | click tilled soil | reach down to a plot and pull the trigger |
+| Food | click to eat | hold it to your mouth |
+| Raw meat | hold click by a fire | hold it over the flames |
+| Logs | click the ground (3 build a fire) or a fire | set them on the ground or on a fire |
+| Crops | **E** | reach down and squeeze an empty hand on a ripe carrot |
+
+**Desktop:** WASD move · mouse look · click use · wheel / 1-9 tool · **E** pull crops · Shift run · Space jump ·
+`` ` `` net stats · N mute. `?hour=21` pins this peer's time of day, for trying nights.
+
+How it uses the engine, and what it found:
+
+- **The island is seeded** (`land.ts`): heightmap terrain, lakes, forests and boulders are the same on every
+  peer, so none of it is sent. Movement and rays use the ground's height; the crossplay avatar only needed
+  to learn where the ground is.
+- **Sparse changes to a dense world.** There are thousands of trees and none are entities. Felling one spawns a
+  `Stump`; every peer hides the tree while the stump exists, and it grows back when the stump's owner
+  despawns it.
+- **Time without a server.** The day is the wall clock divided into days (`clock.ts`): nobody owns it or sends
+  it. Long-lived timestamps in state (when a crop was sown, when a fire burns out, when a tree was felled)
+  are wall-clock seconds, so crops grow on every peer without ticking and survive changing owners.
+- **Projectiles, not hit-scan.** An arrow isn't an entity: the shooter's peer flies it under gravity and decides
+  what it hits (`arrows.ts`), and a `Loose` action lets everyone nearby fly a copy to watch. Arrows that land
+  in the ground often become pickups again.
+- **Owners make changes; ownership is the lock.** Sowing and harvesting a plot, and collecting items, take
+  ownership first. Butchering a carcass and stoking a fire are actions sent to the owner.
+- **Rules own the tool's physics, not the device's.** A tracked hand's tool has a velocity, so an axe chops when
+  it's swung into bark fast enough, a hoe tills when it's driven into the ground, and food is eaten when it's
+  held at the head's mouth, all worked out in the rules from replicated body facts. The crosshair versions
+  are simpler paths through the same hooks.
+- **Limit: the world lasts while people are there.** Plots, stumps and fires are migratable, so they outlive
+  whoever made them, but when everyone leaves an area they unload like everything else.
+
+Source: `src/wilds/`. Tests: `tests/wilds.test.ts` plays the rules headless: felling a tree with tracked
+swings, farming with a crosshair, drawing a bow with two hands, eating and cooking, wolves at night.
 
 ---
 

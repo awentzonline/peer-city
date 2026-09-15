@@ -1,10 +1,12 @@
 import { NetWorld, type Transport } from '@engine/index';
 import { BroadcastTransport } from '@engine/transport/broadcast';
 import { TrysteroTransport } from '@engine/transport/trystero';
+import { loadAssets } from '../crossplay/assets';
+import { Stage, VR_SESSION_INIT } from '../crossplay/stage';
+import { ASSETS } from './assets';
 import { City } from './city';
-import { loadAssets } from './assets';
 import { ACTIONS, ENTITIES } from './defs';
-import { Game, VR_SESSION_INIT } from './Game';
+import { Game } from './Game';
 import { Hud } from './hud';
 import { Sfx } from './sfx';
 
@@ -24,7 +26,7 @@ nameInput.value = params.get('name') ?? storedName ?? `Player${Math.floor(Math.r
 netSelect.value = params.get('net') === 'local' ? 'local' : 'online';
 roomInput.value = params.get('shard') ?? 'downtown';
 
-void Game.vrSupported().then((ok) => {
+void Stage.vrSupported().then((ok) => {
   vrButton.disabled = !ok;
   vrNote.textContent = ok
     ? 'Headset detected. Clear some floor space: room-scale walking is supported.'
@@ -32,7 +34,7 @@ void Game.vrSupported().then((ok) => {
 });
 
 // Models download while the lobby is up; the game starts once they're in.
-const assetsReady = loadAssets();
+const assetsReady = loadAssets(ASSETS);
 
 let started = false;
 playButton.addEventListener('click', () => start(false));

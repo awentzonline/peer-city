@@ -1,0 +1,376 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #14120d;
+  font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+  color: #fff;
+  user-select: none;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+}
+
+#game canvas {
+  display: block;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ---------------- HUD ---------------- */
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  text-shadow: 1px 1px 0 #000;
+}
+
+#hud-top {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  width: 230px;
+  text-align: right;
+}
+
+#clock {
+  font-size: 22px;
+  font-weight: 900;
+  color: #f0dfb0;
+  letter-spacing: 2px;
+  margin-bottom: 6px;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+  font-size: 12px;
+  color: #e8dcc4;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.bar span {
+  width: 52px;
+  text-align: left;
+}
+
+.track {
+  flex: 1;
+  height: 12px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 2px solid rgba(0, 0, 0, 0.8);
+  border-radius: 3px;
+}
+
+.track > div {
+  height: 100%;
+  width: 100%;
+  transition: width 0.3s;
+}
+
+#health-fill {
+  background: linear-gradient(#ff7a5c, #b8321f);
+}
+
+#food-fill {
+  background: linear-gradient(#f2c55c, #c07a1e);
+}
+
+#tool {
+  margin-top: 10px;
+  font-size: 20px;
+  font-weight: 900;
+  white-space: pre;
+}
+
+#how {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #d8cdb4;
+}
+
+#minimap {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  border: 3px solid rgba(0, 0, 0, 0.75);
+  box-shadow: 0 0 0 2px rgba(240, 223, 176, 0.3);
+  background: #111;
+}
+
+#crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 2px #000;
+}
+
+#crosshair.hit {
+  background: #ffcf5a;
+  transform: scale(1.8);
+}
+
+#draw-track {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 22px);
+  width: 60px;
+  margin-left: -30px;
+  height: 4px;
+}
+
+#draw {
+  height: 100%;
+  background: #f0dfb0;
+  box-shadow: 0 0 2px #000;
+  transform-origin: left;
+}
+
+#hurt {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(200, 0, 0, 0.6));
+}
+
+#hurt.show {
+  animation: hurt 0.5s ease-out;
+}
+
+@keyframes hurt {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+#feed {
+  position: absolute;
+  right: 18px;
+  bottom: 50px;
+  text-align: right;
+  font-size: 14px;
+}
+
+#feed div {
+  margin-top: 4px;
+  animation: fadeout 6s forwards;
+}
+
+@keyframes fadeout {
+  0%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+#banner {
+  position: absolute;
+  top: 34%;
+  width: 100%;
+  text-align: center;
+  font-size: 68px;
+  font-weight: 900;
+  letter-spacing: 6px;
+  opacity: 0;
+  transition: opacity 0.4s;
+  text-shadow: 4px 4px 0 #000;
+}
+
+#banner.show {
+  opacity: 1;
+}
+
+#hint {
+  position: absolute;
+  top: 58%;
+  width: 100%;
+  text-align: center;
+  font-size: 17px;
+}
+
+#help {
+  position: absolute;
+  bottom: 12px;
+  right: 18px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+#lock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  text-shadow: 2px 2px 0 #000;
+}
+
+#lock small {
+  font-size: 13px;
+  font-weight: normal;
+  letter-spacing: 1px;
+}
+
+#vr-enter {
+  position: absolute;
+  left: 18px;
+  top: 14px;
+  pointer-events: auto;
+  padding: 8px 14px;
+  font: 900 14px/1 'Trebuchet MS', sans-serif;
+  letter-spacing: 2px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(90deg, #5f9a4a, #2f7a7a);
+}
+
+/* ---------------- Lobby ---------------- */
+#lobby {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 25% 20%, rgba(240, 160, 70, 0.3), transparent 50%),
+    radial-gradient(circle at 75% 85%, rgba(70, 140, 80, 0.35), transparent 55%),
+    #14120d;
+  padding: 16px;
+  overflow: auto;
+}
+
+#lobby .panel {
+  width: min(460px, 100%);
+  background: rgba(0, 0, 0, 0.55);
+  border: 2px solid rgba(240, 223, 176, 0.15);
+  border-radius: 14px;
+  padding: 26px 28px;
+  backdrop-filter: blur(6px);
+}
+
+#lobby h1 {
+  margin: 0;
+  font-size: 50px;
+  letter-spacing: 3px;
+  background: linear-gradient(90deg, #f2c55c, #e07a3a, #7fbf5a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(3px 3px 0 #000);
+}
+
+#lobby .tag {
+  margin: 4px 0 18px;
+  color: #d8cdb4;
+}
+
+#lobby label {
+  display: block;
+  margin: 10px 0;
+  font-size: 13px;
+  color: #bfb29a;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+#lobby input,
+#lobby select {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 9px 10px;
+  font-size: 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+#lobby select option {
+  color: #000;
+}
+
+#lobby .buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+#lobby button {
+  flex: 1;
+  padding: 12px;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #1b1b1b;
+  background: linear-gradient(90deg, #f2c55c, #e07a3a);
+}
+
+#lobby #play-vr {
+  color: #fff;
+  background: linear-gradient(90deg, #5f9a4a, #2f7a7a);
+}
+
+#lobby button:disabled {
+  cursor: default;
+  filter: grayscale(1) brightness(0.6);
+}
+
+#lobby button:not(:disabled):hover {
+  filter: brightness(1.1);
+}
+
+#lobby .small {
+  font-size: 12px;
+  color: #9a8f7a;
+  margin: 10px 0 0;
+}
+
+#lobby details summary {
+  cursor: pointer;
+  color: #bfb29a;
+}
+
+#lobby ul {
+  padding-left: 18px;
+}
+
+#lobby a {
+  color: #f2c55c;
+}

@@ -1,11 +1,12 @@
+import { GRIP_IN_HAND, Holsters } from '../crossplay/holsters';
+import { Side, handIntent, type HandIntent, type TrackedHead } from '../crossplay/intent';
+import { Platform } from '../crossplay/platform';
+import { Btn, type Rig, type XRHand, type XrPoseSource } from '../crossplay/rig';
+import type { Tool, UseEffect } from '../crossplay/tool';
 import type { AvatarFrontend, AvatarSim } from './avatar';
 import { direction, type GameContext, type Vec3 } from './context';
-import { GRIP_IN_HAND, Holsters } from './holsters';
-import { Side, handIntent, idleIntent, type AvatarIntent, type HandIntent, type TrackedHead } from './intent';
+import { idleIntent, type AvatarIntent } from './intent';
 import type { MinimapFeed } from './minimap';
-import { Platform } from './platform';
-import { Btn, type Rig, type XRHand, type XrPoseSource } from './rig';
-import type { Tool, UseEffect } from './tool';
 import { VrHud } from './vrhud';
 
 const SNAP_TURN = Math.PI / 6;

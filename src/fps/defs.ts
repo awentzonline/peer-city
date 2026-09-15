@@ -1,4 +1,5 @@
 import { defineAction, defineEntity, t } from '@engine/index';
+import { BODY_FIELDS } from '../crossplay/avatar';
 
 /**
  * Everything that goes over the network. The world is simulated on the ground
@@ -9,22 +10,7 @@ import { defineAction, defineEntity, t } from '@engine/index';
 export const Player = defineEntity({
   name: 'player',
   fields: {
-    x: t.fixed(0.02),
-    y: t.fixed(0.02),
-    z: t.fixed(0.02), // feet above the ground (jumping)
-    yaw: t.angle(10), // where the head faces
-    pitch: t.angle(10),
-    head: t.fixed(0.02, 1.65), // head height above the feet (VR players crouch for real)
-    hx: t.fixed(0.02), // right hand (the crosshair tool's hand on desktop) relative to the feet, world axes
-    hy: t.fixed(0.02),
-    hz: t.fixed(0.02, 1.35),
-    aimYaw: t.angle(10), // where the right hand points
-    aimPitch: t.angle(10),
-    lhx: t.fixed(0.02), // left hand, only tracked in VR
-    lhy: t.fixed(0.02),
-    lhz: t.fixed(0.02, 1.35),
-    laimYaw: t.angle(10),
-    laimPitch: t.angle(10),
+    ...BODY_FIELDS, // position, head, hands, and the tools in them (by id in TOOLS, see arsenal.ts)
     hp: t.uint(8, 100),
     skin: t.uint(8),
     name: t.string(16),
@@ -32,9 +18,6 @@ export const Player = defineEntity({
     wanted: t.uint(8),
     cash: t.uint(32),
     kills: t.uint(16),
-    platform: t.uint(8), // what it's played on (see platform.ts); headset players' empty hands are tracked too
-    tool: t.uint(8), // tool in the right hand, by id in TOOLS (see arsenal.ts; 255 = empty)
-    ltool: t.uint(8, 255), // tool in the left hand
   },
   priority: 3,
   snapDistance: 20,

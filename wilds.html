@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Peer Wilds</title>
+    <link rel="stylesheet" href="/src/wilds/style.css" />
+  </head>
+  <body>
+    <div id="game"></div>
+
+    <div id="hud" hidden>
+      <div id="hurt"></div>
+      <div id="crosshair"></div>
+      <div id="draw-track"><div id="draw" hidden></div></div>
+      <div id="hud-top">
+        <div id="clock"></div>
+        <div class="bar"><span>Health</span><div class="track"><div id="health-fill"></div></div></div>
+        <div class="bar"><span>Food</span><div class="track"><div id="food-fill"></div></div></div>
+        <div id="tool"></div>
+        <div id="how"></div>
+      </div>
+      <canvas id="minimap" width="180" height="180"></canvas>
+      <div id="feed"></div>
+      <div id="banner"></div>
+      <div id="hint"></div>
+      <button id="vr-enter" hidden>ENTER VR</button>
+      <div id="lock" hidden>
+        <div>CLICK TO PLAY</div>
+        <small>Esc releases the mouse</small>
+      </div>
+      <div id="help">
+        <b>WASD</b> move · <b>Mouse</b> look · <b>Click</b> use · <b>Wheel / 1-9</b> tool · <b>E</b> pull crops · <b>Shift</b> run · <b>Space</b> jump · <b>`</b> net stats · <b>N</b> mute
+      </div>
+    </div>
+
+    <div id="lobby">
+      <div class="panel">
+        <h1>PEER WILDS</h1>
+        <p class="tag">
+          Survive on a wild island with no server: hunt, farm, keep a fire going through the night. Tools are hands-on in VR and point-and-click on
+          desktop, in the same world.
+        </p>
+        <label>Name <input id="name" maxlength="16" autocomplete="off" /></label>
+        <label
+          >Network
+          <select id="net">
+            <option value="online">Online (WebRTC via Trystero / Nostr)</option>
+            <option value="local">Local tabs (BroadcastChannel)</option>
+          </select>
+        </label>
+        <label>Shard <input id="room" maxlength="24" autocomplete="off" /></label>
+        <div class="buttons">
+          <button id="play">PLAY</button>
+          <button id="play-vr" disabled>PLAY IN VR</button>
+        </div>
+        <p class="small" id="vr-note">Checking for a VR headset…</p>
+        <details class="small">
+          <summary>How to play</summary>
+          You start in a meadow with an axe, a bow, a hoe, arrows, seeds and a few carrots. <b>Food</b> runs down; eat to stay alive, and a full
+          stomach heals you. Nights are cold and bring <b>wolves</b>: they won't come near a lit fire.
+          <ul>
+            <li><b>Axe</b>: chop trees for logs, strike animals, butcher carcasses for meat.</li>
+            <li><b>Bow</b>: hunt deer and rabbits. Missed arrows can often be picked up again.</li>
+            <li><b>Hoe</b> tills soil, <b>seeds</b> go in tilled soil, and carrots are ripe in a couple of minutes.</li>
+            <li><b>Logs</b>: three build a fire, one more keeps it burning. Cook raw meat over it.</li>
+          </ul>
+          <b>VR:</b> everything is on your body, so squeeze a grip by your shoulders, back or belt to take it. Swing the axe into a trunk, chop the hoe
+          into the ground. To shoot, hold the bow in one hand, take an arrow from over your right shoulder, touch it to the bow, hold the trigger,
+          draw back and let go. Hold food to your mouth to eat and raw meat over the flames to cook. Reach down and squeeze an empty hand on a ripe
+          carrot to pull it. Health, food and a map are on your left wrist.
+        </details>
+        <p class="small">Open more tabs or share the URL to add players. <a href="./fps.html">Peer City 3D →</a></p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/wilds/main.ts"></script>
+  </body>
+</html>

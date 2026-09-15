@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { clamp, headingToYaw, yawToHeading, type Vec3 } from './context';
+import { clamp, headingToYaw, yawToHeading, type Vec3 } from './math';
 
 /**
  * - desktop: mouse-look camera, positioned from the player's state each frame.

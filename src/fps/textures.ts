@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mulberry32 } from '@engine/index';
 
-/** All art is generated at boot: no asset files to load or ship. */
+/** All of the city's art is generated at boot: no asset files to load or ship. */
 
 const S = 128;
 
@@ -135,32 +135,4 @@ export function facadeTexture(): THREE.CanvasTexture {
     }
   }
   return tileTexture(c);
-}
-
-/** Soft radial blob (shadows, glows, blood). */
-export function radialTexture(stops: [number, string][], size = 64): THREE.CanvasTexture {
-  const [c, ctx] = makeCanvas(size, size);
-  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  for (const [o, color] of stops) g.addColorStop(o, color);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, size, size);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
-/** Name tag for sprites. Returns the texture and its width/height ratio. */
-export function labelTexture(text: string): THREE.CanvasTexture {
-  const [c, ctx] = makeCanvas(256, 64);
-  ctx.font = 'bold 34px Trebuchet MS, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineWidth = 7;
-  ctx.strokeStyle = 'rgba(0,0,0,0.85)';
-  ctx.strokeText(text, 128, 34);
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(text, 128, 34);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
 }

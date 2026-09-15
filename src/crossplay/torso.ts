@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { angleDiff } from './context';
+import { angleDiff } from './math';
 import type { Rig } from './rig';
 
 const UP = new THREE.Vector3(0, 1, 0);

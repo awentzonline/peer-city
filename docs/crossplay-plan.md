@@ -1,7 +1,9 @@
 # Extreme crossplay plan
 
 Status: phase 1 done (2026-09-15): input and presentation are split from the rules into per-platform
-frontends. Priorities below were set by the project owner the same day.
+frontends. Priorities below were set by the project owner the same day. The same day a second game, Peer
+Wilds (survival, farming and hunting), was built on that structure, and what both games share moved into
+`src/crossplay/` (see "Lessons from a second game").
 
 ## Goal
 
@@ -33,24 +35,29 @@ facts, never one device's controls.** Input and presentation are per-platform la
  camera, HUD, models <── Frontend.present()   (e.g. AvatarBody: moved, placed, hurt, used)
 ```
 
-All in `src/fps/`:
+Shared pieces are in `src/crossplay/`, Peer City's in `src/fps/` (Peer Wilds' in `src/wilds/`):
 
-- **`role.ts`**: the contracts. A `Role<Intent>` owns the rules and only sees its intent. A
+- **`crossplay/role.ts`**: the contracts. A `Role<Intent>` owns the rules and only sees its intent. A
   `Frontend<Intent>` is one platform's take on a role: `read(dt)` turns the device into an intent (every
   simulation step, background tab included), and `present(dt)` draws the result (rendered frames). A
   `Seat` is the local player: a role and its current frontend. A frontend only exists while its platform
   is playing: `seat.use(create)` disposes of the old one, then builds the new one and attaches it to the
   role. So a frontend may add models to the rig when it's built, but `dispose()` must take every one back
   out (`tests/presentation.test.ts`).
-- **`platform.ts`**: `Platform` (desktop, vr, touch), replicated as `Player.platform` so peers can draw
+- **`crossplay/platform.ts`**: `Platform` (desktop, vr, touch), replicated as `Player.platform` so peers can draw
   device cues. Headset players' empty hands are drawn tracked.
-- **The avatar role**
-  - `intent.ts`: `AvatarIntent`. A head is either tracked (`head`: room-scale, the device owns where it
+- **`crossplay/avatar.ts`**: `Avatar`, what every game's avatar role shares: walking (virtual head, or a
+  tracked head followed round the room with stick locomotion eased in), using tools from a crosshair or
+  tracked hands, carrying hand poses along by the rules' moves, and `BODY_FIELDS`, the replicated body. A
+  game subclasses it, says how the body collides (`move`, `collide`) and where the ground is (`groundAt`),
+  and writes its own `update`.
+- **Peer City's avatar role**
+  - `crossplay/intent.ts` / `fps/intent.ts`: `AvatarIntent`, the body's plus Peer City's driving. A head is either tracked (`head`: room-scale, the device owns where it
     faces) or virtual (`turn`, `lookUp`: the rules own the heading, since cars carry it round). Hands are
     either tracked (`hands`: each uses the tool it holds, where it points) or a crosshair (`trigger`,
     `cycleTool`, `selectTool`). Movement, run, jump, brake, horn and interact are shared.
-  - `avatar.ts`: `AvatarSim`, the rules: walking (including tracked-head room-scale following and eased
-    stick locomotion), cars, tools (see "Adding a tool"), pickups, wanted level, death and arrest.
+  - `fps/avatar.ts`: `AvatarSim extends Avatar`, the rules: cars, pickups, wanted level, death and arrest,
+    on top of the shared walking and tools (see "Adding a tool").
     `AvatarBody` is how it reaches back to the device: `moved`, `placed`, `seated`, `hurt`, `used`, `died`.
     Combat calls `hurt`,
     `nudge`, `die`, `busted` and `crime` on it.
@@ -100,13 +107,18 @@ Things that aren't obvious from the types:
 
 ## Adding a tool
 
-Tools are what an avatar carries and holds: guns now, and anything else a game needs. All in `src/fps/`:
+Tools are what an avatar carries and holds: guns, axes, bows, seeds, food, and anything else a game needs.
 
-- `tool.ts`: `Tool`, one object per kind, and `Toolbox`, a game's kinds in slot order. A tool's id, which is
-  what `Player.tool` / `ltool` and pickups replicate, is its place in the toolbox.
-- `inventory.ts`: what an avatar carries. Issued tools (the pistols) can't be lost and never run out;
-  others go up to `max` of a kind, sharing their `charges`.
-- `heldTool.ts` runs each hand's hooks. `gun.ts` is `Gun`, a subclass. `arsenal.ts` is Peer City's toolbox.
+- `crossplay/tool.ts`: `Tool<Avatar>`, one object per kind, and `Toolbox`, a game's kinds in slot order. A tool's id, which is
+  what `tool` / `ltool` and pickups replicate, is its place in the toolbox.
+- `crossplay/inventory.ts`: what an avatar carries. Issued tools (the pistols, the axe) can't be lost and never run out;
+  others go up to `max` of a kind, sharing their `charges`. Consumables are tools whose charges are the
+  things themselves (arrows, seeds, logs, carrots), with `selectOnPickup: false` so gathering doesn't
+  switch the crosshair's tool.
+- `crossplay/heldTool.ts` runs each hand's hooks.
+- Each game has a base tool class saying what picking one up and dropping one does in its world: `fps/tool.ts`
+  (a `Pickup`) and `wilds/kit.ts`' `WildTool` (an `Item`). `fps/gun.ts` is `Gun`, `fps/arsenal.ts` Peer City's
+  toolbox, `wilds/kit.ts` Peer Wilds'.
 
 1. Subclass `Tool` (or `Gun`) and override the hooks you need. They run in the rules, on the avatar's
    owner, the same on every platform and headless in tests:
@@ -116,8 +128,12 @@ Tools are what an avatar carries and holds: guns now, and anything else a game n
    - `onUse(hand)` when the trigger's pulled, and again every `cooldownMs` while it's held if `automatic`;
      `onRelease(hand)`; `onHold(hand, dt)` every frame.
    - `hand` is a `ToolUse`: `side` (null for the crosshair), `origin` and `aim` to act from, `tip` for
-     effects, `pressedAt`, `spend(n)`, and `effect({ kick, hit })`, which reaches the frontend as
-     `AvatarBody.used` for recoil, haptics and hit markers.
+     effects, `velocity` (a tracked hand swinging it), `tool`, `pressedAt`, `spend(n)`, and
+     `effect({ kick, hit })`, which reaches the frontend as `AvatarBody.used` for recoil, haptics and hit
+     markers. `avatar.hand(side)` is the other hand, for two-handed tools like the bow.
+   - A tool can be richer in tracked hands without the rules reading a device: work from the body facts
+     (`side`, `origin`, `velocity`, the other hand). Peer Wilds' axe chops when its head moves into bark
+     fast, food is eaten at the mouth, and the crosshair versions are simpler paths in the same hooks.
    - Every hand holding a kind shares its one tool object, so keep per-hand state in a `WeakMap` keyed by
      the `ToolUse`.
 2. Say how it looks and sits in the hand:
@@ -132,6 +148,42 @@ Tools are what an avatar carries and holds: guns now, and anything else a game n
 4. Change the world the usual way from hooks (spawn entities, send actions, write the avatar's state). If a
    tool needs to show more than recoil and hit markers on the device, add to `UseEffect` and handle it in
    each frontend's `used`.
+
+## Lessons from a second game
+
+Peer Wilds (`src/wilds/`, `/wilds.html`) is survival, farming and hunting on a seeded island. Building it
+on Peer City 3D's structure showed what was general and what wasn't.
+
+What carried over unchanged: roles, frontends and the seat; the rig, `?xrsim`, holsters and torso; tools,
+inventory and held-tool hooks; the engine's ownership-as-lock, owner-routed actions and spawner pattern.
+
+What had to be pulled apart (now `src/crossplay/`):
+
+- `AvatarSim` mixed the body with cars and police. The body is `Avatar`; games add rules on top.
+- `Tool` assumed Peer City's avatar and `Pickup`. It's generic over the avatar now, and each game has its
+  own base tool for pickup and drop.
+- The ground was flat. `Avatar.groundAt` lets feet, eyes and hand heights sit on terrain; a headset
+  frontend eases the play space's floor over the ground under the avatar.
+- Tools needed more from a tracked hand: its `velocity`, the other hand, and an empty hand reaching for
+  something in the world (`HandIntent.grab`, from `Holsters.grabbing`).
+- The renderer and loop (`Stage`), models of people and tools, drawing another player's replicated body,
+  particles, spatial audio and headset panels were already game-neutral; they just lived in `src/fps/`.
+- A hand's cooldown survived switching tools; now it's reset when the tool changes.
+
+Patterns worth reusing:
+
+- **Sparse state over a seeded world**: only changes (felled trees as `Stump`s) are entities.
+- **Wall-clock time** for the day and for long-lived timestamps: no owner, nothing to tick or send.
+- **Projectiles as actions**: the shooter's peer flies them and decides hits; others fly a copy to watch.
+
+Open questions for the project owner:
+
+- **Persistence.** Plots, stumps and fires live while someone is nearby, then unload with the area. Should
+  a farm outlast everyone leaving (e.g. each player saving what they built, restored when they return)?
+- **Putting things in hands.** The device decides what a hand holds (holsters), so a pulled carrot goes to
+  your belt rather than into the hand that pulled it. Should rules be able to hand a tracked hand a tool?
+- **Desktop tool views.** Desktop frontends scale long tools to fit the view per game. Should `Tool` say how
+  it's shown first person on a crosshair?
 
 ## Later: mobile
 

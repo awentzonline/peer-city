@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
+import { DesktopTool } from '../src/crossplay/desktopTool';
+import { Holsters } from '../src/crossplay/holsters';
+import { Inventory } from '../src/crossplay/inventory';
+import { Rig } from '../src/crossplay/rig';
 import { PISTOL, RIFLE, TOOLS } from '../src/fps/arsenal';
-import { DesktopTool } from '../src/fps/desktopTool';
-import { Holsters } from '../src/fps/holsters';
-import { Inventory } from '../src/fps/inventory';
-import { Rig } from '../src/fps/rig';
 
 // Stand-in gun models (1m-long boxes), so no GLB loading is needed.
-vi.mock('../src/fps/assets', async () => {
+vi.mock('../src/crossplay/assets', async () => {
   const T = await import('three');
   return {
     assetGeometry: () => {

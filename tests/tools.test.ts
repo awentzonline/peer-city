@@ -4,8 +4,9 @@ import { AvatarSim, type AvatarBody } from '../src/fps/avatar';
 import { City } from '../src/fps/city';
 import type { GameContext, Vec3 } from '../src/fps/context';
 import { ACTIONS, ENTITIES, Pickup, PickupKind } from '../src/fps/defs';
-import { Side, handIntent, idleIntent, type AvatarIntent } from '../src/fps/intent';
-import { Platform } from '../src/fps/platform';
+import { Side } from '../src/crossplay/intent';
+import { Platform } from '../src/crossplay/platform';
+import { handIntent, idleIntent, type AvatarIntent } from '../src/fps/intent';
 import { NO_TOOL, Tool, Toolbox, type Drop, type PickedUp, type ToolOptions, type ToolUse, type UseEffect } from '../src/fps/tool';
 import { Sim } from './harness';
 

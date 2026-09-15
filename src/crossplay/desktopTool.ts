@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Vec3 } from './context';
+import type { Vec3 } from './math';
 import { buildTool, setToolModel, toolTip } from './models';
 import type { Rig } from './rig';
 import type { Tool } from './tool';
@@ -11,9 +11,10 @@ const v = new THREE.Vector3();
 
 /** The desktop first-person tool, held in front of the camera. A headset player's tools are in holsters.ts. */
 export class DesktopTool {
-  tool: Tool | null = null;
+  tool: Tool<any> | null = null;
+  /** Made by buildTool, on the camera. Games may pose it further between `update` and rendering. */
+  readonly model = buildTool(null);
   private readonly tip = new THREE.Vector3();
-  private readonly model = buildTool(null);
   private kick = 0;
   private kickScale = 1;
 
@@ -23,7 +24,7 @@ export class DesktopTool {
     rig.camera.add(this.model);
   }
 
-  setTool(tool: Tool | null): void {
+  setTool(tool: Tool<any> | null): void {
     if (tool === this.tool) return;
     this.tool = tool;
     setToolModel(this.model, tool);
@@ -57,6 +58,6 @@ export class DesktopTool {
     this.model.visible = visible;
     this.kick *= Math.exp(-dt * 14);
     this.model.rotation.x = this.kick * 0.35 * k;
-    this.model.position.z = HAND.z + this.kick * 0.06 * k;
+    this.model.position.set(HAND.x, HAND.y, HAND.z + this.kick * 0.06 * k);
   }
 }
