@@ -303,17 +303,22 @@ The same tools work on desktop and in a headset, but in VR they're hands-on:
 
 | | Desktop | VR |
 | --- | --- | --- |
-| Axe | click to chop or strike | swing it into a trunk or an animal |
+| Axe | click to chop or strike | swing it into a trunk, an animal or a survivor |
 | Bow | hold click to draw, let go | take an arrow from over your shoulder, touch it to the bow, pull the trigger, draw back, let go |
-| Hoe | click the ground | chop it down into the soil |
+| Hoe | click the ground, or click to strike | chop it down into the soil, or swing it to strike |
+| Sneaking | hold **C** to crouch | crouch for real |
 | Seeds | click tilled soil | reach down to a plot and pull the trigger |
 | Food | click to eat | hold it to your mouth |
 | Raw meat | hold click by a fire | hold it over the flames |
 | Logs | click the ground (3 build a fire) or a fire | set them on the ground or on a fire |
 | Crops | **E** | reach down and squeeze an empty hand on a ripe carrot |
 
-**Desktop:** WASD move · mouse look · click use · wheel / 1-9 tool · **E** pull crops · Shift run · Space jump ·
-`` ` `` net stats · N mute. `?hour=21` pins this peer's time of day, for trying nights.
+**Desktop:** WASD move · mouse look · click use · wheel / 1-9 tool · **E** pull crops · Shift run · **C** crouch ·
+Space jump · `` ` `` net stats · N mute. `?hour=21` pins this peer's time of day, for trying nights.
+
+Out of arrows? Sneak up and use the axe or hoe. Animals notice you from much nearer when you're crouched, creeping
+or still, or behind them, and further off when you run. Striking one before it notices you does triple damage,
+enough for the axe to drop a deer in one blow.
 
 How it uses the engine, and what it found:
 
@@ -339,7 +344,8 @@ How it uses the engine, and what it found:
   whoever made them, but when everyone leaves an area they unload like everything else.
 
 Source: `src/wilds/`. Tests: `tests/wilds.test.ts` plays the rules headless: felling a tree with tracked
-swings, farming with a crosshair, drawing a bow with two hands, eating and cooking, wolves at night.
+swings, farming with a crosshair, drawing a bow with two hands, striking survivors and animals with the axe
+and hoe, sneaking up on a deer, eating and cooking, wolves at night.
 
 ---
 

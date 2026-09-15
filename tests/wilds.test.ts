@@ -7,7 +7,7 @@ import { updateOwnedAnimals } from '../src/wilds/animals';
 import { Arrows } from '../src/wilds/arrows';
 import { registerCombat } from '../src/wilds/combat';
 import type { Vec3, WildsContext } from '../src/wilds/context';
-import { ACTIONS, Animal, AnimalKind, AnimalMode, Crop, ENTITIES, Item, Plot, Stump } from '../src/wilds/defs';
+import { ACTIONS, Animal, AnimalKind, AnimalMode, Crop, Damage, ENTITIES, Item, Plot, Stump, Survivor as SurvivorDef } from '../src/wilds/defs';
 import { CHOPS_TO_FELL, GROW_SECONDS, buildFire, trackStumps } from '../src/wilds/homestead';
 import { ARROWS, ARROW_LENGTH, AXE, BOW, CARROT, COOKED_MEAT, HOE, RAW_MEAT, SEEDS, WOOD } from '../src/wilds/kit';
 import { Ground, Land, MEADOW, ObstacleKind, SIZE } from '../src/wilds/land';
@@ -256,6 +256,83 @@ describe('Survivor', () => {
     frames(40, intent);
     expect(deer.state.mode).toBe(AnimalMode.Dead);
     expect(messages.some((m) => m.includes('deer'))).toBe(true);
+  });
+
+  it('strikes other survivors and animals with the axe and the hoe', () => {
+    const { world, survivor, body, s, frames, standAt, tracked } = setup();
+    const open = openGround(4);
+    standAt(open.x, open.y);
+    const ahead = (d: number) => ({ x: open.x + Math.cos(open.heading) * d, y: open.y + Math.sin(open.heading) * d });
+    const hits: { target: number; amount: number }[] = [];
+    const send = world.send.bind(world);
+    world.send = ((def, payload, opts) => {
+      if ((def as unknown) === Damage) hits.push(payload as { target: number; amount: number });
+      return send(def, payload, opts);
+    }) as typeof world.send;
+
+    // on a crosshair: another survivor (their own peer applies the damage)
+    body.platform = Platform.Desktop;
+    const other = world.spawn(SurvivorDef, { ...ahead(1.5), name: 'Other', hp: 100, food: 80 });
+    survivor.heading = open.heading;
+    const intent = idleIntent();
+    for (const [tool, amount] of [[AXE, 24], [HOE, 14]] as const) {
+      intent.selectTool = tool;
+      intent.trigger = false;
+      frames(1, intent);
+      intent.trigger = true;
+      frames(1, intent);
+      expect(hits.pop()).toMatchObject({ target: other.id, amount });
+    }
+    world.despawn(other);
+
+    // in a tracked hand: a deer that's already seen you, so no sneak attack
+    body.platform = Platform.Vr;
+    const d = ahead(1);
+    const deer = world.spawn(Animal, { ...d, kind: AnimalKind.Deer, hp: 70, mode: AnimalMode.Flee, tx: d.x, ty: d.y });
+    const hands = tracked();
+    const right = hands.hands![Side.Right];
+    const z = land.heightAt(d.x, d.y) + 0.8;
+    hold(right, HOE, { ...ahead(0.3), z }); // wound up
+    frames(30, hands);
+    hold(right, HOE, { ...d, z }); // into its flank
+    frames(1, hands);
+    expect(deer.state.hp).toBe(40);
+    expect(s.hp).toBe(100);
+  });
+
+  it('sneaks up behind a grazing deer and drops it with one blow of the axe', () => {
+    for (const sneaking of [false, true]) {
+      const { world, survivor, body, s, frames, standAt } = setup({ animals: true });
+      body.platform = Platform.Desktop;
+      const open = openGround(14);
+      standAt(open.x, open.y);
+      survivor.heading = open.heading;
+      const dx = open.x + Math.cos(open.heading) * 12;
+      const dy = open.y + Math.sin(open.heading) * 12;
+      // grazing where it stands, facing away
+      const deer = world.spawn(Animal, { x: dx, y: dy, angle: open.heading, kind: AnimalKind.Deer, hp: 70, mode: AnimalMode.Graze, tx: dx, ty: dy });
+      Object.assign(deer.local, { pauseUntil: Infinity });
+
+      const intent = idleIntent();
+      intent.selectTool = AXE;
+      intent.forward = 1;
+      intent.crouch = sneaking;
+      const gap = () => Math.hypot(deer.state.x - s.x, deer.state.y - s.y);
+      for (let i = 0; i < 600 && gap() > 2 && deer.state.mode === AnimalMode.Graze; i++) frames(1, intent);
+      if (!sneaking) {
+        expect(deer.state.mode).toBe(AnimalMode.Flee);
+        expect(gap()).toBeGreaterThan(9);
+        continue;
+      }
+      expect(deer.state.mode).toBe(AnimalMode.Graze);
+      expect(s.head).toBeLessThan(1.1);
+      intent.forward = 0;
+      intent.trigger = true;
+      messages.length = 0;
+      frames(1, intent);
+      expect(deer.state.mode).toBe(AnimalMode.Dead);
+      expect(messages).toContain('Sneak attack!');
+    }
   });
 
   it('eats food held to the mouth, and cooks raw meat held over a fire', () => {

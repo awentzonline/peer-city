@@ -3,8 +3,8 @@ import { Side } from '../crossplay/intent';
 import { box, merge, paint } from '../crossplay/models';
 import { Tool, Toolbox, type Drop, type PickedUp, type ToolOptions, type ToolUse } from '../crossplay/tool';
 import { ARROW_MAX_SPEED, ARROW_MIN_SPEED } from './arrows';
-import { animalSpec, sweepBodies } from './bodies';
-import { clamp, type AnimalEntity, type Vec3 } from './context';
+import { bodyAt, sweepBodies } from './bodies';
+import { clamp, type AnimalEntity, type SurvivorEntity, type Vec3 } from './context';
 import { Animal, AnimalMode, Butcher, Chop, Crop, Damage, Item } from './defs';
 import { CHOPS_TO_FELL, FIRE_LOGS, addLogs, buildFire, canBuildFire, fell, fireNear, plotNear, sow, till } from './homestead';
 import { ObstacleKind } from './land';
@@ -84,6 +84,59 @@ function aboveGround(use: Use, p: Vec3): number {
 }
 
 // ---------------------------------------------------------------------------
+// Striking bodies with a tool
+// ---------------------------------------------------------------------------
+
+type Body = AnimalEntity | SurvivorEntity;
+
+/** How fast a tracked hand must swing a tool, m/s, for it to hit. */
+const SWING_SPEED = 3;
+/** An animal struck before it notices you (still grazing) takes this many times the damage. */
+const SNEAK_ATTACK = 3;
+
+/** The body a crosshair swing within `reach` meets before the ground or a trunk, and where. Carcasses count if `dead`. */
+function swungAt(use: Use, reach: number, dead: boolean): { body: Body; at: Vec3 } | null {
+  const { ctx } = use.avatar;
+  const { origin: o, aim: d } = use;
+  const hit = sweepBodies(ctx, o, d, reach, ctx.me!.id, dead);
+  if (!hit || ctx.land.raycast(o.x, o.y, o.z, d.x, d.y, d.z, reach).t < hit.t) return null;
+  return { body: hit.entity, at: { x: o.x + d.x * hit.t, y: o.y + d.y * hit.t, z: o.z + d.z * hit.t } };
+}
+
+/** The body a tracked hand swings its tool's head into, fast enough to hit. Carcasses count if `dead`. */
+function swungInto(use: Use, dead: boolean): Body | null {
+  const v = use.velocity;
+  if (Math.hypot(v.x, v.y, v.z) < SWING_SPEED) return null;
+  const { ctx } = use.avatar;
+  return bodyAt(ctx, use.origin, 0.2, ctx.me!.id, dead);
+}
+
+/**
+ * Hit a survivor or an animal with a tool at `at`, knocking them the way it swung. A carcass is carved for
+ * meat instead, if the tool `butchers`.
+ */
+function strike(use: Use, body: Body, at: Vec3, amount: number, butchers = false): void {
+  const { ctx } = use.avatar;
+  if (body.is(Animal) && body.render.mode === AnimalMode.Dead) {
+    if (!butchers) return;
+    ctx.world.send(Butcher, { animal: body.id }, { to: 'owner', entity: body });
+  } else {
+    if (body.is(Animal) && body.render.mode === AnimalMode.Graze) {
+      amount *= SNEAK_ATTACK;
+      ctx.hud.message('Sneak attack!');
+    }
+    const v = use.side === null ? use.aim : use.velocity;
+    const k = 4 / (Math.hypot(v.x, v.y) || 1);
+    ctx.world.send(
+      Damage,
+      { target: body.id, amount: Math.min(255, Math.round(amount)), attacker: ctx.me!.id, kx: v.x * k, ky: v.y * k },
+      { to: 'owner', entity: body },
+    );
+  }
+  ctx.world.send(Chop, { x: at.x, y: at.y, z: at.z, wood: false }, { to: 'near', x: at.x, y: at.y, radius: 80 });
+}
+
+// ---------------------------------------------------------------------------
 // Models, built in code. Tips point down -Z, tops up +Y.
 // ---------------------------------------------------------------------------
 
@@ -94,7 +147,7 @@ function cylinderZ(r: number, length: number, z: number, color: number, sides = 
 const WOOD_HANDLE = 0x8a5a32;
 
 // ---------------------------------------------------------------------------
-// Axe: fell trees, hunt, butcher
+// Axe: fell trees, hunt, fight, butcher
 // ---------------------------------------------------------------------------
 
 class Axe extends WildTool {
@@ -102,10 +155,10 @@ class Axe extends WildTool {
     if (use.side !== null) return; // tracked hands swing it for real (onHold)
     const { ctx } = use.avatar;
     const reach = 2.4;
-    const body = sweepBodies(ctx, use.origin, use.aim, reach, ctx.me!.id, true);
-    const sight = sighted(use, reach);
-    if (body && (!sight || body.t < Math.hypot(sight.at.x - use.origin.x, sight.at.y - use.origin.y, sight.at.z - use.origin.z))) {
-      if (body.entity.is(Animal)) this.strike(use, body.entity, 24, use.aim);
+    const swung = swungAt(use, reach, true);
+    const sight = swung ? null : sighted(use, reach);
+    if (swung) {
+      strike(use, swung.body, swung.at, 24, true);
       use.effect({ kick: 0.8, hit: 'body' });
     } else if (sight && sight.obstacle >= 0) {
       this.chop(use, sight.obstacle, sight.at);
@@ -122,17 +175,12 @@ class Axe extends WildTool {
     const st = stateOf(use);
     const v = use.velocity;
     const speed = Math.hypot(v.x, v.y, v.z);
-    if (speed < 3 || ctx.now < st.next) return;
+    if (speed < SWING_SPEED || ctx.now < st.next) return;
     const o = use.origin;
-    const ground = ctx.land.heightAt(o.x, o.y);
-    // an animal, living or not, within the head's reach
-    for (const a of ctx.world.query(o.x, o.y, 1.2, Animal)) {
-      const spec = animalSpec(a.render.kind);
-      const dead = a.render.mode === AnimalMode.Dead;
-      if (Math.hypot(a.x - o.x, a.y - o.y) > spec.radius + 0.2) continue;
-      if (o.z < ground - 0.2 || o.z > ground + (dead ? 0.6 : spec.height + 0.2)) continue;
-      const dir = { x: v.x / speed, y: v.y / speed, z: 0 };
-      this.strike(use, a, Math.min(40, 8 + speed * 4), dir);
+    // a survivor or an animal, living or not, before a tree
+    const body = swungInto(use, true);
+    if (body) {
+      strike(use, body, o, Math.min(40, 8 + speed * 4), true);
       st.next = ctx.now + 400;
       use.effect({ kick: 0.8, hit: 'body' });
       return;
@@ -162,18 +210,6 @@ class Axe extends WildTool {
       ctx.hud.message('Timber!');
       avatar.give(WOOD, 2);
     }
-  }
-
-  /** Cut into an animal: hurt a living one, or carve meat off a carcass. */
-  private strike(use: Use, animal: AnimalEntity, amount: number, dir: Vec3): void {
-    const { ctx } = use.avatar;
-    if (animal.render.mode === AnimalMode.Dead) {
-      ctx.world.send(Butcher, { animal: animal.id }, { to: 'owner', entity: animal });
-    } else {
-      ctx.world.send(Damage, { target: animal.id, amount: Math.round(amount), attacker: ctx.me!.id, kx: dir.x * 4, ky: dir.y * 4 }, { to: 'owner', entity: animal });
-    }
-    const z = ctx.land.heightAt(animal.x, animal.y) + 0.5;
-    ctx.world.send(Chop, { x: animal.x, y: animal.y, z, wood: false }, { to: 'near', x: animal.x, y: animal.y, radius: 80 });
   }
 }
 
@@ -372,9 +408,16 @@ export const ARROWS = new Arrows({
 // Farming
 // ---------------------------------------------------------------------------
 
+/** A hoe tills the soil, and hits survivors and animals too (not as hard as an axe, and it can't butcher). */
 class Hoe extends WildTool {
   override onUse(use: Use): void {
     if (use.side !== null) return;
+    const swung = swungAt(use, 2.6, false);
+    if (swung) {
+      strike(use, swung.body, swung.at, 14);
+      use.effect({ kick: 0.6, hit: 'body' });
+      return;
+    }
     const sight = sighted(use, 3.2);
     if (sight && sight.obstacle < 0 && till(use.avatar.ctx, sight.at.x, sight.at.y)) use.effect({ kick: 0.6, hit: 'body' });
     else use.effect({ kick: 0.4 });
@@ -384,8 +427,17 @@ class Hoe extends WildTool {
     if (use.side === null) return;
     const st = stateOf(use);
     const { ctx } = use.avatar;
+    if (ctx.now < st.next) return;
+    const body = swungInto(use, false);
+    if (body) {
+      const v = use.velocity;
+      strike(use, body, use.origin, Math.min(30, 5 + Math.hypot(v.x, v.y, v.z) * 3));
+      st.next = ctx.now + 450;
+      use.effect({ kick: 0.6, hit: 'body' });
+      return;
+    }
     // a chop down into the soil
-    if (use.velocity.z > -2.2 || ctx.now < st.next || aboveGround(use, use.origin) > 0.08) return;
+    if (use.velocity.z > -2.2 || aboveGround(use, use.origin) > 0.08) return;
     st.next = ctx.now + 450;
     if (till(ctx, use.origin.x, use.origin.y)) use.effect({ kick: 0.6, hit: 'body' });
   }

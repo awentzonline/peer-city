@@ -13,6 +13,9 @@ export const RUN = 7.2;
 export const RADIUS = 0.35;
 /** Eye height above the feet, standing. */
 export const EYE = 1.65;
+/** Crouching on a virtual head: eye height, and how fast you creep. */
+export const CROUCH_EYE = 1;
+export const CROUCH_WALK = 1.8;
 const GRAVITY = 20;
 const JUMP_SPEED = 6;
 /** Tracked-head stick locomotion: one fast top speed, ~95% reached in half a second, and stopping is quicker. */
@@ -175,11 +178,11 @@ export abstract class Avatar<I extends AvatarIntent = AvatarIntent, B extends Av
     this.move(p, (c * forward - sn * strafe) * k, (sn * forward + c * strafe) * k);
   }
 
-  /** A virtual head: walk or run at once, and jump. */
+  /** A virtual head: walk or run at once, crouch, and jump. */
   protected walk(dt: number, intent: I): void {
     const s = this.me!.state;
-    this.step(s, intent.strafe, intent.forward, this.heading, intent.run ? RUN : WALK, dt);
-    if (intent.jump && s.z <= 0) this.vz = JUMP_SPEED;
+    this.step(s, intent.strafe, intent.forward, this.heading, intent.crouch ? CROUCH_WALK : intent.run ? RUN : WALK, dt);
+    if (intent.jump && s.z <= 0 && !intent.crouch) this.vz = JUMP_SPEED;
     if (s.z > 0 || this.vz > 0) {
       s.z += this.vz * dt;
       this.vz -= GRAVITY * dt;
@@ -188,7 +191,8 @@ export abstract class Avatar<I extends AvatarIntent = AvatarIntent, B extends Av
     this.collide(s, s.z);
     s.yaw = this.heading;
     s.pitch = this.pitch;
-    s.head = EYE;
+    const eye = intent.crouch ? CROUCH_EYE : EYE;
+    s.head = clamp(s.head + (eye - s.head) * Math.min(1, dt * 12), CROUCH_EYE, EYE);
   }
 
   /** A tracked head: follow it round the room, and ease the stick up to speed (sudden starts are nauseating). */
@@ -261,12 +265,12 @@ export abstract class Avatar<I extends AvatarIntent = AvatarIntent, B extends Av
     this.place(x, y);
   }
 
-  /** Where the eyes are. */
+  /** Where the eyes are: standing, crouching, or wherever a tracked head holds them. */
   eyePosition(out: Vec3): Vec3 {
     const s = this.me!.state;
     out.x = s.x;
     out.y = s.y;
-    out.z = this.feetZ() + EYE;
+    out.z = this.feetZ() + s.head;
     return out;
   }
 
@@ -295,7 +299,7 @@ export abstract class Avatar<I extends AvatarIntent = AvatarIntent, B extends Av
     const sn = Math.sin(heading);
     this.grip.x = s.x + c * 0.45 - sn * 0.22;
     this.grip.y = s.y + sn * 0.45 + c * 0.22;
-    this.grip.z = this.feetZ() + EYE - 0.3;
+    this.grip.z = this.feetZ() + s.head - 0.3;
     this.setHandFields(this.grip, this.aim, Side.Right);
 
     this.hands[Side.Left].hold(null);

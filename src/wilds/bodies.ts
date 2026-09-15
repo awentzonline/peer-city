@@ -69,36 +69,56 @@ export function hittable(e: NetEntity<any>): e is AnimalEntity | SurvivorEntity 
   return false;
 }
 
-/** The first living animal or survivor (other than `ignore`) that a ray passes through within `max` meters. `d` must be normalized. */
+/** A body's upright cylinder: radius, and bottom and top heights. */
+const bounds = { r: 0, z0: 0, z1: 0 };
+
+/** Fill `bounds` for a living animal or survivor, or a carcass if `dead`. False for anything else. */
+function bodyBounds(ctx: WildsContext, e: NetEntity<any>, dead: boolean): e is AnimalEntity | SurvivorEntity {
+  const { land } = ctx;
+  if (e.is(Animal)) {
+    if (!dead && e.render.mode === AnimalMode.Dead) return false;
+    const spec = animalSpec(e.render.kind);
+    bounds.r = spec.radius;
+    bounds.z0 = land.heightAt(e.x, e.y);
+    bounds.z1 = bounds.z0 + (e.render.mode === AnimalMode.Dead ? spec.radius : spec.height);
+    return true;
+  }
+  if (e.is(Survivor)) {
+    if (e.render.hp <= 0) return false;
+    bounds.r = SURVIVOR_RADIUS;
+    bounds.z0 = land.heightAt(e.x, e.y) + e.render.z;
+    bounds.z1 = bounds.z0 + e.render.head + 0.2;
+    return true;
+  }
+  return false;
+}
+
+/** The first living animal or survivor (other than `ignore`) that a ray passes through within `max` meters, or carcasses too if `dead`. `d` must be normalized. */
 export function sweepBodies(ctx: WildsContext, o: Vec3, d: Vec3, max: number, ignore = 0, dead = false): BodyHit | null {
-  const { land, world } = ctx;
   let best: BodyHit | null = null;
   let bestT = max;
   const mx = o.x + (d.x * max) / 2;
   const my = o.y + (d.y * max) / 2;
-  for (const e of world.query(mx, my, max / 2 + 1.5)) {
-    if (e.id === ignore) continue;
-    let r: number;
-    let z0: number;
-    let z1: number;
-    if (e.is(Animal)) {
-      if (!dead && e.render.mode === AnimalMode.Dead) continue;
-      const spec = animalSpec(e.render.kind);
-      r = spec.radius;
-      z0 = land.heightAt(e.x, e.y);
-      z1 = z0 + (e.render.mode === AnimalMode.Dead ? spec.radius : spec.height);
-    } else if (e.is(Survivor)) {
-      if (e.render.hp <= 0) continue;
-      r = SURVIVOR_RADIUS;
-      z0 = land.heightAt(e.x, e.y) + e.render.z;
-      z1 = z0 + e.render.head + 0.2;
-    } else {
-      continue;
-    }
-    const t = rayCylinder(o, d, e.x, e.y, r, z0, z1, bestT);
+  for (const e of ctx.world.query(mx, my, max / 2 + 1.5)) {
+    if (e.id === ignore || !bodyBounds(ctx, e, dead)) continue;
+    const t = rayCylinder(o, d, e.x, e.y, bounds.r, bounds.z0, bounds.z1, bestT);
     if (t < 0 || t >= bestT) continue;
     bestT = t;
-    best = { entity: e as AnimalEntity | SurvivorEntity, t };
+    best = { entity: e, t };
+  }
+  return best;
+}
+
+/** The nearest living animal or survivor (other than `ignore`) whose body a point is in, give or take `slack` meters, or carcasses too if `dead`. */
+export function bodyAt(ctx: WildsContext, p: Vec3, slack: number, ignore = 0, dead = false): AnimalEntity | SurvivorEntity | null {
+  let best: AnimalEntity | SurvivorEntity | null = null;
+  let bestD = Infinity;
+  for (const e of ctx.world.query(p.x, p.y, 1.5)) {
+    if (e.id === ignore || !bodyBounds(ctx, e, dead)) continue;
+    const d = Math.hypot(e.x - p.x, e.y - p.y);
+    if (d > bounds.r + slack || d >= bestD || p.z < bounds.z0 - slack || p.z > bounds.z1 + slack) continue;
+    bestD = d;
+    best = e;
   }
   return best;
 }

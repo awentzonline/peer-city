@@ -22,8 +22,8 @@ const pull = new THREE.Vector3();
 
 /**
  * Keyboard and mouse. First person with a crosshair: click to swing the axe or till, hold to draw the bow and
- * let go to shoot, click to eat, sow or build a fire, E to pull a ripe crop. Number keys and the wheel pick
- * the tool. When you die the camera circles your body.
+ * let go to shoot, click to eat, sow or build a fire, E to pull a ripe crop, C to crouch and sneak up on
+ * animals. Number keys and the wheel pick the tool. When you die the camera circles your body.
  */
 export class DesktopSurvivor implements SurvivorFrontend {
   readonly platform = Platform.Desktop;
@@ -66,6 +66,7 @@ export class DesktopSurvivor implements SurvivorFrontend {
     intent.strafe = key('KeyD') - key('KeyA');
     intent.forward = key('KeyW') - key('KeyS');
     intent.run = k.down('ShiftLeft') || k.down('ShiftRight');
+    intent.crouch = k.down('KeyC') || k.down('ControlLeft');
     intent.jump = k.pressed('Space');
     intent.interact = k.pressed('KeyE') || k.pressed('KeyF');
     intent.trigger = k.locked && k.mouse(0);

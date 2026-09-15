@@ -16,10 +16,10 @@ export interface MapDot {
 
 /** How to use each tool on a crosshair, and with tracked hands. */
 const HOW: Map<WildTool, [desktop: string, vr: string]> = new Map([
-  [AXE, ['Click to chop trees and strike animals', 'Swing it into a trunk or an animal']],
+  [AXE, ['Click to chop trees and strike. C to crouch and sneak up on animals', 'Swing it into a trunk, an animal or a survivor. Crouch to sneak up on animals']],
   [BOW, ['Hold click to draw, let go to shoot', 'Grab an arrow over your right shoulder and draw it back from the bow']],
   [ARROWS, ['Take out the bow to shoot these', 'Touch the bow with the arrow, hold the trigger, pull back, let go']],
-  [HOE, ['Click the ground to till a plot', 'Chop it down into the ground to till a plot']],
+  [HOE, ['Click the ground to till a plot, or click to strike', 'Chop it down into the ground to till a plot, or swing it to strike']],
   [SEEDS, ['Click tilled soil to sow', 'Reach down to a tilled plot and pull the trigger']],
   [CARROT, ['Click to eat', 'Hold it to your mouth']],
   [RAW_MEAT, ['Hold click by a fire to cook, click to eat raw', 'Hold it over a fire to cook, or to your mouth to eat raw']],

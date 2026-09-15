@@ -1,6 +1,6 @@
 import { animalSpec } from './bodies';
 import { isNight } from './clock';
-import type { AnimalEntity, SurvivorEntity, WildsContext } from './context';
+import { clamp, type AnimalEntity, type SurvivorEntity, type WildsContext } from './context';
 import { Animal, AnimalKind, AnimalMode, Damage, Survivor } from './defs';
 import { WARM_RADIUS, fireNear } from './homestead';
 import { Ground } from './land';
@@ -25,6 +25,72 @@ const BITE = 10;
 /** Wolves keep this far from a lit fire. */
 const FIRE_FEAR = WARM_RADIUS + 1;
 
+/**
+ * Sneaking. How far off an animal notices a survivor is its `alert` range times these: all the way down
+ * (head this low above the feet, or lower) or standing (this high), creeping or still (slower than this,
+ * m/s) or running (faster), and behind it rather than in front.
+ */
+const CROUCHED = 0.25;
+const CROUCH_HEAD = 1.1;
+const STAND_HEAD = 1.45;
+const CREEPING = 0.6;
+const CREEP_SPEED = 2.5;
+const RUNNING = 1.5;
+const RUN_SPEED = 5;
+const BEHIND = 0.6;
+
+interface Pace {
+  x: number;
+  y: number;
+  at: number;
+  speed: number;
+}
+
+/** How fast each survivor has been moving lately, as this peer sees them. Speed isn't replicated, and walking round a room counts. */
+const paces = new WeakMap<SurvivorEntity, Pace>();
+
+function paceOf(ctx: WildsContext, sv: SurvivorEntity): number {
+  const p = paces.get(sv);
+  if (!p) {
+    paces.set(sv, { x: sv.x, y: sv.y, at: ctx.now, speed: 0 });
+    return 0;
+  }
+  const dt = (ctx.now - p.at) / 1000;
+  if (dt <= 0) return p.speed;
+  const v = Math.min(12, Math.hypot(sv.x - p.x, sv.y - p.y) / dt); // not a respawn's jump
+  // after a while unseen, the average since is the best guess
+  p.speed = dt > 0.5 ? v : p.speed + (v - p.speed) * Math.min(1, dt * 5);
+  p.x = sv.x;
+  p.y = sv.y;
+  p.at = ctx.now;
+  return p.speed;
+}
+
+/** How near a survivor can come before an animal notices them: less crouched, creeping or from behind, more running. */
+export function noticeRange(ctx: WildsContext, a: AnimalEntity, sv: SurvivorEntity): number {
+  const s = a.state;
+  const low = clamp((STAND_HEAD - sv.render.head) / (STAND_HEAD - CROUCH_HEAD), 0, 1);
+  const speed = paceOf(ctx, sv);
+  const pace = speed > RUN_SPEED ? RUNNING : speed < CREEP_SPEED ? CREEPING : 1;
+  const behind = (sv.x - s.x) * Math.cos(s.angle) + (sv.y - s.y) * Math.sin(s.angle) < 0;
+  return animalSpec(s.kind).alert * (1 - (1 - CROUCHED) * low) * pace * (behind ? BEHIND : 1);
+}
+
+/** The nearest living survivor an animal has noticed. */
+function noticed(ctx: WildsContext, a: AnimalEntity): SurvivorEntity | undefined {
+  let best: SurvivorEntity | undefined;
+  let bestD = Infinity;
+  for (const sv of ctx.world.query(a.state.x, a.state.y, animalSpec(a.state.kind).alert * RUNNING, Survivor)) {
+    if (sv.render.hp <= 0) continue;
+    const d = Math.hypot(sv.x - a.state.x, sv.y - a.state.y);
+    if (d < bestD && d < noticeRange(ctx, a, sv)) {
+      bestD = d;
+      best = sv;
+    }
+  }
+  return best;
+}
+
 /** The nearest living survivor within `r`, and how far. */
 function nearestSurvivor(ctx: WildsContext, a: AnimalEntity, r: number, accept: (s: SurvivorEntity) => boolean = () => true): [SurvivorEntity | undefined, number] {
   let best: SurvivorEntity | undefined;
@@ -41,7 +107,8 @@ function nearestSurvivor(ctx: WildsContext, a: AnimalEntity, r: number, accept: 
 }
 
 /**
- * Animals this peer owns: deer and rabbits graze and bolt from anyone who comes near; wolves come out at
+ * Animals this peer owns: deer and rabbits graze and bolt from anyone they notice coming (see `noticeRange`:
+ * you can sneak up on them, and a strike before they notice is a sneak attack, see kit.ts); wolves come out at
  * night and hunt survivors who aren't by a fire. Like Peer City's pedestrians they're migratable, so when
  * a peer leaves, the next nearest takes over their herd, and the state that matters (mode, target, where
  * they're headed) is in the schema.
@@ -65,8 +132,8 @@ export function updateOwnedAnimals(ctx: WildsContext, dt: number): void {
       continue;
     }
 
-    const [threat, d] = nearestSurvivor(ctx, a, spec.alert);
-    if (threat && d < spec.alert) {
+    const threat = noticed(ctx, a);
+    if (threat) {
       s.mode = AnimalMode.Flee;
       l.fleeUntil = now + 3000;
       l.fx = threat.x;

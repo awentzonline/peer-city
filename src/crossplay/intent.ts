@@ -55,6 +55,8 @@ export interface AvatarIntent {
   strafe: number;
   forward: number;
   run: boolean;
+  /** A virtual head crouches: lower, and slower. Tracked heads crouch for real. */
+  crouch: boolean;
   jump: boolean;
   /** Act on whatever's in front of you: a car door, a crop to pull. */
   interact: boolean;
@@ -83,6 +85,7 @@ export function idleIntent(): AvatarIntent {
     strafe: 0,
     forward: 0,
     run: false,
+    crouch: false,
     jump: false,
     interact: false,
     trigger: false,
