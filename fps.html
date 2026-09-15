@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Peer City 3D</title>
+    <link rel="stylesheet" href="/src/fps/style.css" />
+  </head>
+  <body>
+    <div id="game"></div>
+
+    <div id="hud" hidden>
+      <div id="hurt"></div>
+      <div id="crosshair"></div>
+      <div id="hud-top">
+        <div id="cash">$0</div>
+        <div id="wanted"></div>
+        <div id="health"><div id="health-fill"></div></div>
+      </div>
+      <canvas id="minimap" width="180" height="180"></canvas>
+      <div id="feed"></div>
+      <div id="banner"></div>
+      <div id="hint"></div>
+      <button id="vr-enter" hidden>ENTER VR</button>
+      <div id="lock" hidden>
+        <div>CLICK TO PLAY</div>
+        <small>Esc releases the mouse</small>
+      </div>
+      <div id="help">
+        <b>WASD</b> move · <b>Mouse</b> look · <b>Click</b> shoot · <b>Shift</b> run · <b>Space</b> jump / handbrake · <b>F</b> enter/exit car ·
+        <b>V</b> car camera · <b>H</b> horn · <b>`</b> net stats · <b>N</b> mute
+      </div>
+    </div>
+
+    <div id="lobby">
+      <div class="panel">
+        <h1>PEER CITY <span>3D</span></h1>
+        <p class="tag">A serverless first-person open-world sandbox, playable on desktop or in room-scale VR. Every player's browser simulates the city together.</p>
+        <label>Name <input id="name" maxlength="16" autocomplete="off" /></label>
+        <label
+          >Network
+          <select id="net">
+            <option value="online">Online (WebRTC via Trystero / Nostr)</option>
+            <option value="local">Local tabs (BroadcastChannel)</option>
+          </select>
+        </label>
+        <label>Shard <input id="room" maxlength="24" autocomplete="off" /></label>
+        <div class="buttons">
+          <button id="play">PLAY</button>
+          <button id="play-vr" disabled>PLAY IN VR</button>
+        </div>
+        <p class="small" id="vr-note">Checking for a VR headset…</p>
+        <details class="small">
+          <summary>VR controls</summary>
+          Walk around your room for real, or use the <b>left stick</b> to move (click or grip to run). <b>Right stick</b> snap-turns. Each
+          <b>trigger</b> fires the pistol in that hand. <b>A/X</b> enter or exit a car. Driving: <b>left stick</b> steers and accelerates,
+          <b>right grip</b> handbrake, <b>B</b> horn, <b>Y</b> recenter your seat. Your stats and minimap are on your left wrist.
+        </details>
+        <p class="small">Open more tabs or share the URL to add players. <a href="/">Top-down 2D version →</a></p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/fps/main.ts"></script>
+  </body>
+</html>

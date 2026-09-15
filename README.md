@@ -192,6 +192,48 @@ Source: `src/engine/` (framework) and `src/game/` (demo).
 
 ---
 
+## Peer City 3D (first-person + room-scale VR)
+
+`/fps.html` is the same sandbox rebuilt as a first-person shooter in [three.js](https://threejs.org),
+playable on desktop or in a WebXR headset (e.g. Meta Quest Browser). It runs on the same engine
+and networking: zones, interest management, NPC ownership migration, carjacking via
+`requestOwnership`, damage sent to the victim's owner, and police.
+
+```bash
+npm run dev    # http://localhost:5173/fps.html
+```
+
+**Desktop:** WASD move · mouse look · click shoot · Shift run · Space jump / handbrake · **F** enter/exit
+car · **V** chase camera while driving · H horn · `` ` `` net stats · N mute
+
+**VR:** walk around your room for real, or use the left stick (click or grip to run). Right stick
+snap-turns. Each trigger fires the pistol in that hand. **A/X** enter/exit a car. Driving: left stick
+steers and accelerates, right grip is the handbrake, **B** horns, **Y** recenters your seat. Cash, wanted
+level, health and the minimap are on your left wrist.
+
+What changes in 3D:
+
+- **Units are meters.** The world is still simulated on the ground plane (`x`, `y`) with height `z`,
+  so the 2D AI, traffic and collision code carries over. three.js renders x → X, z → Y, y → Z. The
+  engine's distance constants (`spatialCellSize`, `focusResendDistance`, `zoneJoinMargin`,
+  `zoneKeepMargin`) are options now, scaled down for a meter-scale world.
+- **3D ballistics.** Bullets march the tile grid (`City.raycast3D`) against building heights and the
+  ground, then test upright cylinders (people, with headshots) and oriented boxes (cars).
+- **Avatars replicate head and hand.** `Player` carries head height, look pitch, and the gun hand's
+  position and aim, so you see where VR players point their guns and when they crouch.
+- **Room-scale.** The camera and controllers live in a play-space group (`Rig.root`). Your avatar is
+  wherever your head is. If walking in your room would put your head inside a wall or car, the play
+  space is pushed back instead. Stick locomotion and snap turns move the play space. Sitting in a car
+  calibrates your current head pose to the driver's seat, whatever your real height or position.
+- **VR comfort:** no camera shake or forced camera motion in a headset. Damage and death tint the view
+  instead.
+- `?xrsim` emulates a headset on desktop for testing the VR code paths. Mouse moves the head, arrow keys
+  walk the room, C crouches, WASD/Q/E are the sticks, mouse buttons the triggers, F = A, R = Y.
+
+Source: `src/fps/`.
+
+---
+
 ## Scaling results
 
 `scripts/loadsim.ts` runs many `NetWorld`s in one process over a simulated network (45ms latency

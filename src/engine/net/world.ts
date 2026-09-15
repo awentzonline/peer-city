@@ -62,6 +62,18 @@ export interface NetWorldOptions {
   handoffDwellMs?: number;
   disconnectGraceMs?: number;
   ownershipRequestTimeoutMs?: number;
+  /**
+   * Distance constants below are in world units. The defaults suit pixel-scale
+   * 2D worlds; scale them down for worlds measured in meters.
+   */
+  /** Cell size of the spatial hash behind `query()`. Default 256. */
+  spatialCellSize?: number;
+  /** Focus movement that triggers an early focus update to peers. Default 12. */
+  focusResendDistance?: number;
+  /** Extra distance beyond 1.25 × interest radius at which zones are joined. Default 200. */
+  zoneJoinMargin?: number;
+  /** Extra distance beyond 1.25 × interest radius before zones are left (hysteresis). Default 600. */
+  zoneKeepMargin?: number;
   now?: () => number;
 }
 
@@ -176,7 +188,7 @@ export interface NetStats {
  */
 export class NetWorld {
   readonly selfId: string;
-  readonly spatial = new SpatialHash<NetEntity<any>>(256);
+  readonly spatial: SpatialHash<NetEntity<any>>;
   readonly zoneSize: number;
   readonly cellSize: number;
   readonly interestRadius: number;
@@ -195,6 +207,9 @@ export class NetWorld {
   private readonly rebalanceMs: number;
   private readonly handoffDwellMs: number;
   private readonly requestTimeoutMs: number;
+  private readonly focusResendDistance: number;
+  private readonly zoneJoinMargin: number;
+  private readonly zoneKeepMargin: number;
 
   private readonly entities = new Map<number, NetEntity<any>>();
   private readonly byType: Set<NetEntity<any>>[];
@@ -276,6 +291,10 @@ export class NetWorld {
     this.rebalanceMs = opts.rebalanceMs ?? 500;
     this.handoffDwellMs = opts.handoffDwellMs ?? 1500;
     this.requestTimeoutMs = opts.ownershipRequestTimeoutMs ?? 3000;
+    this.spatial = new SpatialHash(opts.spatialCellSize ?? 256);
+    this.focusResendDistance = opts.focusResendDistance ?? 12;
+    this.zoneJoinMargin = opts.zoneJoinMargin ?? 200;
+    this.zoneKeepMargin = opts.zoneKeepMargin ?? 600;
     this.clock = opts.now ?? (() => performance.now());
     this.nowMs = this.clock();
     this.idTag = randomTag();
@@ -572,8 +591,8 @@ export class NetWorld {
   private updateZones(): string[] {
     const leaving: string[] = [];
     if (!this.hasFocus) return leaving;
-    const joinR = this.radius * 1.25 + 200;
-    const keepR = this.radius * 1.25 + 600;
+    const joinR = this.radius * 1.25 + this.zoneJoinMargin;
+    const keepR = this.radius * 1.25 + this.zoneKeepMargin;
     const want = this.zonesInCircle(this.focusX, this.focusY, joinR);
     for (const key of want) this.mesh.join(key);
     const keep = new Set(this.zonesInCircle(this.focusX, this.focusY, keepR));
@@ -670,7 +689,7 @@ export class NetWorld {
   private writeFocus(peer: RemotePeer, now: number): void {
     if (!this.hasFocus) return;
     const moved = Math.abs(this.focusX - peer.lastFocusX) + Math.abs(this.focusY - peer.lastFocusY);
-    if (moved > 12 || now - peer.lastFocusSent > 500 || Number.isNaN(moved)) {
+    if (moved > this.focusResendDistance || now - peer.lastFocusSent > 500 || Number.isNaN(moved)) {
       peer.out.u8(MSG_FOCUS).f32(this.focusX).f32(this.focusY).u16(Math.min(65535, this.radius));
       peer.lastFocusSent = now;
       peer.lastFocusX = this.focusX;

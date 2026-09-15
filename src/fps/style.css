@@ -1,0 +1,378 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #0d1b2a;
+  font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+  color: #fff;
+  user-select: none;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+}
+
+#game canvas {
+  display: block;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ---------------- HUD ---------------- */
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+#hud-top {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  text-align: right;
+}
+
+#cash {
+  font-size: 34px;
+  font-weight: 900;
+  color: #6ee07a;
+  text-shadow:
+    2px 2px 0 #0b3d12,
+    -1px -1px 0 #0b3d12;
+  letter-spacing: 1px;
+}
+
+#wanted {
+  font-size: 26px;
+  letter-spacing: 3px;
+  min-height: 32px;
+  color: #ffd54a;
+  text-shadow: 2px 2px 0 #000;
+}
+
+#wanted .off {
+  color: rgba(255, 255, 255, 0.22);
+  text-shadow: none;
+}
+
+#wanted.flash {
+  animation: flash 0.5s steps(2) infinite;
+}
+
+@keyframes flash {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+#health {
+  width: 170px;
+  height: 12px;
+  margin-left: auto;
+  margin-top: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 2px solid rgba(0, 0, 0, 0.8);
+  border-radius: 3px;
+}
+
+#health-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(#ff6b6b, #c0392b);
+  transition: width 0.2s;
+}
+
+#minimap {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  border: 3px solid rgba(0, 0, 0, 0.75);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
+  background: #111;
+}
+
+#crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+}
+
+#crosshair::before,
+#crosshair::after {
+  content: '';
+  position: absolute;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 2px #000;
+}
+
+#crosshair::before {
+  left: 10px;
+  top: 0;
+  width: 2px;
+  height: 22px;
+  clip-path: polygon(0 0, 100% 0, 100% 36%, 0 36%, 0 64%, 100% 64%, 100% 100%, 0 100%);
+}
+
+#crosshair::after {
+  top: 10px;
+  left: 0;
+  height: 2px;
+  width: 22px;
+  clip-path: polygon(0 0, 36% 0, 36% 100%, 0 100%, 0 0, 64% 0, 100% 0, 100% 100%, 64% 100%);
+}
+
+#crosshair.hit::before,
+#crosshair.hit::after {
+  background: #ff5252;
+}
+
+#crosshair.head {
+  transform: scale(1.5) rotate(45deg);
+}
+
+#crosshair.head::before,
+#crosshair.head::after {
+  background: #ffd54a;
+}
+
+#hurt {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(200, 0, 0, 0.6));
+}
+
+#hurt.show {
+  animation: hurt 0.5s ease-out;
+}
+
+@keyframes hurt {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+#feed {
+  position: absolute;
+  right: 18px;
+  bottom: 50px;
+  text-align: right;
+  font-size: 14px;
+  text-shadow: 1px 1px 0 #000;
+}
+
+#feed div {
+  margin-top: 4px;
+  animation: fadeout 6s forwards;
+}
+
+@keyframes fadeout {
+  0%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+#banner {
+  position: absolute;
+  top: 34%;
+  width: 100%;
+  text-align: center;
+  font-size: 72px;
+  font-weight: 900;
+  letter-spacing: 6px;
+  opacity: 0;
+  transition: opacity 0.4s;
+  text-shadow: 4px 4px 0 #000;
+}
+
+#banner.show {
+  opacity: 1;
+}
+
+#hint {
+  position: absolute;
+  top: 58%;
+  width: 100%;
+  text-align: center;
+  font-size: 17px;
+  text-shadow: 1px 1px 0 #000;
+}
+
+#help {
+  position: absolute;
+  bottom: 12px;
+  right: 18px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  text-shadow: 1px 1px 0 #000;
+}
+
+#lock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  text-shadow: 2px 2px 0 #000;
+}
+
+#lock small {
+  font-size: 13px;
+  font-weight: normal;
+  letter-spacing: 1px;
+}
+
+#vr-enter {
+  position: absolute;
+  left: 18px;
+  top: 14px;
+  pointer-events: auto;
+  padding: 8px 14px;
+  font: 900 14px/1 'Trebuchet MS', sans-serif;
+  letter-spacing: 2px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(90deg, #4fc3ff, #a36bff);
+}
+
+/* ---------------- Lobby ---------------- */
+#lobby {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 90, 160, 0.35), transparent 50%),
+    radial-gradient(circle at 70% 80%, rgba(60, 160, 255, 0.35), transparent 50%),
+    #0d1b2a;
+  padding: 16px;
+}
+
+#lobby .panel {
+  width: min(440px, 100%);
+  background: rgba(0, 0, 0, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 26px 28px;
+  backdrop-filter: blur(6px);
+}
+
+#lobby h1 {
+  margin: 0;
+  font-size: 50px;
+  font-style: italic;
+  letter-spacing: 2px;
+  background: linear-gradient(90deg, #ff5fa2, #ffd54a, #4fc3ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(3px 3px 0 #000);
+}
+
+#lobby .tag {
+  margin: 4px 0 18px;
+  color: #c9d6e3;
+}
+
+#lobby label {
+  display: block;
+  margin: 10px 0;
+  font-size: 13px;
+  color: #aab8c5;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+#lobby input,
+#lobby select {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 9px 10px;
+  font-size: 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+#lobby select option {
+  color: #000;
+}
+
+#lobby .buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+#lobby button {
+  flex: 1;
+  padding: 12px;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #1b1b1b;
+  background: linear-gradient(90deg, #ffd54a, #ff9f43);
+}
+
+#lobby #play-vr {
+  color: #fff;
+  background: linear-gradient(90deg, #4fc3ff, #a36bff);
+}
+
+#lobby button:disabled {
+  cursor: default;
+  filter: grayscale(1) brightness(0.6);
+}
+
+#lobby button:not(:disabled):hover {
+  filter: brightness(1.1);
+}
+
+#lobby .small {
+  font-size: 12px;
+  color: #8a9aa8;
+  margin: 10px 0 0;
+}
+
+#lobby details summary {
+  cursor: pointer;
+  color: #aab8c5;
+}
+
+#lobby a {
+  color: #8fd3ff;
+}
