@@ -1,3 +1,5 @@
+import { NO_WEAPON, weaponSpec } from './arsenal';
+import type { AvatarSim } from './avatar';
 import { TILE, type City } from './city';
 
 export interface MinimapDot {
@@ -92,6 +94,18 @@ export class Hud {
     this.hint = text;
     this.hintEl.textContent = text;
     this.version++;
+  }
+
+  /** An avatar's status, hint and gun readout. `button` is what gets you into a car on this platform. */
+  showAvatar(sim: AvatarSim, button: string): void {
+    const s = sim.me?.state;
+    if (!s) return;
+    this.setStatus(s.cash, s.wanted, s.hp);
+    this.setHint(sim.cuffed ? 'The cops have hold of you. Run!' : sim.nearCar ? `Press ${button} to take the car` : '');
+    if (s.hp === 0 || sim.arrested) return;
+    const armed = s.weapon !== NO_WEAPON || s.lweapon !== NO_WEAPON;
+    if (armed) this.setWeapon(weaponSpec(sim.inventory.current).name, sim.inventory.ammo());
+    else this.setWeapon('', Infinity);
   }
 
   message(text: string): void {

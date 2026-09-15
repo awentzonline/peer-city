@@ -73,14 +73,14 @@ export class Holsters {
   private readonly muzzleOut = new THREE.Vector3();
   private readonly laserGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, -30)]);
   private readonly laserMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+  private readonly gloveGeo = new THREE.BoxGeometry(0.075, 0.08, 0.11);
+  private readonly gloveMat = new THREE.MeshLambertMaterial({ color: 0x2a2a2e });
 
   constructor(rig: Rig) {
     this.torso = new Torso(rig);
     this.laserGeo.setAttribute('color', new THREE.Float32BufferAttribute([1, 0.15, 0.15, 0, 0, 0], 3));
-    const gloveGeo = new THREE.BoxGeometry(0.075, 0.08, 0.11);
-    const gloveMat = new THREE.MeshLambertMaterial({ color: 0x2a2a2e });
     this.hands = [rig.left, rig.right].map((hand) => {
-      const glove = new THREE.Mesh(gloveGeo, gloveMat);
+      const glove = new THREE.Mesh(this.gloveGeo, this.gloveMat);
       glove.position.set(0, -0.09, 0.12);
       glove.visible = false;
       hand.object.add(glove);
@@ -125,7 +125,18 @@ export class Holsters {
     }
   }
 
-  /** Recoil and visibility. `visible` is false outside VR and while dead. */
+  /** Take the body, guns and gloves back off the rig. */
+  dispose(): void {
+    for (const gun of this.guns) gun.group.removeFromParent(); // including any in a hand
+    for (const h of this.hands) h.glove.removeFromParent();
+    this.torso.dispose();
+    this.laserGeo.dispose();
+    this.laserMat.dispose();
+    this.gloveGeo.dispose();
+    this.gloveMat.dispose();
+  }
+
+  /** Recoil and visibility. `visible` is false while dead. */
   animate(dt: number, visible: boolean): void {
     this.torso.object.visible = visible;
     const decay = Math.exp(-dt * 14);

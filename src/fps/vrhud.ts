@@ -73,6 +73,15 @@ export class VrHud {
     }
   }
 
+  dispose(): void {
+    for (const { mesh, tex } of [this.wrist, this.info]) {
+      mesh.removeFromParent();
+      mesh.geometry.dispose();
+      mesh.material.dispose();
+      tex.dispose();
+    }
+  }
+
   private drawWrist(view: MapView): void {
     const { ctx, tex } = this.wrist;
     const hud = this.hud;

@@ -32,7 +32,7 @@ export const Player = defineEntity({
     wanted: t.uint(8),
     cash: t.uint(32),
     kills: t.uint(16),
-    vr: t.bool(),
+    platform: t.uint(8), // what it's played on (see platform.ts); headset players' empty hands are tracked too
     weapon: t.uint(8), // gun in the right hand (see arsenal.ts; 255 = empty)
     lweapon: t.uint(8, 255), // gun in the left hand
   },

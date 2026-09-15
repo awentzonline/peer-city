@@ -255,8 +255,14 @@ What changes in 3D:
   one side. You can carry two of each gun, one for each hand, sharing their ammo; you start with a
   pistol on each hip. Stick locomotion has one fast top speed that takes about half a second to reach.
 
+- **Platforms and roles.** The rules never read a device. `AvatarSim` (`src/fps/avatar.ts`) plays the
+  avatar from a plain `AvatarIntent` and runs headless in tests. Per-platform frontends (`DesktopAvatar`,
+  `VrAvatar`) read devices into that intent, draw the result, and handle the rules' callbacks, like
+  pushing a VR play space back from a wall. Other roles (say, a touch player directing NPCs from above)
+  plug into the same `Role` / `Frontend` contracts in `src/fps/role.ts`.
+
 Source: `src/fps/`. Where it's heading, VR, desktop and mobile players each getting their own
-experience in the same world: [docs/crossplay-plan.md](docs/crossplay-plan.md).
+experience, and sometimes their own role, in the same world: [docs/crossplay-plan.md](docs/crossplay-plan.md).
 
 ---
 

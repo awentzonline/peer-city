@@ -1,11 +1,10 @@
 import * as THREE from 'three';
 import { clamp, headingToYaw, yawToHeading, type Vec3 } from './context';
-import type { DesktopInput } from './input';
 
 /**
  * - desktop: mouse-look camera, positioned from the player's state each frame.
  * - vr: a WebXR headset drives the camera and controllers.
- * - sim: desktop stand-in for a headset (?xrsim), for testing room-scale logic without one.
+ * - sim: desktop stand-in for a headset (?xrsim, see xrsim.ts), for testing room-scale logic without one.
  */
 export type RigMode = 'desktop' | 'vr' | 'sim';
 
@@ -55,19 +54,34 @@ export class XRHand {
   }
 }
 
+/** Fills in a rig's head and controller poses each frame, from a headset or something standing in for one. */
+export interface XrPoseSource {
+  readonly mode: Exclude<RigMode, 'desktop'>;
+  read(rig: Rig, dt: number): void;
+}
+
+/** A WebXR headset, read from the frame three.js is rendering. */
+export class WebXrPoses implements XrPoseSource {
+  readonly mode = 'vr';
+
+  constructor(private readonly xr: THREE.WebXRManager) {}
+
+  read(rig: Rig): void {
+    // three.js only has a frame inside the session's animation callback, so background steps read nothing
+    const frame = this.xr.getFrame();
+    const space = this.xr.getReferenceSpace();
+    if (frame && space) rig.readXR(frame, space);
+  }
+}
+
 const v = new THREE.Vector3();
-const euler = new THREE.Euler(0, 0, 0, 'YXZ');
 const FORWARD = new THREE.Vector3(0, 0, -1);
-/** Simulated right-hand positions relative to the head: held out, at the hip, over the shoulder. */
-const SIM_REST = [0.2, -0.3, -0.35] as const;
-const SIM_HIP = [0.22, -0.68, -0.05] as const;
-const SIM_SHOULDER = [0.2, -0.12, 0.25] as const;
 
 /**
  * The player's physical frame of reference. `root` is the play-space origin in
  * the world (the floor of your room); the headset and controllers move inside
  * it. Room-scale walking moves the head within the root, and game code keeps
- * the head out of walls by shifting the root back (see PlayerController).
+ * the head out of walls by shifting the root back (see AvatarSim and VrAvatar).
  */
 export class Rig {
   readonly root = new THREE.Group();
@@ -84,8 +98,6 @@ export class Rig {
   private shakeAmt = 0;
   private readonly overlay: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
   private overlayBase = 0;
-  private simYaw = 0;
-  private simPitch = 0;
 
   constructor(scene: THREE.Scene, aspect: number) {
     this.camera = new THREE.PerspectiveCamera(72, aspect, 0.05, 1500);
@@ -115,10 +127,7 @@ export class Rig {
     this.camera.position.set(0, 1.65, 0);
     this.camera.quaternion.identity();
     this.left.connected = this.right.connected = mode === 'sim';
-    if (mode === 'sim') {
-      this.headLocal.set(0, 1.65, 0);
-      this.simYaw = this.simPitch = 0;
-    }
+    if (mode === 'sim') this.headLocal.set(0, 1.65, 0);
   }
 
   /** Read headset and controller poses for this XR frame. */
@@ -154,49 +163,6 @@ export class Rig {
       for (let b = 0; b < gp.buttons.length && b < 8; b++) if (gp.buttons[b].pressed) mask |= 1 << b;
       hand.setButtons(mask);
     }
-  }
-
-  /**
-   * Simulated headset: mouse turns the head, arrow keys walk around a 3×3m
-   * room, C crouches. Controllers: WASD left stick, Q/E right stick, left/right
-   * mouse the triggers, F = A, H = B, R = Y, X = right stick click, Space = right grip,
-   * Shift = left grip. Hold G or B to reach the right hand down to your hip or back
-   * over your shoulder, to try the holsters.
-   */
-  readSim(input: DesktopInput, dt: number): void {
-    const [mx, my] = input.consumeMouse();
-    this.simYaw -= mx * 0.0025;
-    this.simPitch = clamp(this.simPitch - my * 0.0025, -1.4, 1.4);
-    this.headQuat.setFromEuler(euler.set(this.simPitch, this.simYaw, 0));
-    const fwd = (input.down('ArrowUp') ? 1 : 0) - (input.down('ArrowDown') ? 1 : 0);
-    const str = (input.down('ArrowRight') ? 1 : 0) - (input.down('ArrowLeft') ? 1 : 0);
-    const c = Math.cos(this.simYaw);
-    const s = Math.sin(this.simYaw);
-    this.headLocal.x = clamp(this.headLocal.x + (-s * fwd + c * str) * 1.2 * dt, -1.5, 1.5);
-    this.headLocal.z = clamp(this.headLocal.z + (-c * fwd - s * str) * 1.2 * dt, -1.5, 1.5);
-    this.headLocal.y += ((input.down('KeyC') ? 1.0 : 1.65) - this.headLocal.y) * Math.min(1, dt * 8);
-    this.camera.position.copy(this.headLocal);
-    this.camera.quaternion.copy(this.headQuat);
-
-    const r = this.right.object;
-    const [rx, ry, rz] = input.down('KeyG') ? SIM_HIP : input.down('KeyB') ? SIM_SHOULDER : SIM_REST;
-    r.position.copy(this.headLocal).add(v.set(rx, ry, rz).applyEuler(euler.set(0, this.simYaw, 0)));
-    r.quaternion.copy(this.headQuat);
-    const l = this.left.object;
-    l.position.copy(this.headLocal).add(v.set(-0.2, -0.4, -0.3).applyEuler(euler.set(0, this.simYaw, 0)));
-    l.quaternion.setFromEuler(euler.set(0.9, this.simYaw, 0));
-
-    const key = (code: string) => (input.down(code) ? 1 : 0);
-    this.left.stickX = key('KeyD') - key('KeyA');
-    this.left.stickY = key('KeyS') - key('KeyW');
-    this.right.stickX = key('KeyE') - key('KeyQ');
-    this.right.stickY = 0;
-    this.right.trigger = input.mouse(0) ? 1 : 0;
-    this.left.trigger = input.mouse(2) ? 1 : 0;
-    this.right.squeeze = key('Space');
-    this.left.squeeze = key('ShiftLeft');
-    this.right.setButtons((this.right.trigger << Btn.Trigger) | (key('KeyX') << Btn.Stick) | (key('KeyF') << Btn.A) | (key('KeyH') << Btn.B));
-    this.left.setButtons((this.left.trigger << Btn.Trigger) | (key('KeyR') << Btn.B));
   }
 
   /** Head position in world axes. */

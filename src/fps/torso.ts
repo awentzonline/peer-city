@@ -37,6 +37,10 @@ export class Torso {
     rig.root.updateMatrixWorld();
   }
 
+  dispose(): void {
+    this.object.removeFromParent();
+  }
+
   /** Whether a point in three.js world space is on the body. */
   contains(point: THREE.Vector3): boolean {
     return ZONE.containsPoint(this.object.worldToLocal(v.copy(point)));

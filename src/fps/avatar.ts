@@ -1,12 +1,11 @@
-import { Inventory, NO_WEAPON, WEAPONS, Weapon, weaponSpec } from './arsenal';
+import { Inventory, NO_WEAPON, Weapon, weaponSpec } from './arsenal';
 import { angleDiff, clamp, direction, type CarEntity, type GameContext, type PedEntity, type PickupEntity, type PlayerEntity, type Vec3 } from './context';
 import { Car, CarKind, CarMode, Feed, Horn, Ped, PedMode, Pickup, PickupKind, Player } from './defs';
-import type { Hands } from './hands';
-import { GUN_IN_HAND } from './holsters';
-import type { DesktopInput } from './input';
+import { Side, type AvatarIntent, type HandIntent, type TrackedHead } from './intent';
 import { moveCircle } from './peds';
+import { Platform } from './platform';
 import { CUFF_RANGE, isPoliceUnit, spawnOfficer } from './police';
-import { Btn, type XRHand } from './rig';
+import type { Frontend, Role } from './role';
 import { PED_SKINS, carExtents, carSpec } from './specs';
 import { driveCar } from './vehicles';
 import { fireBullet, scatter } from './weapons';
@@ -18,55 +17,88 @@ const EYE = 1.65;
 const GRAVITY = 20;
 const JUMP_SPEED = 6;
 const ARREST_MS = 3000;
-const MOUSE_SENSITIVITY = 0.0022;
-const SNAP_TURN = Math.PI / 6;
-/** VR stick locomotion: one fast top speed, ~95% reached in half a second, and stopping is quicker. */
-const VR_SPEED = 7;
-const VR_ACCEL = 6;
-const VR_BRAKE = 12;
+/** Tracked-head stick locomotion: one fast top speed, ~95% reached in half a second, and stopping is quicker. */
+const TRACKED_SPEED = 7;
+const TRACKED_ACCEL = 6;
+const TRACKED_BRAKE = 12;
 
-const deadzone = (v: number) => (Math.abs(v) < 0.15 ? 0 : v);
+export type ShotResult = 'miss' | 'body' | 'head';
 
 /**
- * Local player: input (desktop or headset), on-foot movement, driving,
- * shooting and life cycle.
- *
- * In VR the avatar's position is the head's position on the ground. Walking
- * around your room moves the head; when that would put it inside a wall the
- * play space is pushed back instead, so you can't physically walk through
- * buildings. The thumbstick and snap turn move the play space itself.
+ * How the avatar's rules reach back to the device playing it. `AvatarSim` calls these and each platform
+ * decides what they mean there: a headset moves its play space when the avatar is pushed, a desktop has
+ * nothing to move.
  */
-export class PlayerController {
-  /** Desktop look direction. Absolute, and carried round with the car while driving. */
+export interface AvatarBody {
+  readonly platform: Platform;
+  /** The rules moved the avatar: a wall or car held the head back, the stick walked it, or a hit knocked it. */
+  moved(dx: number, dy: number): void;
+  /** The avatar was put down at (x, y): released, respawned or out of a car. */
+  placed(x: number, y: number): void;
+  /** Sat down in a driver's seat. */
+  seated(): void;
+  hurt(amount: number): void;
+  /** A shot left the gun in a hand, or the crosshair gun (`side` null). */
+  fired(side: Side | null, weapon: Weapon, result: ShotResult): void;
+  died(): void;
+}
+
+/** A platform's frontend for the avatar role. */
+export interface AvatarFrontend extends Frontend<AvatarIntent>, AvatarBody {
+  /** Whether to draw your own avatar, e.g. from a chase camera. */
+  readonly showSelf: boolean;
+}
+
+const NO_BODY: AvatarBody = { platform: Platform.Desktop, moved() {}, placed() {}, seated() {}, hurt() {}, fired() {}, died() {} };
+
+/**
+ * The avatar role: the local player's `Player` on foot and driving, shooting, pickups, wanted level,
+ * death and arrest. It only sees `AvatarIntent`s and talks back through `body`, so the same rules serve
+ * every platform and run headless in tests.
+ *
+ * With a tracked head the avatar stands wherever the head is. Walking round your room walks it; when that
+ * would put the head in a wall or a car the avatar stays out and `body.moved` pushes the play space back,
+ * so you can't physically walk through buildings.
+ */
+export class AvatarSim implements Role<AvatarIntent, AvatarFrontend> {
+  body: AvatarBody = NO_BODY;
+  /** Where a virtual head faces. Carried round with the car while driving. */
   heading = 0;
   pitch = 0;
-  thirdPerson = false;
   /** Smoothed steering input, for the steering wheel model. */
   steer = 0;
-  private nextShot = 0;
-  private nextShotLeft = 0;
+  /** The car you could get into from where you're standing this frame. */
+  nearCar: CarEntity | undefined;
+  /** An officer has hold of you this frame. */
+  cuffed = false;
+  readonly inventory = new Inventory();
+  /** When each hand, by `Side`, can fire next. The crosshair gun is the right hand's. */
+  private readonly nextShot = [0, 0];
   private respawnAt = 0;
   private arrestedUntil = 0;
   private lastCrime = 0;
   private enterPending = false;
   private readonly collecting = new Set<number>();
   private vz = 0;
-  private turnArmed = true;
-  private deathOrbit = 0;
+  private headTracked = false;
+  /**
+   * How far the rules have moved the avatar this frame. Hand poses were read before that, so they're
+   * carried along by it. After `placed`, which isn't a plain shift, they're stale until the next frame.
+   */
+  private readonly carried = { x: 0, y: 0 };
+  private posesStale = false;
   private readonly muzzle: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly aim: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly eye: Vec3 = { x: 0, y: 0, z: 0 };
-  private readonly tmp: Vec3 = { x: 0, y: 0, z: 0 };
-  private readonly gripPos: Vec3 = { x: 0, y: 0, z: 0 };
+  private readonly grip: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly moveVel = { x: 0, y: 0 };
   private readonly pellet: Vec3 = { x: 0, y: 0, z: 0 };
-  readonly inventory = new Inventory();
 
-  constructor(
-    private readonly ctx: GameContext,
-    private readonly input: DesktopInput,
-    private readonly hands: Hands,
-  ) {}
+  constructor(private readonly ctx: GameContext) {}
+
+  attach(body: AvatarBody): void {
+    this.body = body;
+  }
 
   get me(): PlayerEntity | null {
     return this.ctx.me;
@@ -77,15 +109,21 @@ export class PlayerController {
     return me && me.state.car ? this.ctx.world.getAs(Car, me.state.car) : undefined;
   }
 
-  /** Which way the view faces, for the minimap. */
-  get viewHeading(): number {
-    return this.ctx.rig.xr ? this.ctx.rig.headHeading() : this.heading;
+  /** Cuffed, waiting to be released. */
+  get arrested(): boolean {
+    return this.arrestedUntil !== 0;
   }
 
-  /** Whether the local avatar should be drawn (desktop death cam and chase cam). */
-  get showSelf(): boolean {
+  /** Alive, free and on foot. */
+  get onFoot(): boolean {
     const s = this.me?.state;
-    return !!s && !this.ctx.rig.xr && (s.hp === 0 || (s.car !== 0 && this.thirdPerson));
+    return !!s && s.hp > 0 && s.car === 0 && !this.arrestedUntil;
+  }
+
+  /** Alive, free and in a car. */
+  get driving(): boolean {
+    const s = this.me?.state;
+    return !!s && s.hp > 0 && s.car !== 0 && !this.arrestedUntil;
   }
 
   spawn(): void {
@@ -110,56 +148,53 @@ export class PlayerController {
     return city.randomWalkableNear(c, c, 0, 120) ?? city.randomWalkableNear(c, c, 0, 250) ?? { x: c, y: c };
   }
 
-  update(dt: number): void {
+  update(dt: number, intent: AvatarIntent): void {
     const { ctx } = this;
     const me = this.me;
     if (!me) return;
     const s = me.state;
     const now = ctx.now;
-    const vr = ctx.rig.xr;
-    s.vr = vr;
-    if (vr) this.hands.vr.update(this.inventory);
-    else this.mouseLook();
+    s.platform = this.body.platform;
+    this.carried.x = this.carried.y = 0;
+    this.posesStale = false;
+    this.nearCar = undefined;
+    this.cuffed = false;
+    this.look(intent);
     if (!s.car) ctx.sfx.engine(false, 0);
 
     if (s.hp === 0) {
       if (this.respawnAt && now >= this.respawnAt) this.respawn();
       ctx.world.setFocus(s.x, s.y);
-      ctx.hud.setStatus(s.cash, s.wanted, 0);
-      ctx.hud.setHint('');
       return;
     }
 
     if (this.arrestedUntil) {
       // cuffed: stand still, then get released downtown
-      if (vr) this.walkVR(dt, false);
+      if (intent.head) this.walkTracked(dt, intent.head, intent, false);
       if (now >= this.arrestedUntil) {
         this.arrestedUntil = 0;
         const p = this.spawnPoint();
         this.teleport(p.x, p.y);
       }
       ctx.world.setFocus(s.x, s.y);
-      ctx.hud.setStatus(s.cash, s.wanted, s.hp);
-      ctx.hud.setHint('');
       return;
     }
 
     if (s.car) {
       const car = this.currentCar;
       if (!car || !car.mine || car.state.mode === CarMode.Wrecked) this.leaveCar(car);
-      else this.drive(car, dt);
+      else this.drive(car, dt, intent);
     } else {
-      if (vr) this.walkVR(dt, true);
-      else this.walkDesktop(dt);
-      const nearCar = this.nearestEnterableCar();
-      ctx.hud.setHint(this.beingCuffed() ? 'The cops have hold of you. Run!' : nearCar ? `Press ${vr ? 'A' : 'F'} to take the car` : '');
-      if (nearCar && this.interactPressed()) void this.enterCar(nearCar);
+      if (intent.head) this.walkTracked(dt, intent.head, intent, true);
+      else this.walk(dt, intent);
+      this.cuffed = this.beingCuffed();
+      this.nearCar = this.nearestEnterableCar();
+      if (this.nearCar && intent.interact) void this.enterCar(this.nearCar);
       this.collectPickups();
     }
 
-    this.switchWeapon();
-    this.aimAndFire();
-    this.showWeapon();
+    if (intent.hands) this.fireHands(intent.hands);
+    else this.fireCrosshair(intent);
 
     // wanted level cools off without fresh crimes
     if (s.wanted > 0 && now - this.lastCrime > 20000) {
@@ -168,19 +203,21 @@ export class PlayerController {
     }
 
     ctx.world.setFocus(s.x, s.y);
-    ctx.hud.setStatus(s.cash, s.wanted, s.hp);
   }
 
-  private interactPressed(): boolean {
-    const { rig } = this.ctx;
-    if (rig.xr) return rig.right.pressed(Btn.A) || rig.left.pressed(Btn.A);
-    return this.input.pressed('KeyF') || this.input.pressed('KeyE');
-  }
-
-  private mouseLook(): void {
-    const [dx, dy] = this.input.consumeMouse();
-    this.heading += dx * MOUSE_SENSITIVITY;
-    this.pitch = clamp(this.pitch - dy * MOUSE_SENSITIVITY, -1.45, 1.45);
+  /** Turn a virtual head. Taking a headset off leaves it facing where the headset faced. */
+  private look(intent: AvatarIntent): void {
+    if (intent.head) {
+      this.headTracked = true;
+      return;
+    }
+    if (this.headTracked) {
+      this.headTracked = false;
+      this.heading = this.me!.state.yaw;
+      this.pitch = 0;
+    }
+    this.heading += intent.turn;
+    this.pitch = clamp(this.pitch + intent.lookUp, -1.45, 1.45);
   }
 
   /** Move a point relative to a heading, sliding along walls. */
@@ -193,14 +230,11 @@ export class PlayerController {
     moveCircle(this.ctx.city, p, (c * forward - sn * strafe) * k, (sn * forward + c * strafe) * k, RADIUS);
   }
 
-  private walkDesktop(dt: number): void {
+  /** A virtual head: walk or run at once, and jump. */
+  private walk(dt: number, intent: AvatarIntent): void {
     const s = this.me!.state;
-    const k = this.input;
-    const strafe = (k.down('KeyD') ? 1 : 0) - (k.down('KeyA') ? 1 : 0);
-    const forward = (k.down('KeyW') ? 1 : 0) - (k.down('KeyS') ? 1 : 0);
-    const run = k.down('ShiftLeft') || k.down('ShiftRight');
-    this.step(s, strafe, forward, this.heading, run ? RUN : WALK, dt);
-    if (k.pressed('Space') && s.z <= 0) this.vz = JUMP_SPEED;
+    this.step(s, intent.strafe, intent.forward, this.heading, intent.run ? RUN : WALK, dt);
+    if (intent.jump && s.z <= 0) this.vz = JUMP_SPEED;
     if (s.z > 0 || this.vz > 0) {
       s.z += this.vz * dt;
       this.vz -= GRAVITY * dt;
@@ -212,36 +246,32 @@ export class PlayerController {
     s.head = EYE;
   }
 
-  private walkVR(dt: number, allowLocomotion: boolean): void {
-    const { rig } = this.ctx;
+  /** A tracked head: follow it round the room, and ease the stick up to speed (sudden starts are nauseating). */
+  private walkTracked(dt: number, head: TrackedHead, intent: AvatarIntent, allowLocomotion: boolean): void {
     const s = this.me!.state;
 
     // Room-scale: follow the head, but never into walls or cars.
-    const head = rig.head(this.tmp);
     const dx = head.x - s.x;
     const dy = head.y - s.y;
     if (dx * dx + dy * dy > 9) {
-      rig.placeHeadAt(s.x, s.y); // first frame, or tracking jumped
+      this.shift(s.x - head.x, s.y - head.y); // first frame, or tracking jumped
     } else {
       const p = { x: s.x, y: s.y };
       moveCircle(this.ctx.city, p, dx, dy, RADIUS);
       this.pushOutOfCars(p);
-      rig.shift(p.x - head.x, p.y - head.y);
+      this.shift(p.x - head.x, p.y - head.y);
       s.x = p.x;
       s.y = p.y;
     }
 
+    const vel = this.moveVel;
     if (allowLocomotion) {
-      const L = rig.left;
-      const strafe = deadzone(L.stickX);
-      const forward = -deadzone(L.stickY);
+      const { strafe, forward } = intent;
       const mag = Math.hypot(strafe, forward);
-      const k = mag > 1 ? VR_SPEED / mag : VR_SPEED;
-      const h = rig.headHeading();
-      const c = Math.cos(h);
-      const sn = Math.sin(h);
-      const vel = this.moveVel;
-      const blend = 1 - Math.exp(-dt * (mag ? VR_ACCEL : VR_BRAKE));
+      const k = mag > 1 ? TRACKED_SPEED / mag : TRACKED_SPEED;
+      const c = Math.cos(head.heading);
+      const sn = Math.sin(head.heading);
+      const blend = 1 - Math.exp(-dt * (mag ? TRACKED_ACCEL : TRACKED_BRAKE));
       vel.x += ((c * forward - sn * strafe) * k - vel.x) * blend;
       vel.y += ((sn * forward + c * strafe) * k - vel.y) * blend;
       if (dt > 0 && Math.abs(vel.x) + Math.abs(vel.y) > 0.01) {
@@ -251,25 +281,30 @@ export class PlayerController {
         vel.x = (p.x - s.x) / dt;
         vel.y = (p.y - s.y) / dt;
         this.pushOutOfCars(p);
-        rig.shift(p.x - s.x, p.y - s.y);
+        this.shift(p.x - s.x, p.y - s.y);
         s.x = p.x;
         s.y = p.y;
       }
-      const turn = rig.right.stickX;
-      if (this.turnArmed && Math.abs(turn) > 0.7) {
-        rig.rotateAroundHead(turn > 0 ? -SNAP_TURN : SNAP_TURN);
-        this.turnArmed = false;
-      } else if (Math.abs(turn) < 0.3) {
-        this.turnArmed = true;
-      }
     } else {
-      this.moveVel.x = this.moveVel.y = 0;
+      vel.x = vel.y = 0;
     }
 
     s.z = 0;
-    s.yaw = rig.headHeading();
-    s.pitch = rig.headPitch();
-    s.head = clamp(rig.headLocal.y + rig.root.position.y, 0.4, 2.3);
+    s.yaw = head.heading;
+    s.pitch = head.pitch;
+    s.head = clamp(head.z, 0.4, 2.3);
+  }
+
+  /** The rules moved the avatar; the device follows. */
+  private shift(dx: number, dy: number): void {
+    this.carried.x += dx;
+    this.carried.y += dy;
+    this.body.moved(dx, dy);
+  }
+
+  private place(x: number, y: number): void {
+    this.posesStale = true;
+    this.body.placed(x, y);
   }
 
   /** Don't walk through vehicles. */
@@ -291,52 +326,26 @@ export class PlayerController {
     }
   }
 
-  private drive(car: CarEntity, dt: number): void {
+  private drive(car: CarEntity, dt: number, intent: AvatarIntent): void {
     const { ctx } = this;
-    const { rig } = ctx;
     const s = this.me!.state;
-    let throttle: number;
-    let steer: number;
-    let handbrake: boolean;
-    let exit: boolean;
-    let horn: boolean;
-    if (rig.xr) {
-      throttle = -deadzone(rig.left.stickY);
-      steer = deadzone(rig.left.stickX);
-      handbrake = rig.right.down(Btn.Stick); // the grips are for grabbing guns
-      exit = rig.right.pressed(Btn.A) || rig.left.pressed(Btn.A);
-      horn = rig.right.pressed(Btn.B);
-      if (rig.left.pressed(Btn.B)) {
-        rig.recenter();
-        ctx.hud.message('Seat recentered');
-      }
-    } else {
-      const k = this.input;
-      throttle = (k.down('KeyW') ? 1 : 0) - (k.down('KeyS') ? 1 : 0);
-      steer = (k.down('KeyD') ? 1 : 0) - (k.down('KeyA') ? 1 : 0);
-      handbrake = k.down('Space');
-      exit = k.pressed('KeyF') || k.pressed('KeyE');
-      horn = k.pressed('KeyH');
-      if (k.pressed('KeyV')) this.thirdPerson = !this.thirdPerson;
-    }
     const before = car.state.angle;
-    driveCar(ctx, car, { throttle, steer, handbrake }, dt);
-    this.steer += (steer - this.steer) * Math.min(1, dt * 10);
+    driveCar(ctx, car, { throttle: intent.forward, steer: intent.strafe, handbrake: intent.brake }, dt);
+    this.steer += (intent.strafe - this.steer) * Math.min(1, dt * 10);
     this.heading += angleDiff(before, car.state.angle);
     s.x = car.state.x;
     s.y = car.state.y;
     s.z = 0;
-    s.yaw = rig.xr ? rig.headHeading() : this.heading;
-    s.pitch = rig.xr ? rig.headPitch() : this.pitch;
+    s.yaw = intent.head ? intent.head.heading : this.heading;
+    s.pitch = intent.head ? intent.head.pitch : this.pitch;
     s.head = 1.2;
     ctx.sfx.engine(true, car.state.speed);
-    ctx.hud.setHint('');
-    if (horn) ctx.world.send(Horn, { car: car.id }, { to: 'near', x: s.x, y: s.y, radius: 120 });
-    if (exit) this.leaveCar(car);
+    if (intent.horn) ctx.world.send(Horn, { car: car.id }, { to: 'near', x: s.x, y: s.y, radius: 120 });
+    if (intent.interact) this.leaveCar(car);
   }
 
   /** Where the eyes are: standing height, or the driver's seat. */
-  private eyePosition(out: Vec3): Vec3 {
+  eyePosition(out: Vec3): Vec3 {
     const s = this.me!.state;
     const car = s.car ? this.currentCar : undefined;
     if (car) {
@@ -355,82 +364,60 @@ export class PlayerController {
     return out;
   }
 
-  /** Mouse wheel or number keys. In VR you draw guns from your holsters instead. */
-  private switchWeapon(): void {
-    if (this.ctx.rig.xr) return;
-    const inv = this.inventory;
+  /** One selected gun, fired from the eyes through the middle of the view, with the gun hand held out in front. */
+  private fireCrosshair(intent: AvatarIntent): void {
+    const { ctx, inventory: inv } = this;
+    const s = this.me!.state;
     const before = inv.current;
-    const wheel = this.input.wheel();
-    if (wheel) inv.cycle(wheel > 0 ? 1 : -1);
-    for (let i = 0; i < WEAPONS.length; i++) if (this.input.pressed(`Digit${i + 1}`)) inv.select(i);
-    if (inv.current !== before) this.ctx.sfx.play('empty');
-  }
+    if (intent.cycleWeapon) inv.cycle(intent.cycleWeapon > 0 ? 1 : -1);
+    if (intent.selectWeapon !== null) inv.select(intent.selectWeapon);
+    if (inv.current !== before) ctx.sfx.play('empty');
 
-  /** Replicate the gun in each hand, and show one on the HUD: the right hand's, or the left's if the right is empty. */
-  private showWeapon(): void {
-    const { ctx } = this;
-    const { rig } = ctx;
-    const s = this.me!.state;
-    const inv = this.inventory;
-    if (rig.xr) {
-      const right = this.hands.vr.held(rig.right);
-      const left = this.hands.vr.held(rig.left);
-      s.weapon = right ?? NO_WEAPON;
-      s.lweapon = left ?? NO_WEAPON;
-      const held = right ?? left;
-      inv.current = held ?? Weapon.Pistol; // what you'd drop if you died now
-      if (held === null) {
-        ctx.hud.setWeapon('', Infinity);
-        return;
-      }
-    } else {
-      s.weapon = inv.current;
-      s.lweapon = NO_WEAPON;
-    }
-    ctx.hud.setWeapon(weaponSpec(inv.current).name, inv.ammo());
-  }
-
-  private aimAndFire(): void {
-    const { ctx } = this;
-    const { rig } = ctx;
-    const s = this.me!.state;
-    this.hands.setWeapon(this.inventory.current);
-    if (rig.xr) {
-      // Each hand fires whatever it holds; aim is wherever the controller points.
-      const { vr } = this.hands;
-      for (const hand of [rig.left, rig.right]) {
-        if (!hand.connected) continue;
-        const right = hand === rig.right;
-        // both hands replicate, holding a gun or not
-        rig.handPose(hand, GUN_IN_HAND, this.gripPos, this.aim);
-        this.setHandFields(this.gripPos, this.aim, !right);
-        const weapon = vr.held(hand);
-        if (weapon === null || hand.trigger < 0.6 || ctx.now < (right ? this.nextShot : this.nextShotLeft)) continue;
-        const fireMs = weaponSpec(weapon).fireMs;
-        if (right) this.nextShot = ctx.now + fireMs;
-        else this.nextShotLeft = ctx.now + fireMs;
-        rig.handPose(hand, vr.muzzle(hand), this.muzzle, this.aim);
-        this.fire(this.muzzle, this.aim, undefined, hand, weapon);
-      }
-      return;
-    }
-
-    // Desktop: aim from the eye through the crosshair; the tracer leaves the gun.
-    direction(this.heading, this.pitch, this.aim);
-    const c = Math.cos(this.heading);
-    const sn = Math.sin(this.heading);
+    const heading = intent.head?.heading ?? this.heading;
+    direction(heading, intent.head?.pitch ?? this.pitch, this.aim);
+    const c = Math.cos(heading);
+    const sn = Math.sin(heading);
     this.muzzle.x = s.x + c * 0.45 - sn * 0.22;
     this.muzzle.y = s.y + sn * 0.45 + c * 0.22;
     this.muzzle.z = s.z + EYE - 0.3;
-    this.setHandFields(this.muzzle, this.aim);
-    if (this.input.locked && this.input.mouse(0) && ctx.now >= this.nextShot) {
-      this.nextShot = ctx.now + weaponSpec(this.inventory.current).fireMs;
-      const from = this.thirdPerson && s.car ? undefined : this.hands.desktopMuzzle(this.tmp);
-      this.fire(this.eyePosition(this.eye), this.aim, from, undefined);
+    this.setHandFields(this.muzzle, this.aim, Side.Right);
+    if (intent.fire && ctx.now >= this.nextShot[Side.Right]) {
+      this.nextShot[Side.Right] = ctx.now + weaponSpec(inv.current).fireMs;
+      this.fire(this.eyePosition(this.eye), this.aim, intent.tracerFrom ?? undefined, null, inv.current);
     }
+    s.weapon = inv.current;
+    s.lweapon = NO_WEAPON;
   }
 
-  private fire(origin: Vec3, aim: Vec3, from: Vec3 | undefined, hand: XRHand | undefined, weapon: Weapon = this.inventory.current): void {
+  /** Each tracked hand fires whatever it holds, wherever it points. Both replicate, holding a gun or not. */
+  private fireHands(hands: [HandIntent, HandIntent]): void {
+    const { ctx } = this;
+    const s = this.me!.state;
+    for (const side of [Side.Left, Side.Right]) {
+      const hand = hands[side];
+      if (!hand.tracked || this.posesStale) continue;
+      this.setHandFields(this.carry(hand.grip, this.grip), hand.aim, side);
+      const weapon = hand.weapon;
+      if (weapon === null || !hand.trigger || ctx.now < this.nextShot[side]) continue;
+      this.nextShot[side] = ctx.now + weaponSpec(weapon).fireMs;
+      this.fire(this.carry(hand.muzzle, this.muzzle), hand.aim, undefined, side, weapon);
+    }
+    const right = hands[Side.Right].weapon;
+    const left = hands[Side.Left].weapon;
+    s.weapon = right ?? NO_WEAPON;
+    s.lweapon = left ?? NO_WEAPON;
+    this.inventory.current = right ?? left ?? Weapon.Pistol; // what you'd drop if you died now
+  }
+
+  /** A point read from the device before this frame's moves, moved along with the avatar. */
+  private carry(p: Vec3, out: Vec3): Vec3 {
+    out.x = p.x + this.carried.x;
+    out.y = p.y + this.carried.y;
+    out.z = p.z;
+    return out;
+  }
+
+  private fire(origin: Vec3, aim: Vec3, from: Vec3 | undefined, side: Side | null, weapon: Weapon): void {
     const { ctx } = this;
     const me = this.me!;
     const spec = weaponSpec(weapon);
@@ -452,69 +439,23 @@ export class PlayerController {
       hitPolice ||= isPoliceUnit(hit.entity);
     }
     this.inventory.consume(weapon);
-    if (hand) this.hands.vr.recoil(hand);
-    else this.hands.recoil();
-    hand?.pulse(Math.min(1, 0.4 + spec.kick * 0.2), 35);
-    if (hitSomething) {
-      ctx.hud.hitMarker(head);
-      ctx.sfx.play(head ? 'headshot' : 'hit');
-      hand?.pulse(1, 60);
-    }
+    this.body.fired(side, weapon, !hitSomething ? 'miss' : head ? 'head' : 'body');
+    if (hitSomething) ctx.sfx.play(head ? 'headshot' : 'hit');
     // shooting at police is 2 stars; shooting anywhere near them is 1
     if (hitPolice) this.raiseWanted(2);
     else if (ctx.world.query(me.state.x, me.state.y, 65).some(isPoliceUnit)) this.raiseWanted(1);
   }
 
   /** Replicate where a hand is and where it points, so others see it and the gun in it. */
-  private setHandFields(pos: Vec3, aim: Vec3, left = false): void {
+  private setHandFields(pos: Vec3, aim: Vec3, side: Side): void {
     const s = this.me!.state;
     const x = clamp(pos.x - s.x, -1.5, 1.5);
     const y = clamp(pos.y - s.y, -1.5, 1.5);
     const z = clamp(pos.z - s.z, 0, 2.5);
     const yaw = Math.atan2(aim.y, aim.x);
     const pitch = Math.asin(clamp(aim.z, -1, 1));
-    if (left) Object.assign(s, { lhx: x, lhy: y, lhz: z, laimYaw: yaw, laimPitch: pitch });
+    if (side === Side.Left) Object.assign(s, { lhx: x, lhy: y, lhz: z, laimYaw: yaw, laimPitch: pitch });
     else Object.assign(s, { hx: x, hy: y, hz: z, aimYaw: yaw, aimPitch: pitch });
-  }
-
-  /** Position the camera (desktop) or the play space (VR, while seated). Runs after simulation. */
-  updateView(dt: number): void {
-    const { ctx } = this;
-    const { rig } = ctx;
-    const me = this.me;
-    if (!me) return;
-    const s = me.state;
-    const car = s.car ? this.currentCar : undefined;
-    const alive = s.hp > 0;
-
-    if (rig.xr) {
-      if (car && alive) {
-        const e = this.eyePosition(this.eye);
-        rig.seatIn(e.x, e.y, e.z, car.state.angle);
-      }
-      rig.setTint(this.arrestedUntil ? 0x0a1a55 : 0x550000, !alive ? 0.6 : this.arrestedUntil ? 0.3 : 0);
-    } else {
-      if (!alive) {
-        this.deathOrbit += dt * 0.4;
-        rig.setDesktopChase({ x: s.x + Math.cos(this.deathOrbit) * 4, y: s.y + Math.sin(this.deathOrbit) * 4, z: 3.5 }, { x: s.x, y: s.y, z: 0.3 });
-      } else if (car && this.thirdPerson) {
-        const a = car.state.angle;
-        const back = Math.max(2, Math.min(8, ctx.city.raycast(car.state.x, car.state.y, a + Math.PI, 8) - 0.6));
-        rig.setDesktopChase(
-          { x: car.state.x - Math.cos(a) * back, y: car.state.y - Math.sin(a) * back, z: 3.2 },
-          { x: car.state.x + Math.cos(a) * 4, y: car.state.y + Math.sin(a) * 4, z: 1.2 },
-        );
-      } else {
-        const e = this.eyePosition(this.eye);
-        rig.setDesktopView(e.x, e.y, e.z, this.heading, this.pitch);
-      }
-      rig.setTint(0x550000, alive ? 0 : 0.3);
-    }
-    this.hands.setWeapon(this.inventory.current);
-    this.hands.update(dt,!rig.xr && alive && !(car && this.thirdPerson), rig.xr && alive);
-
-    const head = rig.head(this.tmp);
-    ctx.sfx.setListener(head, direction(this.viewHeading, rig.xr ? rig.headPitch() : this.pitch, this.aim));
   }
 
   private beingCuffed(): boolean {
@@ -573,7 +514,7 @@ export class PlayerController {
     s.target = 0;
     me.state.car = car.id;
     this.steer = 0;
-    ctx.rig.recenter();
+    this.body.seated();
     ctx.sfx.play('door');
   }
 
@@ -605,20 +546,22 @@ export class PlayerController {
     }
     me.state.car = 0;
     ctx.sfx.engine(false, 0);
-    if (ctx.rig.xr) {
-      ctx.rig.leaveSeat();
-      ctx.rig.placeHeadAt(me.state.x, me.state.y);
-    }
+    this.place(me.state.x, me.state.y);
   }
 
-  /** Knockback from a hit. In VR the play space moves with you. */
+  /** Knockback from a hit. */
   nudge(dx: number, dy: number): void {
     const s = this.me!.state;
     const p = { x: s.x, y: s.y };
     moveCircle(this.ctx.city, p, dx, dy, RADIUS);
-    if (this.ctx.rig.xr) this.ctx.rig.shift(p.x - s.x, p.y - s.y);
+    this.shift(p.x - s.x, p.y - s.y);
     s.x = p.x;
     s.y = p.y;
+  }
+
+  /** Called by combat when our avatar takes damage (already applied to its hp). */
+  hurt(amount: number): void {
+    this.body.hurt(amount);
   }
 
   private teleport(x: number, y: number): void {
@@ -626,13 +569,7 @@ export class PlayerController {
     s.x = x;
     s.y = y;
     s.z = 0;
-    if (this.ctx.rig.xr) this.ctx.rig.placeHeadAt(x, y);
-  }
-
-  /** Called when a VR session ends: keep facing where the headset faced. */
-  onLeaveVR(): void {
-    this.heading = this.me?.state.yaw ?? 0;
-    this.pitch = 0;
+    this.place(x, y);
   }
 
   private collectPickups(): void {
@@ -691,7 +628,7 @@ export class PlayerController {
     if (me.state.car) this.leaveCar(this.currentCar);
     me.state.hp = 0;
     this.respawnAt = ctx.now + 4500;
-    this.deathOrbit = this.heading + Math.PI;
+    this.body.died();
     ctx.hud.showBanner('WASTED', '#e53935', 4000);
     ctx.sfx.play('wasted');
     // the gun in your hand falls where you died; the rest of your arsenal is lost

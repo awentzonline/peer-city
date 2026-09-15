@@ -2,7 +2,7 @@ import { weaponSpec } from './arsenal';
 import { direction, signedAngle, type GameContext } from './context';
 import { Busted, Car, CarKind, CarMode, Damage, DamageCause, Explosion, Feed, Horn, Kill, Ped, PedMode, Pickup, PickupKind, Player, Shot } from './defs';
 import { PED_RADIUS, moveCircle, panicPeds } from './peds';
-import type { PlayerController } from './player';
+import type { AvatarSim } from './avatar';
 import { wreckCar } from './vehicles';
 
 const VICTIM_PED = 0;
@@ -13,7 +13,7 @@ const VICTIM_COP = 2;
  * Wires gameplay actions. Damage is always applied by the victim's owner, the
  * only peer allowed to write its state; everyone else just renders effects.
  */
-export function registerCombat(ctx: GameContext, player: PlayerController): void {
+export function registerCombat(ctx: GameContext, player: AvatarSim): void {
   const { world } = ctx;
   const dir = { x: 0, y: 0, z: 0 };
 
@@ -97,14 +97,7 @@ export function registerCombat(ctx: GameContext, player: PlayerController): void
       if (s.hp === 0 || target !== ctx.me) return;
       s.hp = Math.max(0, s.hp - p.amount);
       if (p.cause !== DamageCause.Explosion && !s.car) player.nudge(p.kx * 0.05, p.ky * 0.05);
-      if (ctx.rig.xr) {
-        ctx.rig.flash(0xff0000, Math.min(0.5, 0.15 + p.amount / 120));
-        ctx.rig.left.pulse(0.5, 90);
-        ctx.rig.right.pulse(0.5, 90);
-      } else {
-        ctx.hud.hurt();
-        ctx.rig.shake(0.05);
-      }
+      player.hurt(p.amount);
       if (s.hp === 0) {
         const killer = world.getAs(Player, p.attacker);
         const byPolice = !!world.getAs(Ped, p.attacker)?.state.cop;

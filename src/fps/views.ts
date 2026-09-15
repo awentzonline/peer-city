@@ -4,7 +4,7 @@ import { NO_WEAPON } from './arsenal';
 import { angleDiff, clamp, headingToYaw, signedAngle, type GameContext } from './context';
 import { Car, CarKind, CarMode, Ped, PedMode, Pickup, Player } from './defs';
 import { HUMAN, MAT, buildCar, buildHuman, buildPickup, disposeLabel, setGunModel, setLabel, type CarRig, type HumanRig, type PickupRig } from './models';
-import type { PlayerController } from './player';
+import { Platform } from './platform';
 import { COP_SKINS, PED_SKINS, carSpec, humanLook } from './specs';
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -95,7 +95,15 @@ function holdGun(v: HumanView, heading: number, side: 0 | 1, weapon: number, x: 
   aimArm(r, heading, gun.position, side === 1);
 }
 
-export function registerViews(ctx: GameContext, views: EntityViews, player: PlayerController): void {
+/** What the views need from the local player's frontend and role. */
+export interface LocalView {
+  /** Draw your own avatar, e.g. from a chase camera. */
+  showSelf(): boolean;
+  /** Your steering, for the wheel in your car. */
+  steer(): number;
+}
+
+export function registerViews(ctx: GameContext, views: EntityViews, local: LocalView): void {
   const { world } = ctx;
 
   views.register(Player, {
@@ -104,7 +112,7 @@ export function registerViews(ctx: GameContext, views: EntityViews, player: Play
       const s = e.render;
       const r = v.rig;
       const isMe = e === ctx.me;
-      r.root.visible = !isMe || player.showSelf;
+      r.root.visible = !isMe || local.showSelf();
       if (!r.root.visible) {
         v.lastX = e.x;
         v.lastY = e.y;
@@ -156,8 +164,9 @@ export function registerViews(ctx: GameContext, views: EntityViews, player: Play
       r.legR.rotation.z = -swing;
       r.armL.rotation.set(0, 0, -swing * 0.8);
       r.armR.rotation.set(0, 0, swing * 0.8);
-      holdGun(v, s.yaw, 0, s.weapon, s.hx, s.hy, s.hz, s.aimYaw, s.aimPitch, s.vr);
-      holdGun(v, s.yaw, 1, s.lweapon, s.lhx, s.lhy, s.lhz, s.laimYaw, s.laimPitch, s.vr);
+      const tracked = s.platform === Platform.Vr;
+      holdGun(v, s.yaw, 0, s.weapon, s.hx, s.hy, s.hz, s.aimYaw, s.aimPitch, tracked);
+      holdGun(v, s.yaw, 1, s.lweapon, s.lhx, s.lhy, s.lhz, s.laimYaw, s.laimPitch, tracked);
     },
     destroy: (v) => destroyHuman(ctx, v),
   });
@@ -215,7 +224,7 @@ export function registerViews(ctx: GameContext, views: EntityViews, player: Play
       v.spin -= (s.speed * dt) / spec.wheelR;
       for (const w of r.wheels) w.rotation.z = v.spin;
       const mine = !!ctx.me && ctx.me.state.car === e.id;
-      r.steering.children[0].rotation.x = mine ? player.steer * 1.6 : 0;
+      r.steering.children[0].rotation.x = mine ? local.steer() * 1.6 : 0;
 
       if (r.sirens.length) {
         const on = s.siren && s.kind === CarKind.Police && !wrecked;

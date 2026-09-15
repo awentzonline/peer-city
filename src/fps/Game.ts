@@ -1,23 +1,27 @@
 import * as THREE from 'three';
 import { EntityViews, NetDebugPanel, type NetWorld } from '@engine/index';
+import { AvatarSim, type AvatarFrontend } from './avatar';
 import type { City } from './city';
 import { buildCity } from './cityMesh';
 import { registerCombat } from './combat';
 import type { GameContext } from './context';
-import { Car, CarKind, CarMode, Ped, PedMode, Pickup, PickupKind, Player } from './defs';
+import { Car, CarMode } from './defs';
+import { DesktopAvatar } from './desktopAvatar';
 import { Effects } from './effects';
-import { Hands } from './hands';
-import type { Hud, MinimapDot } from './hud';
+import type { Hud } from './hud';
 import { DesktopInput } from './input';
+import type { AvatarIntent } from './intent';
+import { MinimapFeed } from './minimap';
 import { updateOwnedPeds } from './peds';
-import { PlayerController } from './player';
 import { updateOwnedCops } from './police';
-import { Rig } from './rig';
+import { Rig, WebXrPoses } from './rig';
+import { Seat } from './role';
 import type { Sfx } from './sfx';
 import { Spawner } from './spawner';
 import { registerViews } from './views';
 import { updateOwnedCars } from './vehicles';
-import { VrHud } from './vrhud';
+import { VrAvatar } from './vrAvatar';
+import { SimulatedXr } from './xrsim';
 
 export interface GameDeps {
   world: NetWorld;
@@ -33,6 +37,9 @@ export interface GameDeps {
 
 export const VR_SESSION_INIT: XRSessionInit = { optionalFeatures: ['local-floor', 'bounded-floor'] };
 
+/** How long without an animation frame before the game keeps itself running on a timer. */
+const STALLED_MS = 200;
+
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -43,16 +50,17 @@ export class Game {
   readonly rig: Rig;
   readonly input: DesktopInput;
   readonly ctx: GameContext;
-  readonly player: PlayerController;
+  readonly avatar: AvatarSim;
+  /** The local player: the avatar role, and the frontend for whichever platform is playing it. */
+  readonly seat: Seat<AvatarIntent, AvatarFrontend>;
+  private readonly simulateXr: boolean;
+  private readonly minimap: MinimapFeed;
   private readonly views: EntityViews;
   private readonly spawner: Spawner;
-  private readonly vrHud: VrHud;
   private readonly debug: NetDebugPanel;
   private readonly sky: THREE.Mesh;
   private readonly vrButton = document.getElementById('vr-enter') as HTMLButtonElement;
   private readonly head = { x: 0, y: 0, z: 0 };
-  private dots: MinimapDot[] = [];
-  private nextMinimap = 0;
   private last = performance.now();
 
   static async vrSupported(): Promise<boolean> {
@@ -63,7 +71,7 @@ export class Game {
     }
   }
 
-  constructor(private readonly deps: GameDeps) {
+  constructor(deps: GameDeps) {
     const { world, city, hud, sfx } = deps;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -81,32 +89,31 @@ export class Game {
       hud,
       fx: new Effects(this.scene, this.rig),
       scene: this.scene,
-      rig: this.rig,
       me: null,
       playerName: deps.playerName,
       now: performance.now(),
     };
-    const hands = new Hands(this.rig);
-    this.player = new PlayerController(this.ctx, this.input, hands);
+    this.simulateXr = deps.sim;
+    this.avatar = new AvatarSim(this.ctx);
+    this.minimap = new MinimapFeed(this.ctx);
     this.views = new EntityViews(world);
-    registerViews(this.ctx, this.views, this.player);
-    registerCombat(this.ctx, this.player);
+    registerViews(this.ctx, this.views, { showSelf: () => this.seat.frontend.showSelf, steer: () => this.avatar.steer });
+    registerCombat(this.ctx, this.avatar);
     this.spawner = new Spawner(this.ctx);
-    this.vrHud = new VrHud(this.rig, hud);
 
     world.setTransferPolicy(Car, (car) => !car.held && car.state.mode !== CarMode.Wrecked);
     world.on('peerJoined', () => hud.message('A player connected nearby'));
-    this.player.spawn();
+    this.avatar.spawn();
+    this.seat = new Seat<AvatarIntent, AvatarFrontend>(this.avatar, () => this.frontend());
 
     this.debug = new NetDebugPanel(world, document.body, deps.netLabel);
     this.debug.visible = new URLSearchParams(location.search).has('debug');
 
     window.addEventListener('resize', () => this.resize());
-    this.input.onLockChange = (locked) => hud.setLocked(locked, this.rig.mode === 'vr');
+    this.input.onLockChange = () => this.showLockPrompt();
     this.renderer.xr.addEventListener('sessionstart', () => this.onSessionStart());
     this.renderer.xr.addEventListener('sessionend', () => this.onSessionEnd());
-    if (deps.sim) this.rig.setMode('sim');
-    hud.setLocked(false, false);
+    this.showLockPrompt();
     hud.show();
     hud.message(`Welcome to Peer City 3D, ${deps.playerName}`);
 
@@ -115,18 +122,17 @@ export class Game {
       this.enterVR().catch((err: unknown) => hud.message(`Couldn't start VR: ${errorText(err)}`));
     });
 
-    // Browsers stop requestAnimationFrame in background tabs. A peer that stops
-    // ticking would freeze the NPCs it owns for everyone nearby, so keep the
-    // simulation and network running on a (throttled) timer while hidden.
-    let last = performance.now();
+    // Browsers stop animation frames in background tabs. A peer that stops ticking would freeze the NPCs
+    // it owns for everyone nearby, so whenever frames stop coming, keep simulating on a (throttled) timer.
     window.setInterval(() => {
-      const now = performance.now();
-      if (document.hidden) this.step(Math.min(now - last, 250) / 1000, false);
-      last = now;
+      if (performance.now() - this.last >= STALLED_MS) this.tick(250, false);
     }, 100);
 
     // setAnimationLoop (not requestAnimationFrame) so the loop keeps running on the headset's clock.
-    this.renderer.setAnimationLoop((_time, frame) => this.frame(frame));
+    this.renderer.setAnimationLoop(() => {
+      this.tick(50, true);
+      this.renderer.render(this.scene, this.rig.camera);
+    });
   }
 
   /** Must be called from a user gesture. */
@@ -144,20 +150,31 @@ export class Game {
     await this.renderer.xr.setSession(session);
   }
 
+  /** A frontend for how this page is being played right now. */
+  private frontend(): AvatarFrontend {
+    const { ctx, avatar, rig, minimap } = this;
+    if (this.renderer.xr.isPresenting) return new VrAvatar(ctx, avatar, rig, new WebXrPoses(this.renderer.xr), minimap);
+    if (this.simulateXr) return new VrAvatar(ctx, avatar, rig, new SimulatedXr(this.input), minimap);
+    return new DesktopAvatar(ctx, avatar, this.input, rig, minimap);
+  }
+
   private onSessionStart(): void {
-    this.rig.setMode('vr');
     this.vrButton.hidden = true;
     if (document.pointerLockElement) document.exitPointerLock();
-    this.ctx.hud.setLocked(true, true);
-    this.ctx.hud.message('VR: grip grabs the pistol on your right hip, trigger shoots, A enters cars');
+    this.seat.use(() => this.frontend());
+    this.showLockPrompt();
   }
 
   private onSessionEnd(): void {
     this.rig.floorY = 0;
-    this.rig.setMode(this.deps.sim ? 'sim' : 'desktop');
-    this.player.onLeaveVR();
     this.vrButton.hidden = false;
-    this.ctx.hud.setLocked(this.input.locked, false);
+    this.seat.use(() => this.frontend());
+    this.showLockPrompt();
+  }
+
+  /** The page's "click to play" prompt and crosshair, which a headset can't see. */
+  private showLockPrompt(): void {
+    this.ctx.hud.setLocked(this.input.locked, this.renderer.xr.isPresenting);
   }
 
   private resize(): void {
@@ -167,19 +184,13 @@ export class Game {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
-  private frame(xrFrame?: XRFrame): void {
+  /** Advance by the time since the last tick, at most `maxMs`. */
+  private tick(maxMs: number, visible: boolean): void {
     const now = performance.now();
-    const dt = Math.min(now - this.last, 50) / 1000;
+    const dt = Math.min(now - this.last, maxMs) / 1000;
     this.last = now;
-    if (this.rig.mode === 'vr') {
-      const space = this.renderer.xr.getReferenceSpace();
-      if (xrFrame && space) this.rig.readXR(xrFrame, space);
-    } else if (this.rig.mode === 'sim') {
-      this.rig.readSim(this.input, dt);
-    }
-    this.step(dt, true);
+    this.step(dt, visible);
     this.input.endFrame();
-    this.renderer.render(this.scene, this.rig.camera);
   }
 
   private step(dt: number, visible: boolean): void {
@@ -187,7 +198,7 @@ export class Game {
     ctx.now = performance.now();
 
     ctx.world.update(ctx.now);
-    this.player.update(dt);
+    this.seat.step(dt);
     // integrate long background steps in small slices so physics stays stable
     for (let left = dt; left > 0; left -= 0.05) {
       const slice = Math.min(left, 0.05);
@@ -199,42 +210,20 @@ export class Game {
     if (!visible) return;
 
     this.views.update(dt);
-    this.player.updateView(dt);
+    ctx.hud.tick(ctx.now);
+    this.minimap.update();
+    this.seat.present(dt);
     rig.update(dt);
     ctx.fx.update(dt);
     const head = rig.head(this.head);
     this.sky.position.set(head.x, 0, head.y);
     this.debug.update(ctx.now);
-    ctx.hud.tick(ctx.now);
 
+    // global keys, whatever the platform
     if (this.input.pressed('Backquote')) this.debug.visible = !this.debug.visible;
     if (this.input.pressed('KeyN')) {
       ctx.sfx.muted = !ctx.sfx.muted;
       ctx.hud.message(ctx.sfx.muted ? 'Sound off' : 'Sound on');
     }
-
-    const me = ctx.me;
-    if (!me) return;
-    if (ctx.now >= this.nextMinimap) {
-      this.nextMinimap = ctx.now + 100;
-      this.dots = this.minimapDots();
-      if (rig.mode !== 'vr') ctx.hud.updateMinimap(me.state.x, me.state.y, this.player.viewHeading, this.dots);
-    }
-    this.vrHud.update(ctx.now, rig.xr, { x: me.state.x, y: me.state.y, heading: this.player.viewHeading, dots: this.dots });
-  }
-
-  private minimapDots(): MinimapDot[] {
-    const { world, me, now } = this.ctx;
-    const dots: MinimapDot[] = [];
-    const flash = Math.floor(now / 250) % 2 ? '#ff3b3b' : '#3b7bff';
-    for (const c of world.all(Car)) {
-      if (c.state.kind === CarKind.Police && c.state.mode === CarMode.Chase) dots.push({ x: c.x, y: c.y, color: flash, size: 3 });
-    }
-    for (const p of world.all(Ped)) if (p.state.cop && p.state.mode === PedMode.Attack) dots.push({ x: p.x, y: p.y, color: flash, size: 2 });
-    for (const p of world.all(Pickup)) dots.push({ x: p.x, y: p.y, color: p.state.kind === PickupKind.Weapon ? '#ffb74a' : '#6eff7a', size: 2 });
-    for (const p of world.all(Player)) if (p !== me && p.state.hp > 0) dots.push({ x: p.x, y: p.y, color: '#4fc3ff', size: 4 });
-    // peers we're connected to but whose avatars are out of range still show at the rim
-    for (const f of world.peerFoci()) dots.push({ x: f.x, y: f.y, color: 'rgba(79,195,255,0.6)', size: 3 });
-    return dots;
   }
 }
