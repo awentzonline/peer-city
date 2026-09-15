@@ -46,6 +46,7 @@ export class DesktopSurvivor implements SurvivorFrontend {
     rig.setMode('desktop');
     this.held = new DesktopTool(rig);
     this.string = new BowString(scene);
+    ctx.hud.message('Seeds, food and logs go in your pack: press B to open it and take something out');
   }
 
   get showSelf(): boolean {
@@ -53,6 +54,7 @@ export class DesktopSurvivor implements SurvivorFrontend {
   }
 
   dispose(): void {
+    this.ctx.hud.setPack(null);
     this.held.dispose();
     this.string.dispose();
   }
@@ -72,11 +74,29 @@ export class DesktopSurvivor implements SurvivorFrontend {
     intent.trigger = k.locked && k.mouse(0);
     intent.cycleTool = Math.sign(k.wheel());
     intent.selectTool = null;
-    const tools = sim.inventory.tools.all;
+    // the number keys are what you keep to hand; the rest is in the pack
+    const tools = sim.inventory.toHand();
     for (let i = 0; i < tools.length && i < 9; i++) if (k.pressed(`Digit${i + 1}`)) intent.selectTool = tools[i];
+    if (k.pressed('KeyB')) this.setPack(!this.ctx.hud.packOpen);
+    if (this.ctx.hud.packOpen) this.packIntent();
     this.held.setTool(sim.inventory.current);
     intent.tip = this.held.tipWorld(this.tip);
     return intent;
+  }
+
+  /** Open the pack (which needs the mouse back) or close it (which takes it again). */
+  private setPack(open: boolean): void {
+    this.ctx.hud.setPack(open ? this.sim.inventory : null);
+    if (open) document.exitPointerLock();
+    else this.input.requestLock();
+  }
+
+  /** While the pack is open you stand still and don't use anything: the mouse belongs to the panel. */
+  private packIntent(): void {
+    const { intent } = this;
+    Object.assign(intent, { turn: 0, lookUp: 0, strafe: 0, forward: 0, run: false, crouch: false, jump: false, interact: false, trigger: false });
+    intent.cycleTool = 0;
+    intent.selectTool = null;
   }
 
   present(dt: number): void {

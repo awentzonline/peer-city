@@ -312,9 +312,15 @@ The same tools work on desktop and in a headset, but in VR they're hands-on:
 | Raw meat | hold click by a fire | hold it over the flames |
 | Logs | click the ground (3 build a fire) or a fire | set them on the ground or on a fire |
 | Crops | **E** | reach down and squeeze an empty hand on a ripe carrot |
+| Pack | **B**, then click to move things | reach behind a shoulder and squeeze; grab what floats out |
 
-**Desktop:** WASD move · mouse look · click use · wheel / 1-9 tool · **E** pull crops · Shift run · **C** crouch ·
-Space jump · `` ` `` net stats · N mute. `?hour=21` pins this peer's time of day, for trying nights.
+**Desktop:** WASD move · mouse look · click use · wheel / 1-9 tool · **B** pack · **E** pull crops · Shift run ·
+**C** crouch · Space jump · `` ` `` net stats · N mute. `?hour=21` pins this peer's time of day, for trying nights.
+
+**The pack.** A kind of tool is either *to hand* — on the number keys, or on your body in a headset — or in your
+pack. What you gather (seeds, food, logs) goes into the pack when you pick it up, so the axe, bow, hoe and arrows
+stay where you can reach them. It's an organiser, not a limit: stowed kinds still gather charges and are still
+lost where you fall. `Inventory` in `src/crossplay/` owns it, so a game that never sets `Tool.stows` sees no change.
 
 Out of arrows? Sneak up and use the axe or hoe. Animals notice you from much nearer when you're crouched, creeping
 or still, or behind them, and further off when you run. Striking one before it notices you does triple damage,
@@ -345,7 +351,7 @@ How it uses the engine, and what it found:
 
 Source: `src/wilds/`. Tests: `tests/wilds.test.ts` plays the rules headless: felling a tree with tracked
 swings, farming with a crosshair, drawing a bow with two hands, striking survivors and animals with the axe
-and hoe, sneaking up on a deer, eating and cooking, wolves at night.
+and hoe, sneaking up on a deer, gathering into the pack, eating and cooking, wolves at night.
 
 ---
 

@@ -9,6 +9,7 @@ import { direction, type Vec3, type WildsContext } from './context';
 import { Hud, mapDots, type MapDot } from './hud';
 import { ARROWS, BOW, type WildTool } from './kit';
 import { BowString } from './models';
+import { VrPack } from './pack';
 import type { Survivor, SurvivorFrontend } from './survivor';
 import { Wrist } from './wrist';
 
@@ -29,6 +30,7 @@ export class VrSurvivor implements SurvivorFrontend {
   readonly platform = Platform.Vr;
   readonly showSelf = false;
   readonly holsters: Holsters;
+  private readonly pack: VrPack;
   private readonly wrist: Wrist;
   private readonly strings: [BowString, BowString];
   private readonly intent = idleIntent();
@@ -51,14 +53,17 @@ export class VrSurvivor implements SurvivorFrontend {
   ) {
     rig.setMode(source.mode);
     this.holsters = new Holsters(rig);
+    this.pack = new VrPack(rig, this.holsters, sim.inventory, ctx.hud);
     this.wrist = new Wrist(rig, ctx.hud);
     this.strings = [new BowString(scene), new BowString(scene)];
     this.intent.head = this.head;
     this.intent.hands = this.hands;
     ctx.hud.message('Your tools are on your body: squeeze a grip by your shoulders, back or belt to take one');
+    ctx.hud.message('What you gather goes in the pack on your back: reach behind a shoulder and squeeze to open it');
   }
 
   dispose(): void {
+    this.pack.dispose();
     this.holsters.dispose();
     this.wrist.dispose();
     for (const s of this.strings) s.dispose();
@@ -80,6 +85,7 @@ export class VrSurvivor implements SurvivorFrontend {
 
     // Holsters turn grips into what each hand holds; the rules only see what's in the hand, or an empty one reaching out.
     this.holsters.update(sim.inventory);
+    this.pack.update();
     this.readHand(right, this.hands[Side.Right]);
     this.readHand(left, this.hands[Side.Left]);
     return intent;

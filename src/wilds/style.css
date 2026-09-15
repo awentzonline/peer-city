@@ -219,6 +219,99 @@ body {
   color: rgba(255, 255, 255, 0.7);
 }
 
+/* ---------------- Pack ---------------- */
+#pack {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+}
+
+.pack-panel {
+  width: min(620px, 92vw);
+  padding: 20px 24px;
+  border: 2px solid rgba(240, 223, 176, 0.25);
+  border-radius: 14px;
+  background: rgba(20, 16, 10, 0.92);
+}
+
+.pack-panel h2 {
+  margin: 0 0 14px;
+  font-size: 24px;
+  letter-spacing: 4px;
+  color: #f0dfb0;
+}
+
+.pack-panel h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #bfb29a;
+}
+
+.pack-panel small {
+  display: block;
+  margin-top: 14px;
+  font-size: 12px;
+  color: #9a8f7a;
+}
+
+.pack-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.pack-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 8px;
+  align-content: start;
+  min-height: 74px;
+  padding: 8px;
+  border: 1px dashed rgba(240, 223, 176, 0.18);
+  border-radius: 10px;
+}
+
+.pack-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  color: #fff;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-left: 4px solid currentColor;
+  border-radius: 8px;
+}
+
+.pack-slot:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.pack-slot b {
+  color: #fff;
+}
+
+.pack-slot span {
+  font-size: 12px;
+  color: #d8cdb4;
+}
+
+.pack-empty {
+  padding: 8px 4px;
+  font-size: 13px;
+  color: #7d735f;
+}
+
 #lock {
   position: absolute;
   inset: 0;

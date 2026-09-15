@@ -60,6 +60,11 @@ const local = new THREE.Vector3();
  */
 export class Holsters {
   readonly torso: Torso;
+  /**
+   * Let go of a tool somewhere that isn't the body: return true if something else took it (an open pack),
+   * and it goes back where it was on the body until the inventory says it's gone.
+   */
+  onLetGo: ((tool: Tool<any>, grip: THREE.Vector3) => boolean) | null = null;
   private readonly items: Carried[] = [];
   private readonly hands: HandState[];
   private readonly tipOut = new THREE.Vector3();
@@ -117,10 +122,11 @@ export class Holsters {
     item.kickScale = Math.min(1.6, kick);
   }
 
-  /** Follow the body, keep a tool on it for everything carried, and handle grabbing and stashing. */
+  /** Follow the body, keep a tool on it for everything carried to hand, and handle grabbing and stashing. */
   update(inventory: Inventory<any>): void {
     this.torso.update();
-    for (const tool of inventory.tools.all) this.carry(tool, inventory.count(tool));
+    // what's in the pack isn't on the body
+    for (const tool of inventory.tools.all) this.carry(tool, inventory.inPack(tool) ? 0 : inventory.count(tool));
 
     for (const h of this.hands) {
       if (!h.hand.connected) {
@@ -213,7 +219,10 @@ export class Holsters {
     item.group.visible = true;
     item.group.position.copy(GRIP_IN_HAND);
     item.group.quaternion.identity();
-    if (this.torso.contains(this.gripPoint(h))) {
+    if (this.onLetGo?.(item.tool, this.gripPoint(h))) {
+      this.putBack(item); // it stays on the body until the inventory drops it
+      h.hand.pulse(0.4, 30);
+    } else if (this.torso.contains(this.gripPoint(h))) {
       // stays exactly where you let go of it
       this.torso.object.attach(item.group);
       item.spot.position.copy(item.group.position);

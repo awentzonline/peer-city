@@ -1,3 +1,4 @@
+import type { Inventory } from '../crossplay/inventory';
 import { NO_TOOL } from '../crossplay/tool';
 import { timeName } from './clock';
 import type { WildsContext } from './context';
@@ -56,11 +57,18 @@ export class Hud {
   private readonly drawEl = document.getElementById('draw')!;
   private readonly hurtEl = document.getElementById('hurt')!;
   private readonly lockEl = document.getElementById('lock')!;
+  private readonly packEl = document.getElementById('pack')!;
+  private readonly packHandEl = document.getElementById('pack-hand')!;
+  private readonly packStowedEl = document.getElementById('pack-stowed')!;
   private readonly minimap = document.getElementById('minimap') as HTMLCanvasElement;
   private readonly mctx = this.minimap.getContext('2d')!;
   private readonly overview = document.createElement('canvas');
   private bannerTimer = 0;
   private hitTimer = 0;
+  /** Whether the pack is open (desktop). */
+  packOpen = false;
+  private locked = false;
+  private vr = false;
 
   constructor(land: Land) {
     const n = Land.samples;
@@ -72,10 +80,59 @@ export class Hud {
     this.root.hidden = false;
   }
 
-  /** Desktop: whether the "click to play" prompt shows (pointer not captured). */
+  /** Desktop: whether the "click to play" prompt shows (pointer not captured). Not while the pack is open. */
   setLocked(locked: boolean, vr: boolean): void {
-    this.lockEl.hidden = locked || vr;
-    this.crosshair.hidden = vr;
+    this.locked = locked;
+    this.vr = vr;
+    this.lockEl.hidden = locked || vr || this.packOpen;
+    this.crosshair.hidden = vr || this.packOpen;
+  }
+
+  /**
+   * Open or close the pack: two grids of what you carry, one to hand and one stowed, where clicking a kind
+   * moves it between them. Everything in there is carried either way; the pack is just what's out of the way.
+   */
+  setPack(inventory: Inventory<WildTool> | null): void {
+    this.packOpen = !!inventory;
+    this.packEl.hidden = !inventory;
+    if (inventory) this.drawPack(inventory);
+    this.setLocked(this.locked, this.vr);
+  }
+
+  private drawPack(inventory: Inventory<WildTool>): void {
+    const fill = (el: HTMLElement, tools: WildTool[], empty: string, move: (tool: WildTool) => void): void => {
+      el.textContent = '';
+      if (!tools.length) {
+        const none = document.createElement('div');
+        none.className = 'pack-empty';
+        none.textContent = empty;
+        el.appendChild(none);
+        return;
+      }
+      for (const tool of tools) {
+        const charges = inventory.charges(tool);
+        const slot = document.createElement('button');
+        slot.className = 'pack-slot';
+        slot.style.color = `#${tool.color.toString(16).padStart(6, '0')}`;
+        const name = document.createElement('b');
+        name.textContent = tool.name;
+        const count = document.createElement('span');
+        count.textContent = Number.isFinite(charges) ? `${charges} ${tool.charges?.unit ?? ''}`.trim() : 'always to hand';
+        slot.append(name, count);
+        slot.addEventListener('click', () => {
+          move(tool);
+          this.drawPack(inventory);
+        });
+        el.appendChild(slot);
+      }
+    };
+    fill(this.packHandEl, inventory.toHand(), 'Nothing to hand', (tool) => {
+      if (!inventory.stow(tool)) this.message(`The ${tool.name.toLowerCase()} stays to hand`);
+    });
+    fill(this.packStowedEl, inventory.packed(), 'The pack is empty', (tool) => {
+      inventory.takeOut(tool);
+      inventory.select(tool);
+    });
   }
 
   /** A survivor's status, the hint for what's around them and how to use what's in hand, worded for the platform. */

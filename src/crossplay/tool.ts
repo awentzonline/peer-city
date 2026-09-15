@@ -79,6 +79,11 @@ export interface ToolOptions {
   laser?: boolean;
   /** Take it out on a crosshair when you get your first one. Default true; false for things you gather, like wood. */
   selectOnPickup?: boolean;
+  /**
+   * It can be put away in a pack instead of kept to hand: off the number keys on a crosshair, off the body
+   * in VR (see Inventory). Default false, for tools that are always to hand.
+   */
+  stows?: boolean;
 }
 
 /** A tool in a hand, as its hooks see it. */
@@ -151,6 +156,7 @@ export class Tool<A extends AnyAvatar = AnyAvatar> {
   readonly automatic: boolean;
   readonly laser: boolean;
   readonly selectOnPickup: boolean;
+  readonly stows: boolean;
 
   constructor(o: ToolOptions) {
     if (!o.model.asset === !o.model.build) throw new Error(`${o.name}: give its model an asset or a build, not both`);
@@ -166,6 +172,7 @@ export class Tool<A extends AnyAvatar = AnyAvatar> {
     this.automatic = o.automatic ?? false;
     this.laser = o.laser ?? false;
     this.selectOnPickup = o.selectOnPickup ?? true;
+    this.stows = o.stows ?? false;
   }
 
   /** Walked over a pickup of this kind that the avatar wanted. */

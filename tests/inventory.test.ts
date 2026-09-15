@@ -97,6 +97,42 @@ describe('Inventory', () => {
     expect(inv.current).toBe(PISTOL);
   });
 
+  it('puts what you gather in the pack, still carries it there, and takes it out again', () => {
+    const geom = () => new BufferGeometry();
+    const axe = new Tool({ name: 'Axe', model: { build: geom, length: 0.5 }, grip: { tip: [0, 0, -0.5] }, color: 0, issued: 1 });
+    const logs = new Tool({
+      name: 'Logs',
+      model: { build: geom, length: 0.4 },
+      grip: { tip: [0, 0, -0.4] },
+      color: 0,
+      charges: { pickup: 1, max: 10, unit: 'logs' },
+      selectOnPickup: false,
+      stows: true,
+    });
+    const inv = new Inventory(new Toolbox([axe, logs]));
+
+    inv.add(logs, 3);
+    expect(inv.has(logs)).toBe(true);
+    expect(inv.inPack(logs)).toBe(true);
+    expect(inv.toHand()).toEqual([axe]);
+    expect(inv.packed()).toEqual([logs]);
+    // what's in the pack is off the number keys and out of the cycle, but still gathers charges
+    expect(inv.current).toBe(axe);
+    expect(inv.select(logs)).toBe(false);
+    expect(inv.cycle(1)).toBe(axe);
+    inv.add(logs, 2);
+    expect(inv.charges(logs)).toBe(5);
+
+    expect(inv.takeOut(logs)).toBe(true);
+    expect(inv.select(logs)).toBe(true);
+    expect(inv.toHand()).toEqual([axe, logs]);
+    expect(inv.stow(logs)).toBe(true);
+    expect(inv.current).toBe(axe); // what you were holding went away, so something else comes out
+    expect(inv.stow(axe)).toBe(false); // tools that don't stow never leave your hands
+    expect(inv.clear()).toEqual([{ tool: logs, charges: 5 }]); // and the pack's contents are lost with the rest
+    expect(inv.packed()).toEqual([]);
+  });
+
   it('works without issued tools, and with tools that never run out', () => {
     const wand = new Tool({ name: 'Wand', model: { build: () => new BufferGeometry(), length: 0.3 }, grip: { tip: [0, 0, -0.3] }, color: 0 });
     const inv = new Inventory(new Toolbox([wand]));

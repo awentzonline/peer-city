@@ -32,8 +32,9 @@ const DOWN = -Math.PI / 2;
 export class WildTool extends Tool<Survivor> {
   override onPickup(avatar: Survivor, got: PickedUp): void {
     const { hud } = avatar.ctx;
-    if (got.charges) hud.message(`+${got.charges} ${this.charges?.unit ?? this.name}`);
-    else if (got.kept) hud.message(`Picked up ${this.name.toLowerCase()}`);
+    const where = avatar.inventory.inPack(this) ? ' → pack' : '';
+    if (got.charges) hud.message(`+${got.charges} ${this.charges?.unit ?? this.name}${where}`);
+    else if (got.kept) hud.message(`Picked up ${this.name.toLowerCase()}${where}`);
   }
 
   override onDrop(avatar: Survivor, drop: Drop): void {
@@ -490,6 +491,7 @@ export const SEEDS = new Seeds({
   stash: [{ at: [-0.22, -0.5, -0.08], pitch: DOWN }],
   color: 0xd8c08a,
   charges: { pickup: 3, max: 30, unit: 'seeds' },
+  stows: true,
   cooldownMs: 300,
   selectOnPickup: false,
 });
@@ -596,6 +598,7 @@ export const CARROT = new Food({
   stash: [{ at: [0.18, -0.5, -0.14], pitch: DOWN }],
   color: 0xf08a24,
   charges: { pickup: 1, max: 20, unit: 'carrots' },
+  stows: true,
   food: 22,
   heal: 2,
 });
@@ -607,6 +610,7 @@ export const COOKED_MEAT = new Food({
   stash: [{ at: [0.24, -0.45, 0.05], pitch: DOWN }],
   color: 0xb5651d,
   charges: { pickup: 1, max: 10, unit: 'cooked meat' },
+  stows: true,
   food: 45,
   heal: 10,
 });
@@ -618,6 +622,7 @@ export const RAW_MEAT = new Food({
   stash: [{ at: [-0.18, -0.5, -0.14], pitch: DOWN }],
   color: 0xd24a52,
   charges: { pickup: 1, max: 10, unit: 'raw meat' },
+  stows: true,
   food: 12,
   heal: -6,
   cooks: () => COOKED_MEAT,
@@ -662,6 +667,7 @@ export const WOOD = new Wood({
   stash: [{ at: [0, -0.6, 0.2], pitch: 0, roll: UP }],
   color: 0xa0703f,
   charges: { pickup: 1, max: 40, unit: 'logs' },
+  stows: true,
   cooldownMs: 400,
   selectOnPickup: false,
 });

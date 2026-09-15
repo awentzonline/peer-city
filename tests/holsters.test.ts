@@ -146,6 +146,29 @@ describe('Holsters (VR)', () => {
     expect(holsters.held(right)).toBeNull();
   });
 
+  it('keeps what is in the pack off the body, and puts it back on when it comes out', () => {
+    const logs = new Tool({
+      name: 'Logs',
+      model: { build: () => new THREE.BoxGeometry(0.1, 0.1, 0.4), length: 0.4 },
+      grip: { tip: [0, 0, -0.2] },
+      stash: [{ at: [0, -0.5, 0.2] }],
+      color: 0xffffff,
+      charges: { pickup: 1, max: 10 },
+      selectOnPickup: false,
+      stows: true,
+    });
+    const inv = new Inventory(new Toolbox([logs]));
+    inv.add(logs, 3);
+    const { holsters, items } = setup(inv);
+    expect(inv.inPack(logs)).toBe(true);
+    expect(items(logs)).toHaveLength(0);
+
+    inv.takeOut(logs);
+    holsters.update(inv);
+    expect(items(logs)).toHaveLength(1);
+    expect(items(logs)[0].parent).toBe(holsters.torso.object);
+  });
+
   it('holds a tool at its grip angle, and aims it the way it is drawn', () => {
     // a torch turned a quarter left in the hand and tipped up, stashed right where the hand will be
     const pitch = 0.3;

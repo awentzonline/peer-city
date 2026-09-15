@@ -4,6 +4,11 @@ import type { PickedUp, Tool, Toolbox } from './tool';
  * The tools an avatar carries and their charges. Everyone has the issued tools, which never run out.
  * Others come in ones or twos (up to `Tool.max`), and tools of a kind share their charges (on desktop
  * you only ever hold one of them).
+ *
+ * A kind that `stows` can be put away in a pack rather than kept to hand, which is the difference between
+ * what you can reach (the number keys, or your body in VR) and what you're merely carrying. Stowed kinds
+ * are still carried: their charges keep going up as you gather more, and they're lost with everything else
+ * when you die. Games without a pack never stow anything and don't notice any of this.
  */
 export class Inventory<T extends Tool<any> = Tool<any>> {
   /** What's in hand: the selected tool on desktop, or what's in a tracked hand. */
@@ -12,6 +17,7 @@ export class Inventory<T extends Tool<any> = Tool<any>> {
   readonly fallback: T | null;
   private readonly counts = new Map<T, number>();
   private readonly stock = new Map<T, number>();
+  private readonly stowed = new Set<T>();
 
   constructor(readonly tools: Toolbox<T>) {
     this.fallback = tools.all.find((t) => t.issued > 0) ?? null;
@@ -33,13 +39,45 @@ export class Inventory<T extends Tool<any> = Tool<any>> {
     return tool.issued > 0 || !tool.charges ? Infinity : (this.stock.get(tool) ?? 0);
   }
 
+  /** Whether a kind you carry is put away in the pack rather than to hand. */
+  inPack(tool: T): boolean {
+    return this.stowed.has(tool);
+  }
+
+  /** The kinds you carry and keep to hand, in slot order. */
+  toHand(): T[] {
+    return this.tools.all.filter((tool) => this.has(tool) && !this.stowed.has(tool));
+  }
+
+  /** The kinds you carry in the pack, in slot order. */
+  packed(): T[] {
+    return this.tools.all.filter((tool) => this.has(tool) && this.stowed.has(tool));
+  }
+
+  /** Put a kind away in the pack. False if it isn't carried, or never leaves your hands. */
+  stow(tool: T): boolean {
+    if (!this.has(tool) || !tool.stows || this.stowed.has(tool)) return false;
+    this.stowed.add(tool);
+    if (this.current === tool) {
+      this.current = null;
+      this.cycle(1);
+      this.current ??= this.fallback;
+    }
+    return true;
+  }
+
+  /** Take a kind out of the pack, back to hand. False if it wasn't in there. */
+  takeOut(tool: T): boolean {
+    return this.stowed.delete(tool);
+  }
+
   /** Whether picking up this tool would add anything: room for another, or for its charges. */
   wants(tool: T): boolean {
     if (tool.issued > 0 || !this.tools.has(tool)) return false;
     return this.count(tool) < tool.max || (!!tool.charges && this.charges(tool) < tool.charges.max);
   }
 
-  /** Picks up a tool and its charges, switching to it if it's a new kind that wants to be taken out. */
+  /** Picks up a tool and its charges. A new kind that stows goes into the pack; one that doesn't comes to hand. */
   add(tool: T, charges: number): PickedUp {
     if (!this.wants(tool)) return { kept: false, count: this.count(tool), charges: 0 };
     const had = this.count(tool);
@@ -52,7 +90,8 @@ export class Inventory<T extends Tool<any> = Tool<any>> {
       this.stock.set(tool, total);
       got = total - before;
     }
-    if (had === 0 && (tool.selectOnPickup || !this.current)) this.current = tool;
+    if (had === 0 && tool.stows && !tool.selectOnPickup) this.stowed.add(tool);
+    if (had === 0 && (tool.selectOnPickup || !this.current) && !this.stowed.has(tool)) this.current = tool;
     return { kept, count: this.count(tool), charges: got };
   }
 
@@ -68,20 +107,21 @@ export class Inventory<T extends Tool<any> = Tool<any>> {
     return true;
   }
 
+  /** Take out a kind you keep to hand. False for one you don't carry, or that's in the pack. */
   select(tool: T): boolean {
-    if (!this.has(tool)) return false;
+    if (!this.has(tool) || this.stowed.has(tool)) return false;
     this.current = tool;
     return true;
   }
 
-  /** Switch to the next (+1) or previous (-1) kind carried. */
+  /** Switch to the next (+1) or previous (-1) kind kept to hand. */
   cycle(dir: 1 | -1): T | null {
     const { all } = this.tools;
     const n = all.length;
     const from = this.current?.id ?? (dir > 0 ? -1 : n);
     for (let i = 1; i <= n; i++) {
       const tool = all[(((from + dir * i) % n) + n) % n];
-      if (this.has(tool)) return (this.current = tool);
+      if (this.has(tool) && !this.stowed.has(tool)) return (this.current = tool);
     }
     return this.current;
   }
@@ -100,6 +140,7 @@ export class Inventory<T extends Tool<any> = Tool<any>> {
     const taken = [...this.counts.keys()].map((tool) => ({ tool, charges: tool.charges ? this.charges(tool) : 0 }));
     this.counts.clear();
     this.stock.clear();
+    this.stowed.clear();
     this.current = this.fallback;
     return taken;
   }
@@ -107,6 +148,7 @@ export class Inventory<T extends Tool<any> = Tool<any>> {
   private remove(tool: T): void {
     this.counts.delete(tool);
     this.stock.delete(tool);
+    this.stowed.delete(tool);
     if (this.current === tool) this.current = this.fallback;
   }
 }

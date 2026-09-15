@@ -200,6 +200,7 @@ describe('Survivor', () => {
     expect(plots).toHaveLength(1);
 
     intent.trigger = false;
+    survivor.inventory.takeOut(SEEDS); // seeds are gathered, so they start in the pack
     intent.selectTool = SEEDS;
     frames(1, intent);
     intent.trigger = true;
@@ -373,6 +374,27 @@ describe('Survivor', () => {
       if (byFire) expect(s.hp).toBe(100);
       else expect(s.hp).toBeLessThan(100);
     }
+  });
+
+  it('gathers into the pack, keeping the tools you use to hand', () => {
+    const { survivor, frames } = setup();
+    const inv = survivor.inventory;
+    expect(inv.toHand()).toEqual([AXE, BOW, HOE, ARROWS]);
+    expect(inv.packed()).toEqual([SEEDS, CARROT]);
+
+    survivor.give(WOOD, 3);
+    expect(inv.inPack(WOOD)).toBe(true);
+    expect(messages.at(-1)).toContain('pack');
+
+    // the number keys only reach what's to hand, so taking the wood out is what puts it on them
+    const intent = idleIntent();
+    intent.selectTool = WOOD;
+    frames(1, intent);
+    expect(inv.current).toBe(AXE);
+    expect(inv.takeOut(WOOD)).toBe(true);
+    frames(1, intent);
+    expect(inv.current).toBe(WOOD);
+    expect(inv.toHand()).toContain(WOOD);
   });
 
   it('spills what it gathered where it dies', () => {
