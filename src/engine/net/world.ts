@@ -188,6 +188,8 @@ export interface NetStats {
  */
 export class NetWorld {
   readonly selfId: string;
+  /** What the world talks over. Side channels (see crossplay/voice.ts) can open their own rooms on it. */
+  readonly transport: Transport;
   /** Namespace this world's rooms live in; side channels (see crossplay/voice.ts) key their own rooms off it. */
   readonly worldId: string;
   readonly spatial: SpatialHash<NetEntity<any>>;
@@ -269,6 +271,7 @@ export class NetWorld {
 
   constructor(opts: NetWorldOptions) {
     this.selfId = opts.transport.selfId;
+    this.transport = opts.transport;
     this.worldId = opts.worldId;
     this.defs = opts.entities;
     this.actionDefs = opts.actions ?? [];

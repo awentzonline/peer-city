@@ -283,6 +283,7 @@ any one game. It came out of building a second game (Peer Wilds) on what Peer Ci
 
 | Module | What it is |
 | --- | --- |
+| `lobby.ts`, `network.ts`, `shell.ts` | what a game's page has around its rules: the lobby (name, network, room, PLAY or PLAY VR), picking a transport and meter-scale engine presets (`OPEN_WORLD`, `ONE_ZONE`), and the `Shell` (stage, voice, settings, debug panel, a seat whose frontend follows the platform, the global keys). Each is optional: a game can use `Stage`, `Voice` and the rest directly |
 | `role.ts`, `platform.ts` | `Role` (a game's rules, fed an intent) and `Frontend` (one platform's input and presentation); the `Seat` swaps frontends when a headset session starts or ends |
 | `avatar.ts` | `Avatar`: a body that walks with a virtual head or follows a tracked one round the room (pushing the play space back from walls), and hands that use tools from a crosshair or wherever tracked hands point. `BODY_FIELDS` are its replicated fields, spread into a game's player entity. A game subclasses it and says how the body collides and where the ground is |
 | `intent.ts` | `AvatarIntent`, `HandIntent`: what a player wants in terms of the body. Games extend it (Peer City adds driving) |

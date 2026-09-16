@@ -76,10 +76,10 @@ Shared pieces are in `src/crossplay/`, Peer City's in `src/fps/` (Peer Wilds' in
     them), holsters deciding what each hand holds, play space moved by `AvatarBody` callbacks, seat
     calibration, tint and haptics instead of shake, wrist HUD. Poses come from an `XrPoseSource`:
     `WebXrPoses` (`rig.ts`) or `SimulatedXr` (`xrsim.ts`, `?xrsim`).
-- **`Game.ts`** picks a frontend for how the page is being played (a presenting headset, `?xrsim`, touch or
-  desktop) at start and again whenever an XR session starts or ends.
-  Only the global debug keys (`` ` ``, N) are read outside a frontend, and touch has no keyboard to press
-  them with.
+- **`Game.ts`** gives `Shell.seat` (`crossplay/shell.ts`) a way to build each platform's frontend, and the shell
+  picks one for how the page is being played (a presenting headset, `?xrsim`, touch or desktop) at start and
+  again whenever an XR session starts or ends. Only the shell's global keys (`` ` ``, N, and on desktop Esc and
+  V) are read outside a frontend, and touch has no keyboard to press them with.
 - **`GameContext`** has no device in it. `Hud` is the shared status and announcement model; each frontend
   presents it (`Hud.showAvatar` formats status for a platform's button name).
 
@@ -103,8 +103,9 @@ What Peer City's touch avatar did, which is the shape any new platform follows:
    `crouch` and `selectTool`; `hands` stays null (a crosshair).
 3. `present`: the camera, the HUD the way that device needs it, and the `AvatarBody` callbacks it cares
    about (touch buzzes with `navigator.vibrate` where the desktop shakes the camera).
-4. In `Game`, pick it. Touch is chosen by `isTouchDevice()` in `main.ts`, and `?touch` / `?desktop` force
-   either one, which is how it's tested with a mouse.
+4. In `Game`, add it to the frontends passed to `shell.seat`. Touch is chosen by `isTouchDevice()` in the lobby
+   (`crossplay/lobby.ts`, for games that pass `touch: true`), and `?touch` / `?desktop` force either one, which
+   is how it's tested with a mouse.
 
 ## Touch, as built
 
