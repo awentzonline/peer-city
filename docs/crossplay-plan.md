@@ -256,7 +256,8 @@ Decided by the project owner (2026-09-16), not built yet:
 
 - **A good phone version.** Touch should be a first-class way to play the derby, not a port: think outside the box
   if the desktop controls don't suit thumbs (tap a face to build, tilt or thumb controls to drive, whatever
-  works best), but it has to work well.
+  works best). A good phone version is the ideal for every game, but some games are weird enough that a phone
+  can't do them full justice; then make the best one the game allows.
 - **Physics is trusted.** Owners simulate their own racers unchecked, and that's fine; no validation needed.
 - **Designs outlive the session.** First save and load them (locally), then share them (e.g. as codes).
 
