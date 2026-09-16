@@ -4,8 +4,24 @@
     {
       "name": "peer-city",
       "runtimeExecutable": "/Users/adam/.nvm/versions/node/v22.14.0/bin/node",
-      "runtimeArgs": ["node_modules/vite/bin/vite.js", "--port", "5173", "--strictPort"],
+      "runtimeArgs": [
+        "node_modules/vite/bin/vite.js",
+        "--port",
+        "5173",
+        "--strictPort"
+      ],
       "port": 5173
+    },
+    {
+      "name": "peer-walls",
+      "runtimeExecutable": "/Users/adam/.nvm/versions/node/v22.14.0/bin/node",
+      "runtimeArgs": [
+        "node_modules/vite/bin/vite.js",
+        "--port",
+        "5180",
+        "--strictPort"
+      ],
+      "port": 5180
     }
   ]
 }

@@ -83,6 +83,12 @@ export class TouchInput {
     return this.edges.has(name);
   }
 
+  /** Where the finger driving the look zone is right now, in pixels, or null: for games where a finger acts where it touches. */
+  get lookFinger(): { x: number; y: number } | null {
+    for (const f of this.fingers.values()) if (f.zone === 'look' && f.owner) return { x: f.x, y: f.y };
+    return null;
+  }
+
   /** View movement since the last call, in pixels: positive x is right, positive y is down the screen. */
   consumeLook(): [number, number] {
     const out: [number, number] = [this.lookDx, this.lookDy];

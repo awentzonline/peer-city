@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Peer Walls</title>
+    <link rel="stylesheet" href="/src/walls/style.css" />
+    <link rel="stylesheet" href="/src/crossplay/settings.css" />
+    <link rel="stylesheet" href="/src/crossplay/touch.css" />
+  </head>
+  <body>
+    <div id="game"></div>
+
+    <div id="hud" hidden>
+      <div id="crosshair"></div>
+      <div id="status"></div>
+      <div id="tool"></div>
+      <div id="palette"></div>
+      <div id="feed"></div>
+      <div id="hint"></div>
+      <div id="help"></div>
+      <button id="vr-enter" hidden>ENTER VR</button>
+      <div id="lock" hidden>
+        <div>CLICK TO PAINT</div>
+        <small>Esc releases the mouse</small>
+      </div>
+    </div>
+
+    <div id="lobby">
+      <div class="panel">
+        <h1>PEER WALLS</h1>
+        <p class="tag">A yard of blank walls and a rack of spray paint. Bring your friends and cover them. No server: everyone's browser is the yard.</p>
+        <label>Name <input id="name" maxlength="16" autocomplete="off" /></label>
+        <label
+          >Network
+          <select id="net">
+            <option value="online">Online (WebRTC via Trystero / Nostr)</option>
+            <option value="local">Local tabs (BroadcastChannel)</option>
+          </select>
+        </label>
+        <label>Yard <input id="room" maxlength="24" autocomplete="off" /></label>
+        <div class="buttons">
+          <button id="play">PAINT</button>
+          <button id="play-vr" disabled>PAINT IN VR</button>
+        </div>
+        <p class="small" id="vr-note">Checking for a VR headset…</p>
+        <details class="small">
+          <summary>How to paint</summary>
+          You've got a <b>spray can</b>, a <b>marker</b> and a <b>roller</b>. Hold the mouse button to paint where the crosshair points.
+          <ul>
+            <li><b>Spray</b> goes on thicker the longer you hold it on a spot, and wider and softer the further back you stand. Move fast for a light dusting, slow for solid colour.</li>
+            <li>The <b>marker</b> and <b>roller</b> only work right up against the wall. The roller is for big fills.</li>
+            <li><b>Q</b> and <b>E</b> change size: skinny to fat caps, fine to broad nibs, narrow to wide rollers.</li>
+            <li>The <b>wheel</b> changes colour, or point at a swatch on the <b>rack</b> by the gate and click it. <b>Buff</b> is the wall's own grey, for painting over mistakes.</li>
+          </ul>
+          <b>WASD</b> walk, <b>Shift</b> runs, <b>C</b> crouches for the bottom of the wall, <b>1 2 3</b> pick a tool, <b>Esc</b> settings, <b>V</b> microphone.
+          <br /><br />
+          <b>VR:</b> the spray can is on your right hip, the marker on your left, the roller over your left shoulder. Squeeze a grip there to
+          take one and pull the trigger to paint. <b>A</b> and <b>B</b> change colour, <b>X</b> the size, <b>Y</b> opens the settings.
+          <br /><br />
+          <b>Touch:</b> turn <b>DRAW</b> on and paint with your finger wherever you touch the wall; turn it off to look around. Tap colours along the
+          bottom and tools up the right.
+          <br /><br />
+          Friends who join see everything already painted. Your browser keeps the walls too, so they're still there when you come back to an empty yard.
+        </details>
+        <p class="small">Open more tabs or share the URL to add painters. <a href="./">All games →</a></p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/walls/main.ts"></script>
+  </body>
+</html>

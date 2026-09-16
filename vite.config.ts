@@ -20,6 +20,7 @@ export default defineConfig({
         fps: fileURLToPath(new URL('./fps.html', import.meta.url)),
         wilds: fileURLToPath(new URL('./wilds.html', import.meta.url)),
         derby: fileURLToPath(new URL('./derby.html', import.meta.url)),
+        walls: fileURLToPath(new URL('./walls.html', import.meta.url)),
       },
     },
   },

@@ -452,6 +452,55 @@ tracked hands, runs a race from ready to the go, rolls a starter cart down the w
 
 ---
 
+## Peer Walls (paint a yard of walls together)
+
+`/walls.html` is a fifth game on the engine, and the first with no goal: a walled yard, a rack of paint by the gate, and
+friends to cover the walls with.
+
+```bash
+npm run dev    # http://localhost:5173/walls.html
+```
+
+| Tool | What it does |
+| --- | --- |
+| Spray can | soft, speckled paint that builds up the longer you hold it on a spot. Further from the wall it's wider and fainter; skinny, standard and fat caps |
+| Marker | a hard line, right up against the wall; fine, chisel and mop nibs |
+| Roller | broad flat bands for fills, right up against the wall |
+
+Every tool paints in the colour loaded, picked off the rack by pointing a tool at a swatch (every platform), or from the
+palette. **Buff** is the wall's own grey, for painting over mistakes.
+
+| | Desktop | VR | Touch |
+| --- | --- | --- | --- |
+| Paint | hold click; **1 2 3** tool, **wheel** colour, **Q E** size, **C** crouch | grab the can (right hip), marker (left hip) or roller (over the left shoulder), trigger; **A / B** colour, **X** size, **Y** settings | turn **DRAW** on and paint with a finger; **SPRAY** paints at the dot; tap colours along the bottom, tools up the right |
+
+How it uses the engine, and what it found:
+
+- **The walls aren't entities.** They're pixels (64 per meter, about 1.6 million of them) that every peer keeps its own copy
+  of (`wall.ts`). Paint is a `Paint` action per frame per painting hand, sent to everyone: a couple of points, each the
+  brush's position, radius and strength in six bytes. Every peer paints a stroke with the same integer arithmetic and the
+  same seeded speckle, so copies agree pixel for pixel.
+- **Late joiners get a copy while painting carries on** (`sync.ts`). A newcomer asks a painter who has the walls for them.
+  The copy is taken at one moment, with the number of each painter's last stroke in it, and sent as deflated tiles (only
+  the ones anyone's painted). Meanwhile the newcomer paints and keeps every stroke that arrives, and once the copy is in,
+  repaints the ones it hadn't seen. The tests check that a third painter who arrives while two others are painting ends
+  up with exactly the same pixels.
+- **Walls converge.** A copy of the walls has an id and a birth time (`Painter.wall`, `born`). The first painter in an empty
+  yard starts one; if two groups that each started their own meet (a slow connection), the older walls win and the
+  younger group takes a copy.
+- **Walls outlive the session, in your browser.** The walls are kept in IndexedDB per yard every 15 seconds while they
+  change (`store.ts`), and come back when you're the first one into an empty yard.
+- **Drawn in tiles.** Each wall is a grid of 128-pixel textures, and only tiles that changed are uploaded.
+- **Limits:** where two painters' strokes cross in the same instant, peers can paint them in either order, and their copies
+  differ very slightly there. When two groups' walls meet, the younger group's are replaced, including in their browsers'
+  saves at the next autosave.
+
+Source: `src/walls/`. Tests: `tests/walls.test.ts` paints with every brush, sends strokes over the wire and checks the
+pixels match, hands walls to late arrivals mid-painting, restores saved walls, merges two groups' walls, and paints
+through the crosshair, a tracked hand and off the rack.
+
+---
+
 ## Scaling results
 
 `scripts/loadsim.ts` runs many `NetWorld`s in one process over a simulated network (45ms latency

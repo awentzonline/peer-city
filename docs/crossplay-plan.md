@@ -295,6 +295,32 @@ Decided by the project owner (2026-09-16):
   **tilt hasn't been tried on a real phone yet**.
 - Starting on a phone asks for fullscreen and a landscape lock (Android; iOS ignores both). Portrait still works.
 
+## Lessons from a fourth game
+
+Peer Walls (`src/walls/`, `/walls.html`, 2026-09-16) is painting a yard of walls together with spray cans, markers and
+rollers. It's the first game whose world is mostly something the players make, and the first with no goal.
+
+What carried over unchanged: `Avatar`, tools and holsters (a can on the hip is a gun on the hip), `Seat` and frontends,
+`Stage`, voice and settings, `DesktopTool`, panels, particles.
+
+What was new:
+
+- **Dense, shared, player-made state that isn't entities.** Walls are pixels every peer keeps, and paint is an action
+  stream everyone applies deterministically. The engine needed nothing new for that; the hard part was someone arriving
+  late, solved in the game (`sync.ts`): a copy of the walls taken at one moment with each painter's last stroke number in
+  it, strokes kept while it comes, and the unseen ones repainted on top. If another game needs a shared canvas, a voxel
+  world or a terrain people dig, that pattern (and `WallSync` generalised over "a state and a stroke") could move to
+  `crossplay/`.
+- **Convergence without a server** is an id and a birth time on each copy: the older one wins when two meet.
+- **Persistence, for the first time**, answering Peer Wilds' open question for this game: the walls are kept in the
+  browser (IndexedDB) and a lone painter starts from them. Nothing arbitrates between two browsers' saves beyond "older
+  walls win" when they meet.
+- **Rules own distance, not the device.** A spray is wider and fainter further from the wall on every platform: a tracked
+  hand measures from its nozzle, a crosshair from an arm's length in front of the eyes (`kit.ts`'s `ARM`).
+- **Touch acts where a finger is, continuously.** `TouchInput.lookFinger` (new) gives the look-zone finger's position
+  every frame, not only a tap, so DRAW paints wherever the finger is on the wall. Looking round needs DRAW turned off:
+  a phone has one surface for both.
+
 ## Later: mobile
 
 - Detection is done (`isTouchDevice()`), and the lobby's PLAY starts the touch frontend on a phone. A
