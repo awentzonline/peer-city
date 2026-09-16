@@ -65,6 +65,12 @@ export class Holsters {
    * and it goes back where it was on the body until the inventory says it's gone.
    */
   onLetGo: ((tool: Tool<any>, grip: THREE.Vector3) => boolean) | null = null;
+  /**
+   * A spot on the body something else owns (the pack): an empty hand squeezing there is reaching for that,
+   * not for whatever tool happens to hang nearby. Without it a long tool's shaft, which reaches much further
+   * than where it's stashed, would swallow every grip on that side of the body.
+   */
+  claimed: ((grip: THREE.Vector3) => boolean) | null = null;
   private readonly items: Carried[] = [];
   private readonly hands: HandState[];
   private readonly tipOut = new THREE.Vector3();
@@ -182,9 +188,10 @@ export class Holsters {
     return h.hand.object.localToWorld(point.copy(GRIP_IN_HAND));
   }
 
-  /** The stashed tool nearest the hand, if any is within reach. */
+  /** The stashed tool nearest the hand, if any is within reach and nothing else owns that spot. */
   private reachable(h: HandState): Carried | null {
     const p = this.gripPoint(h);
+    if (this.claimed?.(p)) return null;
     let best: Carried | null = null;
     let bestD = REACH;
     for (const item of this.items) {

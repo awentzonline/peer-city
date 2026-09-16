@@ -59,7 +59,8 @@ export class VrSurvivor implements SurvivorFrontend {
     this.intent.head = this.head;
     this.intent.hands = this.hands;
     ctx.hud.message('Your tools are on your body: squeeze a grip by your shoulders, back or belt to take one');
-    ctx.hud.message('What you gather goes in the pack on your back: reach behind a shoulder and squeeze to open it');
+    ctx.hud.message('The bow hangs behind your left hip, and your arrows stand over your right shoulder');
+    ctx.hud.message('What you gather goes in the pack between your shoulder blades: squeeze there to open it, and again to close it');
   }
 
   dispose(): void {
