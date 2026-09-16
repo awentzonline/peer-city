@@ -4,6 +4,7 @@ import { Side, handIntent, idleIntent, type AvatarIntent, type HandIntent, type 
 import { toolMesh } from '../crossplay/models';
 import { Platform } from '../crossplay/platform';
 import { Btn, type Rig, type XRHand, type XrPoseSource } from '../crossplay/rig';
+import { VrSettings } from '../crossplay/settingsPanel';
 import type { Tool, UseEffect } from '../crossplay/tool';
 import { direction, type Vec3, type WildsContext } from './context';
 import { Hud, mapDots, type MapDot } from './hud';
@@ -32,6 +33,7 @@ export class VrSurvivor implements SurvivorFrontend {
   readonly holsters: Holsters;
   private readonly pack: VrPack;
   private readonly wrist: Wrist;
+  private readonly menu: VrSettings;
   private readonly strings: [BowString, BowString];
   private readonly intent = idleIntent();
   private readonly head: TrackedHead = { x: 0, y: 0, z: 0, heading: 0, pitch: 0 };
@@ -55,6 +57,7 @@ export class VrSurvivor implements SurvivorFrontend {
     this.holsters = new Holsters(rig);
     this.pack = new VrPack(rig, this.holsters, sim.inventory, ctx.hud);
     this.wrist = new Wrist(rig, ctx.hud);
+    this.menu = new VrSettings(ctx.settings, rig);
     this.strings = [new BowString(scene), new BowString(scene)];
     this.intent.head = this.head;
     this.intent.hands = this.hands;
@@ -67,6 +70,7 @@ export class VrSurvivor implements SurvivorFrontend {
     this.pack.dispose();
     this.holsters.dispose();
     this.wrist.dispose();
+    this.menu.dispose();
     for (const s of this.strings) s.dispose();
   }
 
@@ -84,11 +88,19 @@ export class VrSurvivor implements SurvivorFrontend {
     intent.forward = -deadzone(left.stickY);
     intent.interact = right.pressed(Btn.A) || left.pressed(Btn.A);
 
+    if (left.pressed(Btn.B)) this.menu.toggle();
+    const onMenu = this.menu.update(this.ctx.now);
+
     // Holsters turn grips into what each hand holds; the rules only see what's in the hand, or an empty one reaching out.
     this.holsters.update(sim.inventory);
     this.pack.update();
     this.readHand(right, this.hands[Side.Right]);
     this.readHand(left, this.hands[Side.Left]);
+    // A trigger pulled at the settings panel is pressing a row, not swinging what's in that hand.
+    if (onMenu) {
+      intent.interact = false;
+      for (const hand of this.hands) hand.trigger = false;
+    }
     return intent;
   }
 

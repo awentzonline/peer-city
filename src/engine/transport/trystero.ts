@@ -1,5 +1,5 @@
 import { joinRoom, selfId } from 'trystero';
-import type { Transport, TransportRoom } from './types';
+import type { RoomMedia, Transport, TransportRoom } from './types';
 
 export interface TrysteroTransportOptions {
   /** Globally unique app identifier; peers only discover others with the same appId. */
@@ -31,8 +31,17 @@ export class TrysteroTransport implements Transport {
 
     const room = joinRoom(config as any, roomId);
     const action = room.makeAction<Uint8Array>('g');
+    // Adding or dropping a stream renegotiates that one peer connection, so callers should do it sparingly.
+    const media: RoomMedia = {
+      addStream: (stream, peerId) => {
+        for (const p of room.addStream(stream, { target: peerId })) p.catch(() => {});
+      },
+      removeStream: (stream, peerId) => room.removeStream(stream, { target: peerId }),
+      onPeerStream: () => {},
+    };
     const handle: TransportRoom = {
       id: roomId,
+      media,
       onPeerJoin: () => {},
       onPeerLeave: () => {},
       onMessage: () => {},
@@ -48,6 +57,7 @@ export class TrysteroTransport implements Transport {
     };
     room.onPeerJoin = (peerId) => handle.onPeerJoin(peerId);
     room.onPeerLeave = (peerId) => handle.onPeerLeave(peerId);
+    room.onPeerStream = (stream, peerId) => media.onPeerStream(stream, peerId);
     action.onMessage = (data, ctx) => {
       const bytes = data instanceof Uint8Array ? data : new Uint8Array(data as unknown as ArrayBuffer);
       handle.onMessage(bytes, ctx.peerId);

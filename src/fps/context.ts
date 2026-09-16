@@ -1,5 +1,6 @@
 import type * as THREE from 'three';
 import type { NetEntity, NetWorld, StateOf } from '@engine/index';
+import type { Settings } from '../crossplay/settings';
 import type { City } from './city';
 import type { Car, Ped, Pickup, Player } from './defs';
 import type { Effects } from './effects';
@@ -24,6 +25,8 @@ export interface GameContext {
   sfx: Sfx;
   /** Announcements and status. Each platform's HUD shows them its own way. */
   hud: Hud;
+  /** The in-game settings menu's contents. Frontends read `open` to know the player is busy with it. */
+  settings: Settings;
   fx: Effects;
   scene: THREE.Scene;
   /** The local player's avatar. */

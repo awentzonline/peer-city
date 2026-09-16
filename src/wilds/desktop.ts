@@ -77,8 +77,8 @@ export class DesktopSurvivor implements SurvivorFrontend {
     // the number keys are what you keep to hand; the rest is in the pack
     const tools = sim.inventory.toHand();
     for (let i = 0; i < tools.length && i < 9; i++) if (k.pressed(`Digit${i + 1}`)) intent.selectTool = tools[i];
-    if (k.pressed('KeyB')) this.setPack(!this.ctx.hud.packOpen);
-    if (this.ctx.hud.packOpen) this.packIntent();
+    if (k.pressed('KeyB') && !this.ctx.settings.open) this.setPack(!this.ctx.hud.packOpen);
+    if (this.ctx.hud.packOpen || this.ctx.settings.open) this.standStill();
     this.held.setTool(sim.inventory.current);
     intent.tip = this.held.tipWorld(this.tip);
     return intent;
@@ -91,8 +91,8 @@ export class DesktopSurvivor implements SurvivorFrontend {
     else this.input.requestLock();
   }
 
-  /** While the pack is open you stand still and don't use anything: the mouse belongs to the panel. */
-  private packIntent(): void {
+  /** While a panel is open (the pack, the settings menu) you stand still and don't use anything: the mouse belongs to it. */
+  private standStill(): void {
     const { intent } = this;
     Object.assign(intent, { turn: 0, lookUp: 0, strafe: 0, forward: 0, run: false, crouch: false, jump: false, interact: false, trigger: false });
     intent.cycleTool = 0;

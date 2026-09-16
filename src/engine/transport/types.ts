@@ -20,6 +20,18 @@ export interface TransportRoom {
   send(data: Uint8Array, peerId: string): void;
   peers(): string[];
   leave(): void;
+  /** Live audio alongside the data, where the transport carries it (WebRTC does; a BroadcastChannel doesn't). */
+  readonly media?: RoomMedia;
+}
+
+/**
+ * Live media on a room's peer connections, for voice chat (see crossplay/voice.ts). Streams are always
+ * sent to one named peer rather than the whole room, because who can hear you is a rule of the game.
+ */
+export interface RoomMedia {
+  addStream(stream: MediaStream, peerId: string): void;
+  removeStream(stream: MediaStream, peerId: string): void;
+  onPeerStream: (stream: MediaStream, peerId: string) => void;
 }
 
 export function randomPeerId(): string {

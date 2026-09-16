@@ -65,9 +65,18 @@ export class DesktopAvatar implements AvatarFrontend {
     const tools = sim.inventory.tools.all;
     for (let i = 0; i < tools.length && i < 9; i++) if (k.pressed(`Digit${i + 1}`)) intent.selectTool = tools[i];
     if (sim.driving && k.pressed('KeyV')) this.thirdPerson = !this.thirdPerson;
+    if (this.ctx.settings.open) this.standStill();
     this.held.setTool(sim.inventory.current);
     intent.tip = this.thirdPerson && sim.me?.state.car ? null : this.held.tipWorld(this.tip);
     return intent;
+  }
+
+  /** While the settings menu is open you stand still and don't use anything: the mouse belongs to it. */
+  private standStill(): void {
+    const { intent } = this;
+    Object.assign(intent, { turn: 0, lookUp: 0, strafe: 0, forward: 0, run: false, jump: false, brake: false, horn: false, interact: false, trigger: false });
+    intent.cycleTool = 0;
+    intent.selectTool = null;
   }
 
   present(dt: number): void {

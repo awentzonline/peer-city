@@ -1,6 +1,7 @@
 import type { NetEntity, NetWorld, StateOf } from '@engine/index';
 import type { Arrows } from './arrows';
 import type { Animal, Campfire, Item, Plot, Stump, Survivor } from './defs';
+import type { Settings } from '../crossplay/settings';
 import type { Effects } from './effects';
 import type { Hud } from './hud';
 import type { Land } from './land';
@@ -23,6 +24,8 @@ export interface WildsContext {
   sfx: Sfx;
   /** Announcements and status, shown by each platform its own way. */
   hud: Hud;
+  /** The in-game settings menu's contents. Frontends read `open` to know the player is busy with it. */
+  settings: Settings;
   fx: Effects;
   /** Arrows in flight. */
   arrows: Arrows;

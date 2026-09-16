@@ -1,0 +1,161 @@
+/* The in-game settings menu (settingsMenu.ts). Shared by every game on the crossplay layer, so it's linked
+   from each game's HTML rather than copied into its stylesheet. */
+
+#settings {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+  color: #fff;
+  pointer-events: auto;
+}
+
+/* The games' own prompts sit in the middle of the screen; keep them out from under the menu. */
+body.settings-open #lock,
+body.settings-open #crosshair {
+  display: none !important;
+}
+
+.settings-panel {
+  width: min(460px, 92vw);
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 24px;
+  border: 2px solid rgba(240, 223, 176, 0.25);
+  border-radius: 14px;
+  background: rgba(16, 15, 12, 0.94);
+}
+
+.settings-panel h2 {
+  margin: 0 0 14px;
+  font-size: 22px;
+  letter-spacing: 4px;
+  color: #f0dfb0;
+}
+
+.settings-rows {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0 10px;
+  padding: 8px 12px;
+  overflow: hidden;
+  font: inherit;
+  text-align: left;
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+}
+
+.settings-toggle {
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-left: 4px solid #6b6155;
+}
+
+.settings-toggle.on {
+  border-left-color: #6ad36a;
+}
+
+.settings-toggle:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.settings-row b {
+  font-size: 15px;
+}
+
+.settings-row span {
+  grid-column: 1;
+  font-size: 12px;
+  color: #a99e88;
+}
+
+.settings-row i {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #7d735f;
+}
+
+.settings-toggle.on i {
+  color: #6ad36a;
+}
+
+/* Talking meter: a bar along the bottom of the row, scaled from 0. */
+.settings-row u {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 3px;
+  background: #6ad36a;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.1s linear;
+}
+
+.settings-heading {
+  padding: 14px 2px 2px;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #bfb29a;
+}
+
+.settings-heading:first-child {
+  padding-top: 2px;
+}
+
+.settings-note {
+  padding: 6px 2px;
+  font-size: 13px;
+  color: #7d735f;
+}
+
+.settings-note b {
+  font-weight: normal;
+}
+
+.settings-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.settings-foot small {
+  font-size: 12px;
+  color: #9a8f7a;
+}
+
+.settings-close {
+  padding: 7px 16px;
+  font: inherit;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #14120d;
+  cursor: pointer;
+  background: #f0dfb0;
+  border: 0;
+  border-radius: 8px;
+}

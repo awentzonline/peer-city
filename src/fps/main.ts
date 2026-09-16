@@ -93,7 +93,7 @@ function launch(session: Promise<XRSession> | null, sfx: Sfx, playerName: string
   const city = new City(CITY_SEED);
   const hud = new Hud(city);
   const sim = params.has('xrsim');
-  const game = new Game({ world, city, hud, sfx, playerName, netLabel: `${mode}/${shard}`, container: document.getElementById('game')!, sim });
+  const game = new Game({ world, transport, city, hud, sfx, playerName, netLabel: `${mode}/${shard}`, container: document.getElementById('game')!, sim });
 
   if (session) {
     session.then((s) => game.startSession(s)).catch((err: unknown) => hud.message(`Couldn't start VR: ${err instanceof Error ? err.message : String(err)}`));
@@ -103,7 +103,7 @@ function launch(session: Promise<XRSession> | null, sfx: Sfx, playerName: string
 
   // handy for debugging from the console
   Object.assign(window as object, { peerCity3d: { world, city, game } });
-  window.addEventListener('pagehide', () => world.dispose());
+  window.addEventListener('pagehide', () => game.dispose());
 }
 
 function safeStorage(op: 'get' | 'set', key: string, value?: string): string | null {

@@ -81,6 +81,7 @@ function start(vr: boolean): void {
   const hour = params.has('hour') ? Number(params.get('hour')) : null;
   const game = new Game({
     world,
+    transport,
     land,
     hud,
     sfx,
@@ -96,7 +97,7 @@ function start(vr: boolean): void {
 
   // handy for debugging from the console
   Object.assign(window as object, { peerWilds: { world, land, game } });
-  window.addEventListener('pagehide', () => world.dispose());
+  window.addEventListener('pagehide', () => game.dispose());
 }
 
 function safeStorage(op: 'get' | 'set', key: string, value?: string): string | null {

@@ -188,6 +188,8 @@ export interface NetStats {
  */
 export class NetWorld {
   readonly selfId: string;
+  /** Namespace this world's rooms live in; side channels (see crossplay/voice.ts) key their own rooms off it. */
+  readonly worldId: string;
   readonly spatial: SpatialHash<NetEntity<any>>;
   readonly zoneSize: number;
   readonly cellSize: number;
@@ -267,6 +269,7 @@ export class NetWorld {
 
   constructor(opts: NetWorldOptions) {
     this.selfId = opts.transport.selfId;
+    this.worldId = opts.worldId;
     this.defs = opts.entities;
     this.actionDefs = opts.actions ?? [];
     if (this.defs.length > 255 || this.actionDefs.length > 255) throw new Error('At most 255 entity and action types');
@@ -415,6 +418,14 @@ export class NetWorld {
 
   get peerCount(): number {
     return this.peers.size;
+  }
+
+  /**
+   * Keys of the zone rooms this peer is in. A side channel that wants to reach the same neighbourhood
+   * without widening the peer graph (voice, say) can follow this set and open its own rooms per key.
+   */
+  zoneKeys(): IterableIterator<string> {
+    return this.mesh.roomKeys();
   }
 
   /**

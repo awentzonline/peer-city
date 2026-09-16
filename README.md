@@ -157,7 +157,9 @@ update() {
 | `BroadcastTransport` | many tabs on one machine, no network |
 | `MemoryNetwork` | tests & headless simulation with latency/jitter and a fake clock |
 
-Implementing `Transport` (join room → peer join/leave, send, receive) is all it takes to add another.
+Implementing `Transport` (join room → peer join/leave, send, receive) is all it takes to add another. A room may also
+expose `media` (add/remove a `MediaStream` for one peer, receive theirs), which is what proximity voice rides on;
+`TrysteroTransport` has it, and transports without it simply have no voice.
 
 ---
 
@@ -204,12 +206,13 @@ npm run dev    # http://localhost:5173/fps.html
 ```
 
 **Desktop:** WASD move · mouse look · click shoot · wheel / 1-5 switch gun · Shift run · Space jump / handbrake · **F** enter/exit
-car · **V** chase camera while driving · H horn · `` ` `` net stats · N mute
+car · **Esc** settings · **V** microphone (chase camera while driving) · H horn · `` ` `` net stats · N mute
 
 **VR:** walk around your room for real, or use the left stick. Right stick snap-turns. Squeeze a grip to
 grab a gun off your body (pistol on the right hip, SMG on the left, long guns over your shoulders) and
 let go against your torso to stash it there; the trigger fires. **A/X** enter/exit a car. Driving: left
-stick steers and accelerates, clicking the right stick is the handbrake, **B** horns, **Y** recenters your seat. Cash, wanted
+stick steers and accelerates, clicking the right stick is the handbrake, **B** horns, **Y** recenters your seat (or opens
+the settings panel on foot). Cash, wanted
 level, health and the minimap are on your left wrist.
 
 What changes in 3D:
@@ -285,7 +288,36 @@ any one game. It came out of building a second game (Peer Wilds) on what Peer Ci
 | `holsters.ts`, `torso.ts` | a headset player's tools, carried on the body and grabbed with the grips |
 | `rig.ts`, `xrsim.ts`, `input.ts`, `stage.ts` | the play space and its XR poses (or `?xrsim`'s fake ones), keyboard and mouse, and the renderer and loop that keeps simulating in a background tab |
 | `models.ts`, `avatarView.ts`, `desktopTool.ts` | people and tools built from vertex-coloured parts, drawing another player's replicated body and hands, the first-person tool on desktop |
+| `voice.ts` | proximity voice chat: your microphone goes to the people near you and their voices play from where they stand |
+| `settings.ts`, `settingsMenu.ts`, `settingsPanel.ts` | the in-game settings menu: one set of rows, drawn as a DOM overlay on desktop and as a panel you poke in a headset |
 | `particles.ts`, `audio.ts`, `panel.ts`, `assets.ts`, `textures.ts`, `math.ts` | GPU particles, spatial synthesized sound, canvas panels for headset HUDs, GLB loading |
+
+### Proximity voice chat
+
+Both games let you talk to the people standing near you. Press **V** (or turn the microphone on in the settings
+menu) and anyone within about 22 meters hears you from where you are: voices go through the same HRTF panners as
+the game's sounds, so in a headset someone behind you sounds behind you.
+
+- **Nobody far away receives your audio at all.** Your microphone is added to a peer's connection when they come
+  into earshot and taken off it when they leave, rather than being sent to everyone and turned down. Out of range
+  means the audio never arrives.
+- **It rides on the connections the engine already has.** Voice opens one room per zone room the world is in
+  (`world.zoneKeys()`), and Trystero shares one `RTCPeerConnection` per peer across rooms, so the tracks go over
+  connections that exist for game state. The peer graph doesn't widen, and the zone hysteresis that stops entity
+  churn stops voice churn too. The send window is wider than earshot (1.0–1.9×) because renegotiating a stream
+  isn't instant, so walking in and out of range doesn't rattle the connection.
+- **The microphone starts off** and nothing asks the browser for it until you turn it on; turning it off stops the
+  tracks, so the recording light really goes out. Hearing other people needs no permission at all.
+- **Mute is per person**, from the settings menu, and sticks if they wander off and come back.
+- Local-tab networks (BroadcastChannel) carry no media, so voice is only there on the online network.
+
+### The settings menu
+
+`settings.ts` holds one list of rows — the microphone, whether you hear others, a row per person nearby with a
+talking meter, and the game's sound — with no idea how they're drawn. `settingsMenu.ts` draws them as a DOM
+overlay on desktop (**Esc**, which also hands back the mouse), and `settingsPanel.ts` paints the same rows onto a
+panel that hangs in front of you in a headset (**Y**), where you put a fingertip on a row and pull the trigger.
+A new setting is added once and appears on every platform.
 
 ---
 
@@ -315,7 +347,8 @@ The same tools work on desktop and in a headset, but in VR they're hands-on:
 | Pack | **B**, then click to move things | reach behind a shoulder and squeeze; grab what floats out |
 
 **Desktop:** WASD move · mouse look · click use · wheel / 1-9 tool · **B** pack · **E** pull crops · Shift run ·
-**C** crouch · Space jump · `` ` `` net stats · N mute. `?hour=21` pins this peer's time of day, for trying nights.
+**C** crouch · Space jump · **Esc** settings · **V** microphone · `` ` `` net stats · N mute. `?hour=21` pins this peer's
+time of day, for trying nights.
 
 **The pack.** A kind of tool is either *to hand* — on the number keys, or on your body in a headset — or in your
 pack. What you gather (seeds, food, logs) goes into the pack when you pick it up, so the axe, bow, hoe and arrows

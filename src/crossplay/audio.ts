@@ -1,5 +1,16 @@
 import type { Vec3 } from './math';
 
+/** Someone else's live voice, playing from where they are in the world (see voice.ts). */
+export interface VoiceSource {
+  /** Move it to where the speaker is now. */
+  setPosition(at: Vec3): void;
+  /** 0 silences it (muted), 1 plays it normally. */
+  setVolume(v: number): void;
+  /** How loud they are right now, 0..1, for showing who's talking. Measured before the volume, so a muted speaker still reads. */
+  level(): number;
+  dispose(): void;
+}
+
 /**
  * Synthesized sound, no audio files. World sounds go through HRTF panners at their 3D position, which matters
  * a lot in a headset. A game subclasses it with the sounds it plays.
@@ -7,6 +18,8 @@ import type { Vec3 } from './math';
 export class SpatialAudio {
   protected ctx: AudioContext | null = null;
   protected master: GainNode | null = null;
+  /** Voices bypass `master`, so turning the game's sound off doesn't cut the people you're talking to. */
+  private voices: GainNode | null = null;
   private noise: AudioBuffer | null = null;
   protected readonly listener: Vec3 = { x: 0, y: 0, z: 0 };
   muted = false;
@@ -19,6 +32,8 @@ export class SpatialAudio {
       this.master = this.ctx.createGain();
       this.master.gain.value = 0.5;
       this.master.connect(this.ctx.destination);
+      this.voices = this.ctx.createGain();
+      this.voices.connect(this.ctx.destination);
       const len = this.ctx.sampleRate;
       this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const data = this.noise.getChannelData(0);
@@ -26,6 +41,11 @@ export class SpatialAudio {
     } catch {
       this.ctx = null;
     }
+  }
+
+  /** Where the listener's ears are, in world axes. */
+  get listenerAt(): Readonly<Vec3> {
+    return this.listener;
   }
 
   /** Listener pose in world axes; `forward` is the look direction. */
@@ -71,6 +91,74 @@ export class SpatialAudio {
     p.positionZ.value = at.y;
     p.connect(this.master!);
     return p;
+  }
+
+  /**
+   * Play a remote voice through a panner at the speaker's position, carrying `range` meters. Null before
+   * `unlock`, which is why voice only starts once the game has: it needs the audio context a gesture opened.
+   */
+  voice(stream: MediaStream, range: number): VoiceSource | null {
+    const ctx = this.ctx;
+    const out = this.voices;
+    if (!ctx || !out) return null;
+    // Chrome only pulls a remote track once something is playing it, so keep a silent element on the stream.
+    const sink = new Audio();
+    sink.srcObject = stream;
+    sink.muted = true;
+    void sink.play().catch(() => {});
+
+    const src = ctx.createMediaStreamSource(stream);
+    const gain = ctx.createGain();
+    const panner = ctx.createPanner();
+    panner.panningModel = 'HRTF';
+    panner.distanceModel = 'inverse';
+    panner.refDistance = 1.5;
+    panner.rolloffFactor = 1.4;
+    panner.maxDistance = range;
+    src.connect(gain).connect(panner).connect(out);
+    const level = this.meterOn(src);
+
+    return {
+      setPosition: (at) => {
+        panner.positionX.value = at.x;
+        panner.positionY.value = at.z;
+        panner.positionZ.value = at.y;
+      },
+      setVolume: (v) => {
+        gain.gain.value = v;
+      },
+      level,
+      dispose: () => {
+        src.disconnect();
+        gain.disconnect();
+        panner.disconnect();
+        sink.pause();
+        sink.srcObject = null;
+      },
+    };
+  }
+
+  /** Measure a stream that isn't played, to show whether your own microphone is picking you up. Null before `unlock`. */
+  meter(stream: MediaStream): (() => number) | null {
+    if (!this.ctx) return null;
+    return this.meterOn(this.ctx.createMediaStreamSource(stream));
+  }
+
+  /** Loudness of a node, 0..1. An analyser with nothing downstream still runs. */
+  private meterOn(node: AudioNode): () => number {
+    const analyser = this.ctx!.createAnalyser();
+    analyser.fftSize = 256;
+    const buf = new Uint8Array(analyser.fftSize);
+    node.connect(analyser);
+    return () => {
+      analyser.getByteTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) {
+        const v = (buf[i] - 128) / 128;
+        sum += v * v;
+      }
+      return Math.min(1, Math.sqrt(sum / buf.length) * 6);
+    };
   }
 
   protected noiseBurst(out: AudioNode, vol: number, duration: number, freq: number, q: number, type: BiquadFilterType = 'bandpass', delay = 0): void {

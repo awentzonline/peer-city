@@ -2,6 +2,7 @@ import { GRIP_IN_HAND, Holsters } from '../crossplay/holsters';
 import { Side, handIntent, type HandIntent, type TrackedHead } from '../crossplay/intent';
 import { Platform } from '../crossplay/platform';
 import { Btn, type Rig, type XRHand, type XrPoseSource } from '../crossplay/rig';
+import { VrSettings } from '../crossplay/settingsPanel';
 import type { Tool, UseEffect } from '../crossplay/tool';
 import type { AvatarFrontend, AvatarSim } from './avatar';
 import { direction, type GameContext, type Vec3 } from './context';
@@ -27,6 +28,7 @@ export class VrAvatar implements AvatarFrontend {
   readonly showSelf = false;
   readonly holsters: Holsters;
   private readonly wrist: VrHud;
+  private readonly menu: VrSettings;
   private readonly intent = idleIntent();
   private readonly head: TrackedHead = { x: 0, y: 0, z: 0, heading: 0, pitch: 0 };
   private readonly hands: [HandIntent, HandIntent] = [handIntent(), handIntent()];
@@ -44,6 +46,7 @@ export class VrAvatar implements AvatarFrontend {
     rig.setMode(source.mode);
     this.holsters = new Holsters(rig);
     this.wrist = new VrHud(rig, ctx.hud);
+    this.menu = new VrSettings(ctx.settings, rig);
     this.intent.head = this.head;
     this.intent.hands = this.hands;
     if (source.mode === 'vr') ctx.hud.message('VR: grip grabs the pistol on your right hip, trigger shoots, A enters cars');
@@ -52,6 +55,7 @@ export class VrAvatar implements AvatarFrontend {
   dispose(): void {
     this.holsters.dispose();
     this.wrist.dispose();
+    this.menu.dispose();
   }
 
   read(dt: number): AvatarIntent {
@@ -62,7 +66,10 @@ export class VrAvatar implements AvatarFrontend {
     if (sim.driving && left.pressed(Btn.B)) {
       rig.recenter();
       this.ctx.hud.message('Seat recentered');
+    } else if (left.pressed(Btn.B)) {
+      this.menu.toggle();
     }
+    const onMenu = this.menu.update(this.ctx.now);
 
     rig.head(this.head);
     this.head.heading = rig.headHeading();
@@ -77,6 +84,11 @@ export class VrAvatar implements AvatarFrontend {
     this.holsters.update(sim.inventory);
     this.readHand(right, this.hands[Side.Right]);
     this.readHand(left, this.hands[Side.Left]);
+    // A trigger pulled at the settings panel is pressing a row, not firing what's in that hand.
+    if (onMenu) {
+      intent.interact = false;
+      for (const hand of this.hands) hand.trigger = false;
+    }
     return intent;
   }
 

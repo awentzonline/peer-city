@@ -1,9 +1,14 @@
 import { EntityViews, NetDebugPanel, type NetWorld } from '@engine/index';
+import type { Transport } from '@engine/transport/types';
 import type { AvatarIntent } from '../crossplay/intent';
 import type { DesktopInput } from '../crossplay/input';
+import { Platform } from '../crossplay/platform';
 import { WebXrPoses } from '../crossplay/rig';
 import { Seat } from '../crossplay/role';
+import { Settings } from '../crossplay/settings';
+import { SettingsMenu } from '../crossplay/settingsMenu';
 import { Stage, errorText } from '../crossplay/stage';
+import { Voice, bodySpeakers } from '../crossplay/voice';
 import { SimulatedXr } from '../crossplay/xrsim';
 import { updateOwnedAnimals } from './animals';
 import { Arrows } from './arrows';
@@ -13,6 +18,7 @@ import type { WildsContext } from './context';
 import { DesktopSurvivor } from './desktop';
 import { Effects } from './effects';
 import { trackStumps, updateOwnedHomestead } from './homestead';
+import { Survivor as SurvivorDef } from './defs';
 import type { Hud } from './hud';
 import type { Land } from './land';
 import { Scenery } from './scenery';
@@ -24,6 +30,8 @@ import { VrSurvivor } from './vr';
 
 export interface GameDeps {
   world: NetWorld;
+  /** The world's transport, which voice opens its own rooms on (see crossplay/voice.ts). */
+  transport: Transport;
   land: Land;
   hud: Hud;
   sfx: Sfx;
@@ -40,8 +48,10 @@ export class Game {
   readonly stage: Stage;
   readonly ctx: WildsContext;
   readonly survivor: Survivor;
+  readonly voice: Voice;
   /** The local player: the survivor role, and the frontend for whichever platform is playing it. */
   readonly seat: Seat<AvatarIntent, SurvivorFrontend>;
+  private readonly menu: SettingsMenu;
   private readonly views: EntityViews;
   private readonly extraViews: { update(dt: number): void };
   private readonly scenery: Scenery;
@@ -59,11 +69,21 @@ export class Game {
     this.simulateXr = deps.sim;
     this.scenery = new Scenery(land, stage.scene);
     const wall = Date.now() / 1000;
+    // Voice follows the world's zone rooms, so it reaches the neighbourhood without widening the peer graph.
+    this.voice = new Voice({
+      transport: deps.transport,
+      prefix: `${world.worldId}/voice/`,
+      audio: sfx,
+      zones: () => world.zoneKeys(),
+      speakers: bodySpeakers(world, SurvivorDef),
+    });
+    const settings = new Settings({ voice: this.voice, sfx });
     this.ctx = {
       world,
       land,
       sfx,
       hud,
+      settings,
       fx: new Effects(stage.scene, land),
       arrows: undefined as unknown as Arrows,
       me: null,
@@ -84,6 +104,7 @@ export class Game {
     this.survivor.spawn();
     this.seat = new Seat<AvatarIntent, SurvivorFrontend>(this.survivor, () => this.frontend());
 
+    this.menu = new SettingsMenu(settings, stage.input);
     this.debug = new NetDebugPanel(world, document.body, deps.netLabel);
     this.debug.visible = new URLSearchParams(location.search).has('debug');
 
@@ -91,6 +112,7 @@ export class Game {
     this.showLockPrompt();
     hud.show();
     hud.message(`Welcome to the wilds, ${deps.playerName}. Keep fed, and keep a fire going after dark.`);
+    hud.message('Press Esc for settings, or V to turn on your microphone: survivors near you will hear your voice');
 
     void Stage.vrSupported().then((ok) => (this.vrButton.hidden = !ok));
     this.vrButton.addEventListener('click', () => {
@@ -101,6 +123,8 @@ export class Game {
       step: (dt, visible) => this.step(dt, visible),
       platformChanged: (presenting) => {
         this.vrButton.hidden = presenting;
+        // The menu belongs to whichever frontend is playing; the next one opens its own.
+        this.menu.setOpen(false);
         this.seat.use(() => this.frontend());
         this.showLockPrompt();
       },
@@ -136,6 +160,7 @@ export class Game {
     ctx.day = dayTime(ctx.wall + this.hourOffset);
 
     ctx.world.update(ctx.now);
+    this.voice.update();
     this.seat.step(dt);
     // integrate long background steps in small slices so movement stays stable
     for (let left = dt; left > 0; left -= 0.05) updateOwnedAnimals(ctx, Math.min(left, 0.05));
@@ -151,6 +176,7 @@ export class Game {
     rig.update(dt);
     ctx.fx.update(dt);
     this.scenery.update(ctx.day, rig.head(this.head));
+    this.menu.update(ctx.now);
     this.debug.update(ctx.now);
 
     // global keys, whatever the platform
@@ -159,5 +185,23 @@ export class Game {
       ctx.sfx.muted = !ctx.sfx.muted;
       ctx.hud.message(ctx.sfx.muted ? 'Sound off' : 'Sound on');
     }
+    // The headset has its own settings panel and its own way in (see vr.ts); these keys are the desktop's.
+    if (this.seat.frontend.platform !== Platform.Desktop) return;
+    if (input.pressed('Escape')) this.menu.toggle();
+    if (input.pressed('KeyV')) void this.talk();
+  }
+
+  /** Open or close the microphone, and say what happened: it asks the browser the first time. */
+  private async talk(): Promise<void> {
+    const on = await this.voice.toggleTalking();
+    const { hud } = this.ctx;
+    if (this.voice.error) hud.message(this.voice.error);
+    else hud.message(on ? 'Microphone on: survivors near you can hear you' : 'Microphone off');
+  }
+
+  dispose(): void {
+    this.voice.dispose();
+    this.menu.dispose();
+    this.ctx.world.dispose();
   }
 }
