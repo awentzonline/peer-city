@@ -3,7 +3,8 @@
 Status: phase 1 done (2026-09-15): input and presentation are split from the rules into per-platform
 frontends. Priorities below were set by the project owner the same day. The same day a second game, Peer
 Wilds (survival, farming and hunting), was built on that structure, and what both games share moved into
-`src/crossplay/` (see "Lessons from a second game").
+`src/crossplay/` (see "Lessons from a second game"), and Peer City got a first touch frontend
+(see "Touch, as built").
 
 ## Goal
 
@@ -22,7 +23,8 @@ facts, never one device's controls.** Input and presentation are per-platform la
 ## Priorities
 
 - **Now:** a platform-agnostic structure (roles, intents, frontends) that more roles and platforms slot into.
-- **Eventually:** a mobile interface. Keep room for it; don't build its UI yet.
+- **Now, first pass:** a mobile interface. Peer City's touch avatar exists; Peer Wilds has none yet, and the
+  performance budget below is untouched.
 - **Not now:** crossplay fairness (aim assist, per-platform balance, hit validation).
 
 ## How it's built
@@ -46,6 +48,11 @@ Shared pieces are in `src/crossplay/`, Peer City's in `src/fps/` (Peer Wilds' in
   out (`tests/presentation.test.ts`).
 - **`crossplay/platform.ts`**: `Platform` (desktop, vr, touch), replicated as `Player.platform` so peers can draw
   device cues. Headset players' empty hands are drawn tracked.
+- **`crossplay/touch.ts`** and **`crossplay/touchControls.ts`**: the touch device, split so the gestures can
+  be tested without a DOM. `TouchInput` is the rules of the thumbs (a floating walk stick, a look drag, a
+  tap that fires, named button presses with the same `down` / `pressed` / `endFrame` shape as the keyboard);
+  `TouchControls` is the overlay that feeds it pointer events and draws the stick, buttons and tool slots
+  (`touch.css`). Game-neutral: a second game gives its own buttons.
 - **`crossplay/avatar.ts`**: `Avatar`, what every game's avatar role shares: walking (virtual head, or a
   tracked head followed round the room with stick locomotion eased in), using tools from a crosshair or
   tracked hands, carrying hand poses along by the rules' moves, and `BODY_FIELDS`, the replicated body. A
@@ -63,13 +70,16 @@ Shared pieces are in `src/crossplay/`, Peer City's in `src/fps/` (Peer Wilds' in
     `nudge`, `die`, `busted` and `crime` on it.
   - `desktopAvatar.ts`: `DesktopAvatar`. Keys and mouse, crosshair with tracers leaving the tool model
     (`desktopTool.ts`), chase camera, death orbit, DOM HUD, camera shake.
+  - `touchAvatar.ts`: `TouchAvatar`. Thumbs, the same crosshair and first-person tool model the desktop
+    uses, contextual buttons, a tool strip instead of the number keys, and a chase camera while driving.
   - `vrAvatar.ts`: `VrAvatar`. Snap turn and seat recentering (device-only, so the rules never see
     them), holsters deciding what each hand holds, play space moved by `AvatarBody` callbacks, seat
     calibration, tint and haptics instead of shake, wrist HUD. Poses come from an `XrPoseSource`:
     `WebXrPoses` (`rig.ts`) or `SimulatedXr` (`xrsim.ts`, `?xrsim`).
-- **`Game.ts`** picks a frontend for how the page is being played (a presenting headset, `?xrsim`, or
+- **`Game.ts`** picks a frontend for how the page is being played (a presenting headset, `?xrsim`, touch or
   desktop) at start and again whenever an XR session starts or ends.
-  Only the global debug keys (`` ` ``, N) are read outside a frontend.
+  Only the global debug keys (`` ` ``, N) are read outside a frontend, and touch has no keyboard to press
+  them with.
 - **`GameContext`** has no device in it. `Hud` is the shared status and announcement model; each frontend
   presents it (`Hud.showAvatar` formats status for a platform's button name).
 
@@ -83,13 +93,37 @@ Things that aren't obvious from the types:
 - Tests: `tests/avatar.test.ts` drives `AvatarSim` with intents and a recording `AvatarBody`, over an
   in-memory world with no DOM or WebGL.
 
-## Adding a platform to a role (e.g. touch for the avatar)
+## Adding a platform to a role
 
-1. Write a frontend implementing `AvatarFrontend`, with `platform = Platform.Touch`.
-2. `read`: drags become `turn` / `lookUp` (virtual head), a virtual stick becomes `strafe` / `forward`,
-   buttons become `trigger`, `jump`, `interact`, `selectTool`; `hands` stays null (crosshair).
-3. `present`: camera (first or third person), a touch HUD, and the `AvatarBody` callbacks it cares about.
-4. In `Game`, pick it from the lobby (or a `?touchsim` flag for testing with a mouse).
+What Peer City's touch avatar did, which is the shape any new platform follows:
+
+1. Write a frontend implementing `AvatarFrontend`, with its own `Platform`.
+2. `read`: turn the device into the intent. Touch: the look drag becomes `turn` / `lookUp` (a virtual
+   head), the stick `strafe` / `forward` / `run`, buttons `trigger`, `jump`, `brake`, `interact`,
+   `crouch` and `selectTool`; `hands` stays null (a crosshair).
+3. `present`: the camera, the HUD the way that device needs it, and the `AvatarBody` callbacks it cares
+   about (touch buzzes with `navigator.vibrate` where the desktop shakes the camera).
+4. In `Game`, pick it. Touch is chosen by `isTouchDevice()` in `main.ts`, and `?touch` / `?desktop` force
+   either one, which is how it's tested with a mouse.
+
+## Touch, as built
+
+The controls are the ones every touch shooter converges on, and they answered the open question below:
+a touch avatar is **first person**, the same crosshair the desktop aims with, because a phone's screen is
+small enough already. Driving is the exception and defaults to the chase camera.
+
+- Left thumb walks, wherever it lands, and running is the stick pushed to the edge rather than a button.
+- Right thumb looks. A quick tap that barely moved fires, so a second finger shoots without moving the aim;
+  `FIRE` is held down for automatic weapons.
+- The buttons say what they do here and now: `USE` becomes `EXIT`, `JUMP` becomes `BRAKE`, and `CAM` and
+  `HORN` only appear in a car.
+- The number keys become a strip of the tools you carry (`Inventory.toHand()`), up the right edge.
+- There's no keyboard for the global keys, so the settings menu and the microphone are chips the frontend
+  calls `Game` back through.
+- The HUD moves out of the thumbs' way with `body.touch` rules in each game's stylesheet.
+
+Still to do for mobile: a Peer Wilds touch frontend, the performance budget below, and deciding whether
+touch wants any of the fairness levers (it currently aims with no help at all).
 
 ## Adding a role (e.g. an overseer on touch)
 
@@ -187,9 +221,11 @@ Open questions for the project owner:
 
 ## Later: mobile
 
-- Detection and lobby: "Play on phone" when a coarse pointer or touch is detected.
-- Performance budget on a mid-range phone. Likely levers: `renderer.setPixelRatio` cap, fog distance,
-  NPC and car counts in `Spawner`, fewer building window meshes, the engine's `interestRadius`.
+- Detection is done (`isTouchDevice()`), and the lobby's PLAY starts the touch frontend on a phone. A
+  lobby that also lets a phone pick a different *role* is still to come.
+- Performance budget on a mid-range phone, untouched so far. Likely levers: `renderer.setPixelRatio` cap,
+  fog distance, NPC and car counts in `Spawner`, fewer building window meshes, the engine's
+  `interestRadius`. Nothing here has been measured on real hardware yet.
 
 ## Parked: fairness
 
@@ -199,7 +235,6 @@ line of sight, fire rate) in the victim owner's `Damage` handler in `combat.ts`.
 
 ## Open questions for the project owner
 
-- Should a touch avatar be first-person like desktop, or third-person?
 - How should an overseer appear to players in the street, and what limits what it can spawn?
 - Should desktop movement ease up to speed like VR (currently walk, plus Shift to run)?
 

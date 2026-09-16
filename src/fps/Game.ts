@@ -25,6 +25,7 @@ import { updateOwnedPeds } from './peds';
 import { updateOwnedCops } from './police';
 import type { Sfx } from './sfx';
 import { Spawner } from './spawner';
+import { TouchAvatar } from './touchAvatar';
 import { registerViews } from './views';
 import { updateOwnedCars } from './vehicles';
 import { VrAvatar } from './vrAvatar';
@@ -41,6 +42,8 @@ export interface GameDeps {
   container: HTMLElement;
   /** Emulate a headset on desktop (?xrsim). */
   sim: boolean;
+  /** Play with fingers: the touch frontend rather than keys and mouse. */
+  touch: boolean;
 }
 
 export class Game {
@@ -52,6 +55,7 @@ export class Game {
   readonly seat: Seat<AvatarIntent, AvatarFrontend>;
   private readonly menu: SettingsMenu;
   private readonly simulateXr: boolean;
+  private readonly touch: boolean;
   private readonly minimap: MinimapFeed;
   private readonly views: EntityViews;
   private readonly spawner: Spawner;
@@ -86,6 +90,7 @@ export class Game {
       now: performance.now(),
     };
     this.simulateXr = deps.sim;
+    this.touch = deps.touch;
     this.avatar = new AvatarSim(this.ctx);
     this.minimap = new MinimapFeed(this.ctx);
     this.views = new EntityViews(world);
@@ -106,7 +111,11 @@ export class Game {
     this.showLockPrompt();
     hud.show();
     hud.message(`Welcome to Peer City 3D, ${deps.playerName}`);
-    hud.message('Press Esc for settings, or V to turn on your microphone: players near you will hear your voice');
+    hud.message(
+      deps.touch
+        ? 'The cog opens settings; the microphone lets players near you hear your voice'
+        : 'Press Esc for settings, or V to turn on your microphone: players near you will hear your voice',
+    );
 
     void Stage.vrSupported().then((ok) => (this.vrButton.hidden = !ok));
     this.vrButton.addEventListener('click', () => {
@@ -139,12 +148,14 @@ export class Game {
     const { rig, input } = stage;
     if (stage.presenting) return new VrAvatar(ctx, avatar, rig, new WebXrPoses(stage.renderer.xr), minimap);
     if (this.simulateXr) return new VrAvatar(ctx, avatar, rig, new SimulatedXr(input), minimap);
+    // Touch has no keyboard to reach the menu or the microphone with, so its chips call them directly.
+    if (this.touch) return new TouchAvatar(ctx, avatar, rig, minimap, { menu: () => this.menu.toggle(), mic: () => void this.talk() });
     return new DesktopAvatar(ctx, avatar, input, rig, minimap);
   }
 
-  /** The page's "click to play" prompt and crosshair, which a headset can't see. */
+  /** The page's "click to play" prompt, which only the mouse needs, and the crosshair a headset can't see. */
   private showLockPrompt(): void {
-    this.ctx.hud.setLocked(this.stage.input.locked, this.stage.presenting);
+    this.ctx.hud.setLocked(this.stage.input.locked, this.seat.frontend.platform);
   }
 
   private step(dt: number, visible: boolean): void {

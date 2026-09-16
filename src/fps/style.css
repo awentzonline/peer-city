@@ -385,3 +385,32 @@ body {
 #lobby a {
   color: #8fd3ff;
 }
+
+/* ---------------- played with fingers ---------------- */
+/* The bottom-left corner is the walking thumb's, and there are no keys to list. */
+body.touch #minimap {
+  left: calc(14px + env(safe-area-inset-left, 0px));
+  top: 14px;
+  bottom: auto;
+  width: 104px;
+  height: 104px;
+}
+
+body.touch #help {
+  display: none;
+}
+
+body.touch #hud-top {
+  right: calc(18px + env(safe-area-inset-right, 0px));
+}
+
+/* The bottom right corner is the buttons' and the tool strip's, so the feed moves under the minimap. */
+body.touch #feed {
+  left: calc(14px + env(safe-area-inset-left, 0px));
+  right: auto;
+  top: 128px;
+  bottom: auto;
+  max-width: 46%;
+  text-align: left;
+  font-size: 12px;
+}

@@ -1,0 +1,217 @@
+/* The touch overlay (touchControls.ts). Shared by every game on the crossplay layer, like settings.css.
+   The root is `.touch-ui`, not `.touch`: a game marks its own <body> `touch` to lay its HUD out for fingers. */
+
+.touch-ui {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+  --touch-safe-b: env(safe-area-inset-bottom, 0px);
+  --touch-safe-l: env(safe-area-inset-left, 0px);
+  --touch-safe-r: env(safe-area-inset-right, 0px);
+}
+
+.touch-ui.off {
+  visibility: hidden;
+}
+
+/* ---- the two zones: look is everything, walk takes the bottom left back ---- */
+.touch-zone {
+  position: absolute;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.touch-look {
+  inset: 0;
+}
+
+.touch-walk {
+  left: 0;
+  bottom: 0;
+  width: 46%;
+  height: 62%;
+}
+
+/* ---- the floating walk stick, drawn where the thumb landed ---- */
+.touch-stick {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.touch-stick.on {
+  opacity: 1;
+}
+
+.touch-stick::before,
+.touch-stick i {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.touch-stick::before {
+  left: 0;
+  top: 0;
+  width: 124px;
+  height: 124px;
+  margin: -62px 0 0 -62px;
+  transform: none;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.touch-stick i {
+  left: 0;
+  top: 0;
+  width: 54px;
+  height: 54px;
+  margin: -27px 0 0 -27px;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+/* ---- buttons ---- */
+.touch-btn {
+  pointer-events: auto;
+  touch-action: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.8);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  background: rgba(0, 0, 0, 0.38);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch-btn b {
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.touch-btn small {
+  font-size: 9px;
+  opacity: 0.75;
+  letter-spacing: 0.5px;
+}
+
+.touch-btn small:empty {
+  display: none;
+}
+
+.touch-btn.held {
+  background: rgba(255, 255, 255, 0.5);
+  border-color: #fff;
+}
+
+.touch-pad {
+  position: absolute;
+  right: calc(14px + var(--touch-safe-r));
+  bottom: calc(14px + var(--touch-safe-b));
+  display: flex;
+  flex-direction: row-reverse;
+  flex-wrap: wrap-reverse;
+  justify-content: flex-start;
+  align-items: flex-end;
+  gap: 10px;
+  max-width: 248px;
+}
+
+.touch-round {
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+}
+
+.touch-round.big {
+  width: 94px;
+  height: 94px;
+  border-color: rgba(255, 120, 120, 0.7);
+  background: rgba(150, 20, 20, 0.42);
+}
+
+.touch-round.big b {
+  font-size: 18px;
+}
+
+.touch-chips {
+  position: absolute;
+  left: calc(126px + var(--touch-safe-l));
+  top: 14px;
+  display: flex;
+  gap: 8px;
+}
+
+.touch-chip {
+  min-width: 46px;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 10px;
+}
+
+/* ---- tool slots, up the right edge above the buttons ---- */
+.touch-strip {
+  position: absolute;
+  right: calc(14px + var(--touch-safe-r));
+  bottom: calc(190px + var(--touch-safe-b));
+  max-height: 46vh;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-end;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.touch-slot {
+  pointer-events: auto;
+  touch-action: none;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 96px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.42);
+  color: rgba(255, 255, 255, 0.8);
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.8);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch-slot b {
+  flex: 1;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+}
+
+.touch-slot small {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.touch-slot.on {
+  border-color: #ffd54a;
+  background: rgba(120, 90, 0, 0.55);
+  color: #fff;
+}
+
+/* The settings menu is modal: it covers the controls, which stop taking touches anyway (setActive). */
+body.settings-open .touch-ui {
+  visibility: hidden;
+}

@@ -3,6 +3,7 @@ import { BroadcastTransport } from '@engine/transport/broadcast';
 import { TrysteroTransport } from '@engine/transport/trystero';
 import { loadAssets } from '../crossplay/assets';
 import { Stage, VR_SESSION_INIT } from '../crossplay/stage';
+import { isTouchDevice } from '../crossplay/touch';
 import { ASSETS } from './assets';
 import { City } from './city';
 import { ACTIONS, ENTITIES } from './defs';
@@ -20,6 +21,10 @@ const roomInput = document.getElementById('room') as HTMLInputElement;
 const playButton = document.getElementById('play') as HTMLButtonElement;
 const vrButton = document.getElementById('play-vr') as HTMLButtonElement;
 const vrNote = document.getElementById('vr-note')!;
+
+// ?touch and ?desktop force a frontend; otherwise fingers on a coarse pointer get the touch one.
+const touch = params.has('touch') || (!params.has('desktop') && isTouchDevice());
+if (touch) document.body.classList.add('touch');
 
 const storedName = safeStorage('get', 'peer-city-name');
 nameInput.value = params.get('name') ?? storedName ?? `Player${Math.floor(Math.random() * 900 + 100)}`;
@@ -62,6 +67,8 @@ function start(vr: boolean): void {
 
   const sfx = new Sfx();
   sfx.unlock();
+  // A phone's browser chrome eats a third of a small screen, and this is the gesture that can ask for it.
+  if (touch) document.documentElement.requestFullscreen?.().catch(() => {});
   playButton.textContent = 'LOADING…';
   assetsReady.then(
     () => launch(session, sfx, playerName, mode, shard),
@@ -93,11 +100,11 @@ function launch(session: Promise<XRSession> | null, sfx: Sfx, playerName: string
   const city = new City(CITY_SEED);
   const hud = new Hud(city);
   const sim = params.has('xrsim');
-  const game = new Game({ world, transport, city, hud, sfx, playerName, netLabel: `${mode}/${shard}`, container: document.getElementById('game')!, sim });
+  const game = new Game({ world, transport, city, hud, sfx, playerName, netLabel: `${mode}/${shard}`, container: document.getElementById('game')!, sim, touch });
 
   if (session) {
     session.then((s) => game.startSession(s)).catch((err: unknown) => hud.message(`Couldn't start VR: ${err instanceof Error ? err.message : String(err)}`));
-  } else {
+  } else if (!touch) {
     game.input.requestLock();
   }
 

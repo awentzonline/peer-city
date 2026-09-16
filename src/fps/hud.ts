@@ -1,3 +1,4 @@
+import { Platform } from '../crossplay/platform';
 import type { AvatarSim } from './avatar';
 import { TILE, type City } from './city';
 import { NO_TOOL } from './tool';
@@ -56,10 +57,13 @@ export class Hud {
     this.root.hidden = false;
   }
 
-  /** Desktop: whether the "click to play" prompt shows (pointer not captured). */
-  setLocked(locked: boolean, vr: boolean): void {
-    this.lockEl.hidden = locked || vr;
-    this.crosshair.hidden = vr;
+  /**
+   * Whether the "click to play" prompt shows: only the mouse has to be captured, so touch and headset
+   * players never see it. The crosshair is drawn for everyone aiming down the middle of a screen.
+   */
+  setLocked(locked: boolean, platform: Platform): void {
+    this.lockEl.hidden = locked || platform !== Platform.Desktop;
+    this.crosshair.hidden = platform === Platform.Vr;
   }
 
   setStatus(cash: number, wanted: number, hp: number): void {
