@@ -342,8 +342,7 @@ export class Voice {
 /** Every other player's mouth, for `VoiceOptions.speakers`: any entity built on `BODY_FIELDS` will do. */
 export function bodySpeakers<S extends Shape>(world: NetWorld, def: EntityDef<S>): () => Iterable<Speaker> {
   return function* speakers(): Iterable<Speaker> {
-    for (const e of world.all(def)) {
-      if (e.mine) continue;
+    for (const e of world.remote(def)) {
       const body = e.render as Infer<S> & Infer<typeof BODY_FIELDS> & { name: string };
       yield { peer: e.owner, name: body.name, at: { x: e.x, y: e.y, z: body.z + body.head } };
     }

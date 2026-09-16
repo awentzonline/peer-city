@@ -1,3 +1,4 @@
+import { defineLocal } from '@engine/index';
 import { animalSpec } from './bodies';
 import { isNight } from './clock';
 import { clamp, type AnimalEntity, type SurvivorEntity, type WildsContext } from './context';
@@ -17,6 +18,9 @@ interface AnimalLocal {
   /** Extra turn while cornered. */
   veer?: number;
 }
+
+/** What an animal's owner keeps in mind between frames. */
+export const AnimalMind = defineLocal<AnimalLocal>(() => ({}));
 
 const CARCASS_MS = 90000;
 const BITE_RANGE = 1.5;
@@ -115,10 +119,9 @@ function nearestSurvivor(ctx: WildsContext, a: AnimalEntity, r: number, accept: 
  */
 export function updateOwnedAnimals(ctx: WildsContext, dt: number): void {
   const { world, now } = ctx;
-  for (const a of world.all(Animal)) {
-    if (!a.mine) continue;
+  for (const a of world.owned(Animal)) {
     const s = a.state;
-    const l = a.local as AnimalLocal;
+    const l = AnimalMind.of(a);
     const spec = animalSpec(s.kind);
 
     if (s.mode === AnimalMode.Dead) {
@@ -154,7 +157,7 @@ export function updateOwnedAnimals(ctx: WildsContext, dt: number): void {
 
 function graze(ctx: WildsContext, a: AnimalEntity, dt: number): void {
   const s = a.state;
-  const l = a.local as AnimalLocal;
+  const l = AnimalMind.of(a);
   const spec = animalSpec(s.kind);
   if (ctx.now < (l.pauseUntil ?? 0)) return;
   const dx = s.tx - s.x;
@@ -180,7 +183,7 @@ function wander(ctx: WildsContext, a: AnimalEntity): void {
 
 function runFrom(ctx: WildsContext, a: AnimalEntity, fx: number, fy: number, speed: number, dt: number): void {
   const s = a.state;
-  const l = a.local as AnimalLocal;
+  const l = AnimalMind.of(a);
   const spec = animalSpec(s.kind);
   const angle = Math.atan2(s.y - fy, s.x - fx) + (l.veer ?? 0) + Math.sin(ctx.now / 300 + (a.id % 13)) * 0.3;
   if (ctx.land.move(s, Math.cos(angle) * speed * dt, Math.sin(angle) * speed * dt, spec.radius)) l.veer = (l.veer ?? 0) + 1.2 * dt * 4;
@@ -212,7 +215,7 @@ function turnTo(a: AnimalEntity, angle: number, dt: number): void {
 function hunt(ctx: WildsContext, a: AnimalEntity, dt: number): void {
   const { world, now } = ctx;
   const s = a.state;
-  const l = a.local as AnimalLocal;
+  const l = AnimalMind.of(a);
   const spec = animalSpec(s.kind);
 
   const fire = fireNear(ctx, s.x, s.y, FIRE_FEAR);

@@ -9,7 +9,7 @@ import type { SpatialItem } from '../spatial/SpatialHash';
  * - `state`  – authoritative values. Owners mutate this directly.
  * - `render` – what to draw. For owned entities it *is* `state`; for remote
  *              entities it's the interpolated view, `interpDelayMs` behind.
- * - `local`  – free-form, never replicated (sprites, AI scratch data...).
+ * - `local`  – free-form, never replicated. `defineLocal` gives typed per-module data instead.
  */
 export class NetEntity<S = Record<string, any>> implements SpatialItem {
   state: S;
@@ -75,4 +75,32 @@ export class NetEntity<S = Record<string, any>> implements SpatialItem {
   is<SH extends Shape>(def: EntityDef<SH>): this is NetEntity<Infer<SH>> {
     return this.def === def;
   }
+}
+
+/** One kind of never-replicated data kept per entity on this peer. See `defineLocal`. */
+export interface LocalData<L> {
+  /** This entity's, made by `init` the first time it's asked for. */
+  of(e: NetEntity<any>): L;
+}
+
+/**
+ * Data this peer keeps about an entity and never sends: AI scratch such as where a deer is fleeing from,
+ * cooldowns, what this peer has seen someone do. Typed, and each module defines its own, so two systems
+ * never trip over each other's fields on one entity:
+ *
+ *   const Mind = defineLocal<{ fleeUntil?: number }>(() => ({}));
+ *   Mind.of(deer).fleeUntil = now + 5000;
+ *
+ * It lasts as long as this peer's copy of the entity, including while ownership moves, and is gone with it.
+ * Anything that must survive the entity migrating to another peer belongs in its replicated fields instead.
+ */
+export function defineLocal<L extends object>(init: () => L): LocalData<L> {
+  const data = new WeakMap<NetEntity<any>, L>();
+  return {
+    of(e) {
+      let l = data.get(e);
+      if (!l) data.set(e, (l = init()));
+      return l;
+    },
+  };
 }

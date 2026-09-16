@@ -1,3 +1,4 @@
+import { defineLocal } from '@engine/index';
 import { DIR_X, DIR_Y, TILE, type City } from './city';
 import { angleDiff, clamp, type CarEntity, type GameContext, type PlayerEntity } from './context';
 import { Car, CarKind, CarMode, Damage, DamageCause, Explosion, Horn, Ped, PedMode, Player } from './defs';
@@ -23,7 +24,9 @@ interface CarLocal {
   avoidUntil?: number;
 }
 
-const L = (car: CarEntity) => car.local as CarLocal;
+/** What a car's owner keeps between frames: its sliding velocity, who it hit lately, and the traffic AI's plans. */
+export const CarMind = defineLocal<CarLocal>(() => ({}));
+const L = (car: CarEntity) => CarMind.of(car);
 
 const PROBES: [number, number][] = [
   [1, 1],
@@ -238,8 +241,7 @@ export function wreckCar(ctx: GameContext, car: CarEntity): void {
 
 export function updateOwnedCars(ctx: GameContext, dt: number): void {
   const { world } = ctx;
-  for (const car of world.all(Car)) {
-    if (!car.mine) continue;
+  for (const car of world.owned(Car)) {
     const s = car.state;
     const l = ensureVelocity(car);
     if (s.hp <= 0 && s.mode !== CarMode.Wrecked) wreckCar(ctx, car);

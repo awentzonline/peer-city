@@ -3,8 +3,9 @@ import { direction, signedAngle, type GameContext } from './context';
 import { Busted, Car, CarKind, CarMode, Damage, DamageCause, Explosion, Feed, Horn, Kill, Ped, PedMode, Pickup, PickupKind, Player, Shot } from './defs';
 import { Gun } from './gun';
 import { PED_RADIUS, moveCircle, panicPeds } from './peds';
+import { ShotMemory } from './police';
 import type { AvatarSim } from './avatar';
-import { wreckCar } from './vehicles';
+import { CarMind, wreckCar } from './vehicles';
 
 const VICTIM_PED = 0;
 const VICTIM_PLAYER = 1;
@@ -21,7 +22,7 @@ export function registerCombat(ctx: GameContext, player: AvatarSim): void {
   world.onAction(Shot, (p) => {
     // police remember who has been shooting (see police.ts)
     const shooter = world.getAs(Player, p.shooter);
-    if (shooter) shooter.local.lastShot = ctx.now;
+    if (shooter) ShotMemory.of(shooter).lastShot = ctx.now;
     direction(p.yaw, signedAngle(p.pitch), dir);
     ctx.fx.tracer(p.x, p.y, p.z, p.x + dir.x * p.dist, p.y + dir.y * p.dist, p.z + dir.z * p.dist, p.impact);
     if (p.quiet) return;
@@ -103,11 +104,12 @@ export function registerCombat(ctx: GameContext, player: AvatarSim): void {
   world.onCommand(Damage, Car, (target, p) => {
     const s = target.state;
     if (s.mode === CarMode.Wrecked) return;
-    if (p.attacker) target.local.lastAttacker = p.attacker;
+    const mind = CarMind.of(target);
+    if (p.attacker) mind.lastAttacker = p.attacker;
     s.hp = Math.max(0, s.hp - p.amount);
     if (p.cause === DamageCause.Vehicle) {
-      target.local.vx = (target.local.vx ?? 0) + p.kx * 0.4;
-      target.local.vy = (target.local.vy ?? 0) + p.ky * 0.4;
+      mind.vx = (mind.vx ?? 0) + p.kx * 0.4;
+      mind.vy = (mind.vy ?? 0) + p.ky * 0.4;
     }
     if (s.hp === 0) {
       if (s.kind === CarKind.Police) credit(p.attacker, VICTIM_COP, target.x, target.y);

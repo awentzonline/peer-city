@@ -1,6 +1,7 @@
 export { t, defineEntity, defineAction, defineCommand, FieldLayout } from './net/schema';
 export type { EntityDef, ActionDef, CommandDef, FieldType, Infer, Shape, StateOf, PayloadOf, EntityOptions } from './net/schema';
-export { NetEntity } from './net/entity';
+export { NetEntity, defineLocal } from './net/entity';
+export type { LocalData } from './net/entity';
 export { NetWorld } from './net/world';
 export { Singleton } from './net/singleton';
 export type { SingletonOptions } from './net/singleton';

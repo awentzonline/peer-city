@@ -3,7 +3,7 @@ import type { AvatarBody } from '../src/crossplay/avatar';
 import { Side, handIntent, idleIntent, type AvatarIntent, type HandIntent, type TrackedHead } from '../src/crossplay/intent';
 import { Platform } from '../src/crossplay/platform';
 import type { Tool, UseEffect } from '../src/crossplay/tool';
-import { updateOwnedAnimals } from '../src/wilds/animals';
+import { AnimalMind, updateOwnedAnimals } from '../src/wilds/animals';
 import { Arrows } from '../src/wilds/arrows';
 import { registerCombat } from '../src/wilds/combat';
 import type { Vec3, WildsContext } from '../src/wilds/context';
@@ -312,7 +312,7 @@ describe('Survivor', () => {
       const dy = open.y + Math.sin(open.heading) * 12;
       // grazing where it stands, facing away
       const deer = world.spawn(Animal, { x: dx, y: dy, angle: open.heading, kind: AnimalKind.Deer, hp: 70, mode: AnimalMode.Graze, tx: dx, ty: dy });
-      Object.assign(deer.local, { pauseUntil: Infinity });
+      AnimalMind.of(deer).pauseUntil = Infinity;
 
       const intent = idleIntent();
       intent.selectTool = AXE;

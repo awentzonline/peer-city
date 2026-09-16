@@ -27,6 +27,7 @@ import {
   withoutPart,
 } from '../src/derby/parts';
 import { Physics, initPhysics, yawQuat } from '../src/derby/physics';
+import { stepRules } from '../src/derby/frame';
 import { COUNTDOWN, RaceKeeper, standings } from '../src/derby/race';
 import { RacerProxies, designOf } from '../src/derby/racer';
 import { MemoryShelf, ShelfAction, SHELF_SLOTS, pickShelf, sameBytes, shelves } from '../src/derby/shelf';
@@ -98,10 +99,7 @@ function run(net: Sim, players: Player[], seconds: number, each?: () => void): v
       p.world.update(net.now);
       each?.();
       p.builder.update(dt, p.intent);
-      p.keeper.update(dt, net.now);
-      p.proxies.update();
-      p.ctx.physics.step(dt);
-      p.builder.afterPhysics(dt);
+      stepRules(p.ctx, p, dt, net.now);
       p.intent.ready = false;
       p.intent.reset = false;
       p.intent.quit = false;

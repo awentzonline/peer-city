@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ByteReader, ByteWriter } from '../src/engine/net/codec';
 import { defineAction, defineCommand, defineEntity, t } from '../src/engine/net/schema';
 import { Singleton } from '../src/engine/net/singleton';
-import type { NetEntity } from '../src/engine/net/entity';
+import { defineLocal, type NetEntity } from '../src/engine/net/entity';
 import type { NetWorld } from '../src/engine/net/world';
 import { Sim } from './harness';
 
@@ -428,5 +428,49 @@ describe('commands, locks, singletons and tracking', () => {
     stop();
     a.despawn(late);
     expect(seen).toEqual(['+early', '+late', '-despawned']);
+  });
+
+  it('keeps each type\'s owned and remote entities in step as ownership moves', async () => {
+    const sim = new Sim();
+    const a = sim.add('a', base);
+    const b = sim.add('b', base);
+    a.setFocus(0, 0);
+    b.setFocus(0, 0);
+    const crate = a.spawn(Crate, { x: 10, y: 10 });
+    const avatar = a.spawn(Avatar, { x: 0, y: 0 });
+    sim.run(600);
+    const onB = b.get(crate.id)!;
+    expect([...a.owned(Crate)]).toEqual([crate]);
+    expect([...a.owned(Avatar)]).toEqual([avatar]);
+    expect(a.remote(Crate).size).toBe(0);
+    expect([...b.remote(Crate)]).toEqual([onB]);
+
+    void b.requestOwnership(onB);
+    sim.run(400);
+    await Promise.resolve();
+    expect(a.owned(Crate).size).toBe(0);
+    expect([...a.remote(Crate)]).toEqual([crate]);
+    expect([...b.owned(Crate)]).toEqual([onB]);
+    expect(b.remote(Crate).size).toBe(0);
+
+    b.despawn(onB);
+    sim.run(300);
+    for (const w of [a, b]) expect(w.owned(Crate).size + w.remote(Crate).size).toBe(0);
+    expect(b.remote(Avatar).size).toBe(1);
+  });
+
+  it('keeps typed local data per entity, apart for each kind', () => {
+    const sim = new Sim();
+    const a = sim.add('a', base);
+    const Mind = defineLocal(() => ({ fleeUntil: 0 }));
+    const Memory = defineLocal<{ seen?: number }>(() => ({}));
+    const one = a.spawn(Crate, { x: 0, y: 0 });
+    const two = a.spawn(Crate, { x: 1, y: 1 });
+    Mind.of(one).fleeUntil = 50;
+    Memory.of(one).seen = 3;
+    expect(Mind.of(one)).toEqual({ fleeUntil: 50 });
+    expect(Mind.of(two)).toEqual({ fleeUntil: 0 });
+    expect(Memory.of(one).seen).toBe(3);
+    expect(Memory.of(two).seen).toBeUndefined();
   });
 });

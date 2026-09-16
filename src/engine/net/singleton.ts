@@ -40,7 +40,7 @@ export class Singleton<D extends EntityDef<any>> {
   update(now: number): NetEntity<StateOf<D>> | null {
     const { world } = this;
     const entity = this.entity;
-    for (const e of world.all(this.def)) if (e !== entity && e.mine) world.despawn(e);
+    for (const e of world.owned(this.def)) if (e !== entity) world.despawn(e);
     if (entity) {
       this.makeAt = -1;
       return entity;

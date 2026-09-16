@@ -9,6 +9,7 @@ import type { Course } from './course';
 import { Builder as BuilderDef } from './defs';
 import { DesktopBuilder } from './desktop';
 import { Effects } from './effects';
+import { stepRules, type DerbyRules } from './frame';
 import type { Hud } from './hud';
 import type { DerbyIntent } from './intent';
 import { Physics } from './physics';
@@ -36,7 +37,7 @@ export class Game {
   /** The local player: the builder role, and the frontend for whichever platform is playing it. */
   readonly seat: Seat<DerbyIntent, BuilderFrontend>;
   private readonly keeper: RaceKeeper;
-  private readonly proxies: RacerProxies;
+  private readonly rules: DerbyRules;
   private readonly views: EntityViews;
   private readonly extraViews: { update(dt: number): void };
   private readonly scenery: Scenery;
@@ -71,7 +72,7 @@ export class Game {
       now: performance.now(),
     });
     const builder = (this.builder = new Builder(ctx));
-    this.proxies = new RacerProxies(ctx);
+    this.rules = { builder, keeper: this.keeper, proxies: new RacerProxies(ctx) };
     registerActions(ctx, builder);
     this.views = new EntityViews(world);
     this.extraViews = registerViews(
@@ -100,10 +101,7 @@ export class Game {
         ctx.now = now;
         shell.receive(now);
         this.seat.step(dt);
-        this.keeper.update(dt, now);
-        this.proxies.update();
-        ctx.physics.step(dt);
-        builder.afterPhysics(dt);
+        stepRules(ctx, this.rules, dt, now);
       },
       present: (dt) => {
         this.views.update(dt);

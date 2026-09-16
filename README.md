@@ -88,7 +88,7 @@ And two patterns for coordinating without a server:
 ### Declare what's replicated
 
 ```ts
-import { defineEntity, defineAction, defineCommand, t } from '@engine/index';
+import { defineEntity, defineAction, defineCommand, defineLocal, t } from '@engine/index';
 
 export const Car = defineEntity({
   name: 'car',
@@ -113,7 +113,12 @@ export const Shot = defineAction('shot', { x: t.fixed(0.5), y: t.fixed(0.5) });
 ```
 
 Only fields that change are sent, so put AI state that must survive migration (waypoints,
-targets) in the schema and keep scratch data in `entity.local`.
+targets) in the schema. Scratch data this peer keeps and never sends goes in a `defineLocal`:
+
+```ts
+const CarMind = defineLocal<{ stuck?: number; nextHonk?: number }>(() => ({}));
+CarMind.of(car).nextHonk = now + 2000;
+```
 
 ### Create a world
 
@@ -140,8 +145,7 @@ update() {
   world.update();                       // receive, tick, interpolate
   world.setFocus(me.state.x, me.state.y);
 
-  for (const car of world.all(Car)) {
-    if (!car.mine) continue;            // simulate only what you own
+  for (const car of world.owned(Car)) { // simulate only what you own
     car.state.x += ...;                 // just mutate state; the engine diffs it
   }
   views.update(dt);                     // draw from entity.render (interpolated for remote)
@@ -154,6 +158,8 @@ update() {
 | --- | --- |
 | `world.spawn(Def, init, {held})` / `world.despawn(e)` | create / destroy (owner only) |
 | `world.all(Def)`, `world.get(id)`, `world.getAs(Def, id)` | lookup |
+| `world.owned(Def)`, `world.remote(Def)` | the entities of a type this peer simulates, or only receives |
+| `defineLocal(() => init).of(e)` | typed data a peer keeps per entity and never sends (AI scratch, cooldowns) |
 | `world.query(x, y, r, Def?)` | spatial query on rendered positions |
 | `world.requestOwnership(e)` → `Promise<boolean>`, `world.release(e)` | take / give back control |
 | `world.setTransferPolicy(Def, (e, requester) => bool)` | guard handovers |

@@ -219,8 +219,10 @@ export class NetWorld {
 
   private readonly entities = new Map<number, NetEntity<any>>();
   private readonly byType: Set<NetEntity<any>>[];
-  private readonly owned = new Set<NetEntity<any>>();
-  private readonly remote = new Set<NetEntity<any>>();
+  private readonly ownedByType: Set<NetEntity<any>>[];
+  private readonly remoteByType: Set<NetEntity<any>>[];
+  private readonly allOwned = new Set<NetEntity<any>>();
+  private readonly allRemote = new Set<NetEntity<any>>();
   private readonly peers = new Map<string, RemotePeer>();
   private readonly listeners: { [K in keyof WorldEvents]: Set<WorldEvents[K]> } = {
     entityAdded: new Set(),
@@ -281,6 +283,8 @@ export class NetWorld {
     this.defs.forEach((d, i) => (d.typeId = i));
     this.actionDefs.forEach((d, i) => (d.typeId = i));
     this.byType = this.defs.map(() => new Set());
+    this.ownedByType = this.defs.map(() => new Set());
+    this.remoteByType = this.defs.map(() => new Set());
     const signature = [
       ...this.defs.map((d) => `E:${d.name}{${d.layout.signature()}}`),
       ...this.actionDefs.map((d) => `A:${d.name}{${d.layout.signature()}}`),
@@ -378,6 +382,19 @@ export class NetWorld {
   /** Every known entity of a type (owned and remote). Don't mutate the set. */
   all<S extends Shape>(def: EntityDef<S>): ReadonlySet<NetEntity<Infer<S>>> {
     return this.byType[def.typeId] as Set<NetEntity<Infer<S>>>;
+  }
+
+  /**
+   * The entities of a type this peer owns and simulates, kept up to date as ownership moves: the ones a
+   * system updates. Don't mutate the set. Spawning while iterating visits the new entity too.
+   */
+  owned<S extends Shape>(def: EntityDef<S>): ReadonlySet<NetEntity<Infer<S>>> {
+    return this.ownedByType[def.typeId] as Set<NetEntity<Infer<S>>>;
+  }
+
+  /** The entities of a type other peers own, which this peer only receives and draws. Don't mutate the set. */
+  remote<S extends Shape>(def: EntityDef<S>): ReadonlySet<NetEntity<Infer<S>>> {
+    return this.remoteByType[def.typeId] as Set<NetEntity<Infer<S>>>;
   }
 
   get entityCount(): number {
@@ -580,7 +597,7 @@ export class NetWorld {
     this.nowMs = now;
     this.mesh.update(now);
 
-    for (const e of this.owned) this.spatial.update(e, e.stateX, e.stateY);
+    for (const e of this.allOwned) this.spatial.update(e, e.stateX, e.stateY);
 
     const inbox = this.inbox;
     this.inbox = [];
@@ -642,7 +659,7 @@ export class NetWorld {
 
     if (now >= this.nextWatchdog) {
       this.nextWatchdog = now + 1000;
-      for (const e of this.remote) {
+      for (const e of this.allRemote) {
         if (e._orphanSince) {
           if (this.peers.has(e.owner)) {
             e._orphanSince = 0;
@@ -723,7 +740,7 @@ export class NetWorld {
 
   private handoffLeavingZones(leaving: string[]): void {
     const set = new Set(leaving);
-    for (const e of [...this.owned]) {
+    for (const e of [...this.allOwned]) {
       if (!e.def.migratable || e.held) continue;
       const zk = this.zoneKey(e.stateX, e.stateY);
       if (!set.has(zk)) continue;
@@ -734,7 +751,7 @@ export class NetWorld {
   }
 
   private rebalance(now: number): void {
-    for (const e of [...this.owned]) {
+    for (const e of [...this.allOwned]) {
       if (!e.def.migratable || e.held) continue;
       if (e.def.cullDistance !== Infinity && !this.isObserved(e.stateX, e.stateY, e.def.cullDistance)) {
         this.despawn(e);
@@ -792,7 +809,7 @@ export class NetWorld {
     // A peer owns few entities, so scanning them directly is cheaper than a spatial query
     // over the interest circle, which would also return every remote entity in range.
     // This covers peer.forceFull too: only owned entities can be forced.
-    for (const e of this.owned) this.consider(peer, e, now);
+    for (const e of this.allOwned) this.consider(peer, e, now);
     peer.forceFull.clear();
 
     // Anything we previously sent that's no longer in range: tell them to drop it.
@@ -918,8 +935,10 @@ export class NetWorld {
     e.held = false;
     e.owner = newOwner;
     e._handoffTo = null;
-    this.owned.delete(e);
-    this.remote.add(e);
+    this.allOwned.delete(e);
+    this.allRemote.add(e);
+    this.ownedByType[e.def.typeId].delete(e);
+    this.remoteByType[e.def.typeId].add(e);
     e.render = { ...e.state };
     e._buf?.clear();
     this.pushSample(e, this.nowMs);
@@ -934,8 +953,10 @@ export class NetWorld {
     e.mine = true;
     e.held = held;
     e._handoffTo = null;
-    this.remote.delete(e);
-    this.owned.add(e);
+    this.allRemote.delete(e);
+    this.allOwned.add(e);
+    this.remoteByType[e.def.typeId].delete(e);
+    this.ownedByType[e.def.typeId].add(e);
     e.render = e.state;
     e._buf?.clear();
     e._gainTick = this.tickNo;
@@ -965,7 +986,7 @@ export class NetWorld {
     const peer = this.peers.get(id);
     if (!peer) return;
     this.peers.delete(id);
-    for (const e of [...this.remote]) {
+    for (const e of [...this.allRemote]) {
       if (e.owner !== id) continue;
       if (!e.def.migratable) {
         this.removeLocal(e, 'owner-left');
@@ -1217,7 +1238,7 @@ export class NetWorld {
 
   private interpolate(now: number): void {
     const renderTime = now - this.interpDelayMs;
-    for (const e of this.remote) {
+    for (const e of this.allRemote) {
       const buf = e._buf;
       if (buf && buf.count > 0) {
         const out = e._interpOut;
@@ -1235,7 +1256,8 @@ export class NetWorld {
   private addEntity(e: NetEntity<any>): void {
     this.entities.set(e.id, e);
     this.byType[e.def.typeId].add(e);
-    (e.mine ? this.owned : this.remote).add(e);
+    (e.mine ? this.allOwned : this.allRemote).add(e);
+    (e.mine ? this.ownedByType : this.remoteByType)[e.def.typeId].add(e);
     this.spatial.update(e, e.x, e.y);
     this.emit('entityAdded', e);
   }
@@ -1245,8 +1267,10 @@ export class NetWorld {
     e.alive = false;
     this.entities.delete(e.id);
     this.byType[e.def.typeId].delete(e);
-    this.owned.delete(e);
-    this.remote.delete(e);
+    this.allOwned.delete(e);
+    this.allRemote.delete(e);
+    this.ownedByType[e.def.typeId].delete(e);
+    this.remoteByType[e.def.typeId].delete(e);
     this.spatial.remove(e);
     if (e.mine) for (const p of this.peers.values()) p.sent.delete(e.id);
     this.resolveRequestsFor(e.id, false);
@@ -1279,8 +1303,8 @@ export class NetWorld {
     const s = this.stats;
     s.peers = this.peers.size;
     s.rooms = this.mesh.roomCount;
-    s.owned = this.owned.size;
-    s.remote = this.remote.size;
+    s.owned = this.allOwned.size;
+    s.remote = this.allRemote.size;
     const elapsed = now - this.statWindowStart;
     if (elapsed >= 1000) {
       s.bytesOutPerSec = (this.statBytesOut * 1000) / elapsed;

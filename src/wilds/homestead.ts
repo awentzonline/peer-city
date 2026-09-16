@@ -162,14 +162,14 @@ export function trackStumps(ctx: WildsContext): void {
 /** Owned stumps grow back into trees, and owned fires' ashes blow away, in time. */
 export function updateOwnedHomestead(ctx: WildsContext): void {
   const { world, land, wall } = ctx;
-  for (const stump of world.all(Stump)) {
-    if (!stump.mine || wall - stump.state.felled < REGROW_SECONDS) continue;
+  for (const stump of world.owned(Stump)) {
+    if (wall - stump.state.felled < REGROW_SECONDS) continue;
     const o = land.obstacles[stump.state.tree];
     // not while someone's standing where the trunk would be
     if (o && world.query(o.x, o.y, o.r + 0.6, Survivor).length) continue;
     world.despawn(stump);
   }
-  for (const fire of world.all(Campfire)) {
-    if (fire.mine && wall - fire.state.until > ASH_SECONDS) world.despawn(fire);
+  for (const fire of world.owned(Campfire)) {
+    if (wall - fire.state.until > ASH_SECONDS) world.despawn(fire);
   }
 }

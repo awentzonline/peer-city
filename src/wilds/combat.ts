@@ -1,3 +1,4 @@
+import { AnimalMind } from './animals';
 import { animalSpec } from './bodies';
 import type { WildsContext } from './context';
 import { Animal, AnimalKind, AnimalMode, Butcher, Campfire, Chop, Damage, Feed, Fuel, Hunted, Item, Survivor } from './defs';
@@ -49,7 +50,7 @@ export function registerCombat(ctx: WildsContext, survivor: SurvivorRole): void 
       s.target = attacker.id;
     } else if (attacker) {
       s.mode = AnimalMode.Flee;
-      Object.assign(target.local, { fleeUntil: ctx.now + 5000, fx: attacker.x, fy: attacker.y });
+      Object.assign(AnimalMind.of(target), { fleeUntil: ctx.now + 5000, fx: attacker.x, fy: attacker.y });
     }
   });
 

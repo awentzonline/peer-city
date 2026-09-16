@@ -1,3 +1,4 @@
+import { defineLocal } from '@engine/index';
 import { DIR_X, DIR_Y, TILE, type City } from './city';
 import type { GameContext, PedEntity } from './context';
 import { Ped, PedMode } from './defs';
@@ -6,13 +7,8 @@ const WALK_SPEED = 1.4;
 const RUN_SPEED = 5;
 export const PED_RADIUS = 0.35;
 
-interface PedLocal {
-  dir?: number;
-  fleeUntil?: number;
-  fx?: number;
-  fy?: number;
-  deadAt?: number;
-}
+/** What a pedestrian's owner keeps in mind about where it's going and what it's running from. */
+export const PedMind = defineLocal<{ dir?: number; fleeUntil?: number; fx?: number; fy?: number; deadAt?: number }>(() => ({}));
 
 /** Axis-separated circle movement against the tile grid. Returns true if blocked. */
 export function moveCircle(city: City, s: { x: number; y: number }, dx: number, dy: number, r: number): boolean {
@@ -26,10 +22,9 @@ export function moveCircle(city: City, s: { x: number; y: number }, dx: number, 
 
 export function updateOwnedPeds(ctx: GameContext, dt: number): void {
   const { world, city, now } = ctx;
-  for (const p of world.all(Ped)) {
-    if (!p.mine) continue;
+  for (const p of world.owned(Ped)) {
     const s = p.state;
-    const l = p.local as PedLocal;
+    const l = PedMind.of(p);
 
     if (s.mode === PedMode.Dead) {
       l.deadAt ??= now;
@@ -73,7 +68,7 @@ export function updateOwnedPeds(ctx: GameContext, dt: number): void {
 
 function chooseNextTile(city: City, p: PedEntity): void {
   const s = p.state;
-  const l = p.local as PedLocal;
+  const l = PedMind.of(p);
   const cx = Math.floor(s.x / TILE);
   const cy = Math.floor(s.y / TILE);
   const options: number[] = [];
@@ -105,7 +100,7 @@ export function retarget(city: City, p: PedEntity): void {
         if (city.isWalkableTile(cx + dx, cy + dy)) {
           s.tx = cx + dx;
           s.ty = cy + dy;
-          (p.local as PedLocal).dir = undefined;
+          PedMind.of(p).dir = undefined;
           return;
         }
       }
@@ -119,7 +114,7 @@ export function retarget(city: City, p: PedEntity): void {
 export function panicPeds(ctx: GameContext, x: number, y: number, radius: number): void {
   for (const p of ctx.world.query(x, y, radius, Ped)) {
     if (!p.mine || p.state.cop || p.state.mode === PedMode.Dead) continue;
-    const l = p.local as PedLocal;
+    const l = PedMind.of(p);
     p.state.mode = PedMode.Flee;
     l.fx = x;
     l.fy = y;

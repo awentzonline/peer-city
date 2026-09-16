@@ -390,8 +390,7 @@ export class RacerProxies {
 
   update(): void {
     const { ctx } = this;
-    for (const racer of ctx.world.all(Racer)) {
-      if (racer.mine) continue;
+    for (const racer of ctx.world.remote(Racer)) {
       let p = this.bodies.get(racer);
       if (!p) this.bodies.set(racer, (p = { body: ctx.physics.addRacer(false), design: null, broken: null }));
       const s = racer.render;

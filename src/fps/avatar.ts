@@ -5,7 +5,7 @@ import { TOOLS } from './arsenal';
 import { angleDiff, type CarEntity, type GameContext, type PedEntity, type PickupEntity, type PlayerEntity, type Vec3 } from './context';
 import { Car, CarKind, CarMode, Feed, Horn, Ped, PedMode, Pickup, PickupKind, Player } from './defs';
 import type { AvatarIntent } from './intent';
-import { moveCircle } from './peds';
+import { PedMind, moveCircle } from './peds';
 import { CUFF_RANGE, spawnOfficer } from './police';
 import { PED_SKINS, carExtents, carSpec } from './specs';
 import type { Tool, Toolbox } from './tool';
@@ -266,7 +266,7 @@ export class AvatarSim extends Avatar<AvatarIntent, AvatarBody, Tool> implements
         spawnOfficer(ctx, side.x, side.y, me.id);
       } else {
         const ped = ctx.world.spawn(Ped, { x: side.x, y: side.y, skin: Math.floor(Math.random() * PED_SKINS), mode: PedMode.Flee });
-        Object.assign(ped.local, { fx: s.x, fy: s.y, fleeUntil: ctx.now + 6000 });
+        Object.assign(PedMind.of(ped), { fx: s.x, fy: s.y, fleeUntil: ctx.now + 6000 });
       }
     }
     s.mode = CarMode.Driven;

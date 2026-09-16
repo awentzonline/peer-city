@@ -1,4 +1,4 @@
-import type { NetEntity } from '@engine/index';
+import { defineLocal, type NetEntity } from '@engine/index';
 import { TILE } from './city';
 import { direction, type CarEntity, type GameContext, type PedEntity, type PlayerEntity } from './context';
 import { Busted, Car, CarKind, CarMode, Ped, PedMode, Player } from './defs';
@@ -17,7 +17,8 @@ const CUFF_MS = 1400;
 const GIVE_UP_RANGE = 150;
 const SHOT_MEMORY_MS = 5000;
 
-interface CopLocal {
+/** What an officer's owner keeps in mind: when it can next shoot, how far through cuffing someone it is, and its way round obstacles. */
+const CopMind = defineLocal<{
   nextShot?: number;
   cuff?: number;
   detour?: number;
@@ -27,11 +28,13 @@ interface CopLocal {
   strafe?: number;
   strafeUntil?: number;
   nextScan?: number;
-}
+}>(() => ({}));
 
-/** Set on a player entity's `local` by whichever peer sees their Shot actions. */
+/** When this peer last saw a player fire (a Shot action), so police remember who's been shooting. */
+export const ShotMemory = defineLocal<{ lastShot: number }>(() => ({ lastShot: -Infinity }));
+
 export function firedRecently(ctx: GameContext, p: PlayerEntity): boolean {
-  return ctx.now - ((p.local.lastShot as number | undefined) ?? -Infinity) < SHOT_MEMORY_MS;
+  return ctx.now - ShotMemory.of(p).lastShot < SHOT_MEMORY_MS;
 }
 
 /** Officers shoot suspects with 2+ stars, or anyone who has just been firing a gun. */
@@ -65,7 +68,7 @@ export function spawnOfficer(ctx: GameContext, x: number, y: number, target: num
     ty: Math.floor(y / TILE),
   });
   // a moment to draw before the first shot
-  (cop.local as CopLocal).nextShot = ctx.now + 600 + Math.random() * 400;
+  CopMind.of(cop).nextShot = ctx.now + 600 + Math.random() * 400;
   return cop;
 }
 
@@ -93,8 +96,8 @@ export function deployOfficers(ctx: GameContext, car: CarEntity): void {
 }
 
 export function updateOwnedCops(ctx: GameContext, dt: number): void {
-  for (const cop of ctx.world.all(Ped)) {
-    if (!cop.mine || !cop.state.cop) continue;
+  for (const cop of ctx.world.owned(Ped)) {
+    if (!cop.state.cop) continue;
     if (cop.state.mode === PedMode.Attack) copAI(ctx, cop, dt);
     else if (cop.state.mode === PedMode.Walk) patrol(ctx, cop);
   }
@@ -102,7 +105,7 @@ export function updateOwnedCops(ctx: GameContext, dt: number): void {
 
 /** Off-duty officers (walking the beat) pick up any wanted player they can see. */
 function patrol(ctx: GameContext, cop: PedEntity): void {
-  const l = cop.local as CopLocal;
+  const l = CopMind.of(cop);
   if (ctx.now < (l.nextScan ?? 0)) return;
   l.nextScan = ctx.now + 500;
   const s = cop.state;
@@ -121,13 +124,13 @@ function standDown(ctx: GameContext, cop: PedEntity): void {
   const s = cop.state;
   s.mode = PedMode.Walk;
   s.target = 0;
-  (cop.local as CopLocal).cuff = 0;
+  CopMind.of(cop).cuff = 0;
   retarget(ctx.city, cop);
 }
 
 function copAI(ctx: GameContext, cop: PedEntity, dt: number): void {
   const s = cop.state;
-  const l = cop.local as CopLocal;
+  const l = CopMind.of(cop);
   const suspect = ctx.world.getAs(Player, s.target);
   if (!suspect || suspect.state.hp === 0 || (suspect.state.wanted === 0 && !firedRecently(ctx, suspect))) {
     standDown(ctx, cop);
@@ -205,7 +208,7 @@ function copAI(ctx: GameContext, cop: PedEntity, dt: number): void {
 
 function runTowards(ctx: GameContext, cop: PedEntity, tx: number, ty: number, speed: number, dt: number): void {
   const s = cop.state;
-  const l = cop.local as CopLocal;
+  const l = CopMind.of(cop);
   let a = Math.atan2(ty - s.y, tx - s.x);
   const detouring = ctx.now < (l.detourUntil ?? 0);
   if (detouring) a += l.detour ?? 0;

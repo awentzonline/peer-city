@@ -166,8 +166,8 @@ export class WallSync {
   /** The painter elsewhere with the oldest walls, if anyone has any. */
   private oldestOther(): PainterEntity | null {
     let best: PainterEntity | null = null;
-    for (const p of this.host.world.all(Painter)) {
-      if (p.mine || !p.state.wall) continue;
+    for (const p of this.host.world.remote(Painter)) {
+      if (!p.state.wall) continue;
       if (!best || older(p.state, best.state)) best = p;
     }
     return best;
