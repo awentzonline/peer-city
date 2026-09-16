@@ -7,7 +7,7 @@ import type { Tool, UseEffect } from '../crossplay/tool';
 import type { Builder, BuilderFrontend } from './builder';
 import { direction, type DerbyContext, type Vec3 } from './context';
 import { RacerMode } from './defs';
-import { countdownBanner, finishBanner, raceSounds } from './desktop';
+import { GiveUp, countdownBanner, finishBanner, raceSounds } from './desktop';
 import { idleDerbyIntent, type DerbyIntent } from './intent';
 import { PART_GUN } from './kit';
 import { headingOf } from './physics';
@@ -25,7 +25,7 @@ const deadzone = (v: number) => (Math.abs(v) < 0.15 ? 0 : v);
  * back one. X (the left hand's A) says you're ready to race, and Y opens the settings.
  *
  * Racing, you sit in the seat facing wherever the racer does (turning, not tipping, with it: that's kinder to
- * stomachs). Left stick steers, right trigger fires rockets, left trigger brakes, A pushes off, B puts you back
+ * stomachs). Left stick steers, right trigger fires rockets, left trigger brakes, A pushes off, X twice gives up, B puts you back
  * at the last checkpoint, and Y recentres the seat on your head.
  */
 export class VrBuilder implements BuilderFrontend {
@@ -40,6 +40,7 @@ export class VrBuilder implements BuilderFrontend {
   private readonly hands: [HandIntent, HandIntent] = [handIntent(), handIntent()];
   private turnArmed = true;
   private nextRumble = 0;
+  private readonly giveUp = new GiveUp();
   private readonly tmp: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly dir: Vec3 = { x: 0, y: 0, z: 0 };
 
@@ -69,7 +70,7 @@ export class VrBuilder implements BuilderFrontend {
     const { rig, sim, intent } = this;
     this.source.read(rig, dt);
     const { left, right } = rig;
-    Object.assign(intent, { strafe: 0, forward: 0, steer: 0, brake: false, push: false, boost: false, reset: false, ready: false, cyclePart: 0 });
+    Object.assign(intent, { strafe: 0, forward: 0, steer: 0, brake: false, push: false, boost: false, reset: false, quit: false, ready: false, cyclePart: 0 });
     intent.part = null;
 
     if (left.pressed(Btn.B)) {
@@ -92,6 +93,7 @@ export class VrBuilder implements BuilderFrontend {
       intent.boost = right.trigger >= TRIGGER;
       intent.push = right.down(Btn.A);
       intent.reset = right.pressed(Btn.B);
+      intent.quit = left.pressed(Btn.A) && this.giveUp.press(this.ctx, 'X');
       for (const hand of this.hands) {
         hand.tracked = false;
         hand.trigger = false;
@@ -173,7 +175,7 @@ export class VrBuilder implements BuilderFrontend {
     ctx.hud.showBuilder(ctx, sim, {
       ready: 'X (left hand)',
       parts: 'A',
-      help: sim.seated ? 'Left stick steer · A push · triggers brake / rockets · B checkpoint' : 'Grips take tools · trigger builds · A next part · X ready',
+      help: sim.seated ? 'Left stick steer · A push · triggers brake / rockets · B checkpoint · X give up' : 'Grips take tools · trigger builds · A next part · X ready',
     });
     this.wrist.update(ctx.now, sim);
     if (ctx.racer?.state.mode === RacerMode.Racing && ctx.now >= this.nextRumble) {

@@ -102,6 +102,7 @@ function run(net: Sim, players: Player[], seconds: number, each?: () => void): v
       p.builder.afterPhysics(dt);
       p.intent.ready = false;
       p.intent.reset = false;
+      p.intent.quit = false;
       p.intent.trigger = false;
       p.intent.part = null;
       p.intent.selectTool = null;
@@ -282,6 +283,48 @@ describe('Racing', () => {
     expect(standings(alice.world, race.state.round)).toEqual([alice.ctx.racer]);
   });
 
+  it('steers left as you see it: toward -y, since the scene draws +y on your right', () => {
+    const net = new Sim();
+    const alice = player(net, 'alice', 'Alice');
+    run(net, [alice], 4);
+    alice.intent.ready = true;
+    run(net, [alice], COUNTDOWN + 1);
+    const r = alice.ctx.racer!.state;
+    const heading = () => Math.atan2(2 * (r.qw * r.qz + r.qx * r.qy), 1 - 2 * (r.qy * r.qy + r.qz * r.qz));
+    alice.intent.push = true;
+    run(net, [alice], 1.5);
+    const before = heading();
+    alice.intent.steer = 1;
+    run(net, [alice], 0.5);
+    expect(heading() - before).toBeLessThan(-0.1);
+  });
+
+  it('lets a driver give up and go back to the garage, and still shows them in the standings', () => {
+    const net = new Sim();
+    const alice = player(net, 'alice', 'Alice');
+    const bob = player(net, 'bob', 'Bob');
+    run(net, [alice, bob], 4);
+    alice.intent.ready = true;
+    bob.intent.ready = true;
+    run(net, [alice, bob], COUNTDOWN + 1);
+    const race = alice.keeper.race!;
+    expect(race.state.phase).toBe(Phase.Racing);
+
+    alice.intent.quit = true;
+    run(net, [alice, bob], 0.2);
+    alice.intent.quit = false;
+    const r = alice.ctx.racer!.state;
+    expect(r.mode).toBe(RacerMode.Parked);
+    expect(r.quit).toBe(true);
+    expect(alice.ctx.me!.state.seated).toBe(false);
+    expect(r.x).toBeLessThan(GARAGE.x1);
+    // bob's still racing, so the race goes on, with alice last
+    run(net, [alice, bob], 1);
+    expect(race.state.phase).toBe(Phase.Racing);
+    expect(standings(bob.world, race.state.round).map((e) => e.id)).toEqual([bob.ctx.racer!.id, alice.ctx.racer!.id]);
+    expect(bob.messages.some((m) => m.includes('Alice gave up'))).toBe(true);
+  });
+
   it('rolls a starter racer all the way down the hill, steered by a simple bot', () => {
     const net = new Sim();
     const alice = player(net, 'alice', 'Alice');
@@ -298,7 +341,7 @@ describe('Racing', () => {
       const heading = Math.atan2(2 * (s.qw * s.qz + s.qx * s.qy), 1 - 2 * (s.qy * s.qy + s.qz * s.qz));
       let want = Math.atan2(ahead.y - s.y, ahead.x - s.x) - heading;
       want = Math.atan2(Math.sin(want), Math.cos(want));
-      alice.intent.steer = Math.max(-1, Math.min(1, want * 2.5));
+      alice.intent.steer = Math.max(-1, Math.min(1, -want * 2.5)); // + steers left as you see it: toward -y
       alice.intent.push = s.speed < 5;
       alice.intent.brake = s.speed > 24;
     };

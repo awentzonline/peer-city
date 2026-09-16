@@ -187,8 +187,8 @@ export class Hud {
     const s = racer.state;
     const builder = ctx.world.getAs(BuilderDef, s.builder);
     const name = builder?.state.name ?? '?';
-    const detail = s.finish ? raceTime(s.finish) : s.mode === RacerMode.Gridded ? 'on the grid' : `${Math.round((Math.min(s.progress, FINISH) / FINISH) * 100)}%`;
-    return { place: s.finish || s.progress > 0 ? ordinal(i + 1) : '–', name, detail, me: racer === mine };
+    const detail = s.finish ? raceTime(s.finish) : s.quit ? 'gave up' : s.mode === RacerMode.Gridded ? 'on the grid' : `${Math.round((Math.min(s.progress, FINISH) / FINISH) * 100)}%`;
+    return { place: !s.quit && (s.finish || s.progress > 0) ? ordinal(i + 1) : '–', name, detail, me: racer === mine };
   }
 
   private set<K extends 'phase' | 'build' | 'buildDetail' | 'stats' | 'drive' | 'hint' | 'fuel' | 'progress'>(key: K, value: this[K], apply: () => void): void {

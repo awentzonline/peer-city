@@ -109,10 +109,11 @@ export class RaceKeeper {
   }
 }
 
-/** The racers in a round, best first: finishers by time, then the rest by how far they got. */
+/** The racers in a round, best first: finishers by time, then the rest by how far they got, then those who gave up. */
 export function standings(world: NetWorld, round: number): RacerEntity[] {
-  const list = [...world.all(Racer)].filter((r) => r.state.round === round && round > 0 && r.state.mode !== RacerMode.Parked);
+  const list = [...world.all(Racer)].filter((r) => r.state.round === round && round > 0 && (r.state.mode !== RacerMode.Parked || r.state.quit));
   return list.sort((a, b) => {
+    if (a.state.quit !== b.state.quit) return a.state.quit ? 1 : -1;
     const fa = a.state.finish || Infinity;
     const fb = b.state.finish || Infinity;
     if (fa !== fb) return fa - fb;

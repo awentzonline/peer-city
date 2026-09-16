@@ -188,6 +188,7 @@ export class Builder extends Avatar<DerbyIntent, BuilderBody, Tool<Builder>> imp
 
     this.racer.controls = { steer: intent.steer, brake: intent.brake, push: intent.push, boost: intent.boost };
     this.racer.wantsReset = intent.reset;
+    this.racer.wantsQuit = intent.quit;
     this.racer.update(dt, race);
     this.countdown(race);
 

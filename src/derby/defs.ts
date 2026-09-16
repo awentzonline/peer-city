@@ -54,6 +54,7 @@ export const Racer = defineEntity({
     builder: t.ref(),
     mode: t.uint(8),
     ready: t.bool(),
+    quit: t.bool(), // gave up on this round and went home
     round: t.uint(16), // the race it's in (Race.round)
     finish: t.uint(32), // race time at the line, ms (0 = not yet)
     progress: t.fixed(0.5, 0, 'none'), // furthest along the track, m

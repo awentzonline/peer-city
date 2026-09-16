@@ -15,6 +15,8 @@ export interface DerbyIntent extends AvatarIntent {
   boost: boolean;
   /** Back to the last checkpoint. */
   reset: boolean;
+  /** Give up the race and go back to the garage. Frontends ask first, so a slip doesn't throw a race away. */
+  quit: boolean;
   /** Toggle being ready to race. */
   ready: boolean;
   /** Load a kind of part into the part gun, or step through them (-1, 0, 1). */
@@ -23,5 +25,5 @@ export interface DerbyIntent extends AvatarIntent {
 }
 
 export function idleDerbyIntent(): DerbyIntent {
-  return { ...idleIntent(), steer: 0, brake: false, push: false, boost: false, reset: false, ready: false, part: null, cyclePart: 0 };
+  return { ...idleIntent(), steer: 0, brake: false, push: false, boost: false, reset: false, quit: false, ready: false, part: null, cyclePart: 0 };
 }

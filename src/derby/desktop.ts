@@ -19,7 +19,7 @@ const CHASE_HEIGHT = 2.6;
 
 const BUILD_HELP =
   '<b>WASD</b> move · <b>Mouse</b> look · <b>Click</b> place / remove · <b>1-9</b> parts · <b>Wheel</b> next part · <b>X</b> wrench · <b>F</b> ready · <b>Esc</b> settings · <b>V</b> mic';
-const DRIVE_HELP = '<b>A D</b> steer · <b>W</b> push off · <b>S</b> brake · <b>Space</b> rockets · <b>R</b> back to checkpoint · <b>C</b> camera · <b>Mouse</b> look around';
+const DRIVE_HELP = '<b>A D</b> steer · <b>W</b> push off · <b>S</b> brake · <b>Space</b> rockets · <b>R</b> back to checkpoint · <b>Q</b> give up · <b>C</b> camera · <b>Mouse</b> look around';
 
 /**
  * Keyboard and mouse. In the garage, first person with a crosshair: point the part gun at a face of any
@@ -40,6 +40,7 @@ export class DesktopBuilder implements BuilderFrontend {
   private orbitPitch = 0;
   private firstPerson = false;
   private nextRumble = 0;
+  private readonly giveUp = new GiveUp();
 
   constructor(
     private readonly ctx: DerbyContext,
@@ -68,7 +69,7 @@ export class DesktopBuilder implements BuilderFrontend {
     const key = (code: string) => (k.down(code) ? 1 : 0);
     const busy = this.ctx.settings.open;
     const [dx, dy] = k.consumeMouse();
-    Object.assign(intent, { turn: 0, lookUp: 0, strafe: 0, forward: 0, run: false, crouch: false, jump: false, trigger: false, steer: 0, brake: false, push: false, boost: false, reset: false, ready: false });
+    Object.assign(intent, { turn: 0, lookUp: 0, strafe: 0, forward: 0, run: false, crouch: false, jump: false, trigger: false, steer: 0, brake: false, push: false, boost: false, reset: false, quit: false, ready: false });
     intent.part = null;
     intent.cyclePart = 0;
     intent.selectTool = null;
@@ -81,6 +82,7 @@ export class DesktopBuilder implements BuilderFrontend {
       intent.brake = k.down('KeyS') || k.down('ArrowDown');
       intent.boost = k.down('Space') || k.down('ShiftLeft');
       intent.reset = k.pressed('KeyR');
+      intent.quit = k.pressed('KeyQ') && this.giveUp.press(this.ctx, 'Q');
       if (k.pressed('KeyC')) this.firstPerson = !this.firstPerson;
       this.orbit = clamp(this.orbit - dx * MOUSE_SENSITIVITY, -Math.PI, Math.PI);
       this.orbitPitch = clamp(this.orbitPitch - dy * MOUSE_SENSITIVITY, -0.5, 0.9);
@@ -205,6 +207,23 @@ export function countdownBanner(ctx: DerbyContext, n: number): void {
   } else {
     ctx.hud.showBanner('GO!', '#55efc4', 1200);
     ctx.sfx.play('go');
+  }
+}
+
+/** Giving up takes a second press within a few seconds, so a slip of the finger doesn't throw a race away. */
+export class GiveUp {
+  private armedUntil = 0;
+
+  /** The button was pressed: true if that confirms it. */
+  press(ctx: DerbyContext, button: string): boolean {
+    if (ctx.racer?.state.mode !== RacerMode.Racing) return false;
+    if (ctx.now < this.armedUntil) {
+      this.armedUntil = 0;
+      return true;
+    }
+    this.armedUntil = ctx.now + 3000;
+    ctx.hud.message(`Press ${button} again to give up and go back to the garage`);
+    return false;
   }
 }
 

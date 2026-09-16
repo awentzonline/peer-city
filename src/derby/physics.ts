@@ -325,11 +325,14 @@ export class RacerBody {
     const forward = rotate(q, { x: 1, y: 0, z: 0 }, tmpB);
     const vForward = v.x * forward.x + v.y * forward.y + v.z * forward.z;
 
+    // + steers left as you see it. The scene draws world +y on the right of a racer facing +x (see models.ts),
+    // so left is a turn toward -y: clockwise from above, the opposite of Rapier's steering and torques.
+    const turn = -controls.steer;
     const vehicle = this.vehicle;
     let wheelsDown = 0;
     if (vehicle) {
       for (const w of this.wheels) {
-        vehicle.setWheelSteering(w.index, w.steers ? controls.steer * STEER_ANGLE * clamp(1.4 - Math.abs(vForward) / 40, 0.45, 1) : 0);
+        vehicle.setWheelSteering(w.index, w.steers ? turn * STEER_ANGLE * clamp(1.4 - Math.abs(vForward) / 40, 0.45, 1) : 0);
         vehicle.setWheelBrake(w.index, controls.brake ? BRAKE_FORCE : 0);
         vehicle.setWheelEngineForce(w.index, 0);
       }
@@ -352,7 +355,7 @@ export class RacerBody {
     if (!steersWithWheels && controls.steer && (this.grounded || speed > 3)) {
       const up = rotate(q, { x: 0, y: 0, z: 1 }, tmpC);
       const av = body.angvel();
-      const want = controls.steer * (this.grounded ? 1.3 : 0.5);
+      const want = turn * (this.grounded ? 1.3 : 0.5);
       const have = av.x * up.x + av.y * up.y + av.z * up.z;
       const k = (want - have) * body.mass() * 0.6;
       body.addTorque({ x: up.x * k, y: up.y * k, z: up.z * k }, true);

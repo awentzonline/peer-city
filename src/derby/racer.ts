@@ -99,6 +99,8 @@ export class RacerSim {
   controls: Controls = NO_CONTROLS;
   /** The driver asked to go back to the last checkpoint. */
   wantsReset = false;
+  /** The driver asked to give up and go home. */
+  wantsQuit = false;
   /** Local time the race started for this racer, ms. */
   private startedAt = 0;
   private stuck = 0;
@@ -186,6 +188,9 @@ export class RacerSim {
         else if (phase !== Phase.Countdown || round !== s.round) this.home();
         break;
       case RacerMode.Racing:
+        if (phase !== Phase.Racing || round !== s.round) this.home();
+        else if (this.wantsQuit) this.giveUp();
+        break;
       case RacerMode.Finished:
         if (phase !== Phase.Racing || round !== s.round) this.home();
         break;
@@ -259,6 +264,7 @@ export class RacerSim {
     s.mode = RacerMode.Gridded;
     s.finish = 0;
     s.ready = false;
+    s.quit = false;
     s.broken = NO_BROKEN;
     this.rebuild();
     const slot = this.ctx.course.gridSlot(s.bay);
@@ -276,6 +282,14 @@ export class RacerSim {
     this.body.setDynamic(true);
     this.stuck = 0;
     this.events?.modeChanged(s.mode);
+  }
+
+  /** Out of the race and home to build something better. It stays in the round, so the standings show it. */
+  private giveUp(): void {
+    this.entity!.state.quit = true;
+    this.home();
+    const name = this.ctx.me?.state.name ?? 'Someone';
+    this.ctx.world.send(Feed, { text: `${name} gave up and went back to the garage` }, { to: 'all' });
   }
 
   /** Back to the bay, mended. */
