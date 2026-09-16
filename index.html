@@ -3,47 +3,127 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Peer City</title>
-    <link rel="stylesheet" href="/src/game/style.css" />
+    <title>Peer Games</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: radial-gradient(circle at 50% 0%, #1b3350, #0d1b2a 70%);
+        font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+        color: #fff;
+      }
+      main {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 56px 16px 40px;
+      }
+      h1 {
+        margin: 0;
+        font-size: clamp(36px, 7vw, 56px);
+        font-weight: 900;
+        letter-spacing: 4px;
+        color: #ffd54a;
+        text-shadow: 3px 3px 0 #000;
+      }
+      .tag {
+        margin: 10px 0 36px;
+        max-width: 620px;
+        line-height: 1.5;
+        color: rgba(255, 255, 255, 0.75);
+      }
+      .games {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 16px;
+      }
+      .game {
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(0, 0, 0, 0.35);
+        color: inherit;
+        text-decoration: none;
+        transition:
+          transform 0.12s,
+          border-color 0.12s;
+      }
+      .game:hover,
+      .game:focus-visible {
+        transform: translateY(-3px);
+        border-color: #8fd3ff;
+        outline: none;
+      }
+      .game h2 {
+        margin: 0 0 8px;
+        font-size: 22px;
+        letter-spacing: 2px;
+      }
+      .game p {
+        flex: 1;
+        margin: 0 0 16px;
+        line-height: 1.45;
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.72);
+      }
+      .platforms {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .platforms span {
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 12px;
+        background: rgba(143, 211, 255, 0.15);
+        color: #8fd3ff;
+      }
+      footer {
+        margin-top: 40px;
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.5);
+      }
+    </style>
   </head>
   <body>
-    <div id="game"></div>
+    <main>
+      <h1>PEER GAMES</h1>
+      <p class="tag">
+        Serverless multiplayer browser games. There's no game server: everyone's browser simulates the world together over WebRTC. Open a game in
+        more tabs or share the URL to add players.
+      </p>
 
-    <div id="hud" hidden>
-      <div id="hud-top">
-        <div id="cash">$0</div>
-        <div id="wanted"></div>
-        <div id="health"><div id="health-fill"></div></div>
+      <div class="games">
+        <a class="game" href="./city.html">
+          <h2>PEER CITY</h2>
+          <p>A top-down, GTA-style open-world sandbox. Steal cars, dodge traffic and outrun the police.</p>
+          <div class="platforms"><span>Desktop</span></div>
+        </a>
+        <a class="game" href="./fps.html">
+          <h2>PEER CITY 3D</h2>
+          <p>The same city rebuilt as a first-person shooter, playable on desktop, on a phone or in room-scale VR.</p>
+          <div class="platforms"><span>Desktop</span><span>Touch</span><span>VR</span></div>
+        </a>
+        <a class="game" href="./wilds.html">
+          <h2>PEER WILDS</h2>
+          <p>Survive on a wild island: hunt, farm and keep a fire going through the night. Tools are hands-on in VR.</p>
+          <div class="platforms"><span>Desktop</span><span>VR</span></div>
+        </a>
+        <a class="game" href="./derby.html">
+          <h2>PEER DERBY</h2>
+          <p>Build a ridiculous downhill racer with your friends, then race it to the bottom of the hill.</p>
+          <div class="platforms"><span>Desktop</span><span>Touch</span><span>VR</span></div>
+        </a>
       </div>
-      <canvas id="minimap" width="180" height="180"></canvas>
-      <div id="feed"></div>
-      <div id="banner"></div>
-      <div id="hint"></div>
-      <div id="help">
-        <b>WASD</b> move/drive · <b>Mouse</b> aim · <b>Click</b> shoot · <b>F</b> enter/exit car · <b>Space</b> handbrake ·
-        <b>H</b> horn · <b>Shift</b> run · <b>`</b> net stats · <b>N</b> mute
-      </div>
-    </div>
 
-    <div id="lobby">
-      <div class="panel">
-        <h1>PEER CITY</h1>
-        <p class="tag">A serverless open-world sandbox. Every player's browser simulates the city together.</p>
-        <label>Name <input id="name" maxlength="16" autocomplete="off" /></label>
-        <label
-          >Network
-          <select id="net">
-            <option value="online">Online (WebRTC via Trystero / Nostr)</option>
-            <option value="local">Local tabs (BroadcastChannel)</option>
-          </select>
-        </label>
-        <label>Shard <input id="room" maxlength="24" autocomplete="off" /></label>
-        <button id="play">PLAY</button>
-        <p class="small">Open more tabs or share the URL to add players. Peers connect only to others nearby in the world.</p>
-        <p class="small"><a href="./fps.html" style="color: #8fd3ff">First-person 3D / VR version →</a></p>
-      </div>
-    </div>
-
-    <script type="module" src="/src/game/main.ts"></script>
+      <footer>Built on p2p-game-engine: Phaser 4, three.js and Trystero.</footer>
+    </main>
   </body>
 </html>

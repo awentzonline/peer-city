@@ -16,6 +16,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        city: fileURLToPath(new URL('./city.html', import.meta.url)),
         fps: fileURLToPath(new URL('./fps.html', import.meta.url)),
         wilds: fileURLToPath(new URL('./wilds.html', import.meta.url)),
         derby: fileURLToPath(new URL('./derby.html', import.meta.url)),

@@ -10,7 +10,7 @@ public signalling (Nostr by default) and then talk directly over WebRTC data cha
 ```bash
 nvm use            # Node 20+ (repo pins 22)
 npm install
-npm run dev        # http://localhost:5173
+npm run dev        # http://localhost:5173 (index of games)
 npm test           # engine unit + multi-peer simulation tests
 npm run sim -- --peers 200 --seconds 40   # headless scale test
 ```
@@ -164,6 +164,8 @@ expose `media` (add/remove a `MediaStream` for one peer, receive theirs), which 
 ---
 
 ## Peer City (the demo)
+
+`/city.html` is the original top-down 2D sandbox.
 
 A procedurally generated city (seeded, so no map data is networked) with traffic that follows
 lanes and picks turns at intersections, pedestrians that roam sidewalks and flee from gunfire,
