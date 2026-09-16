@@ -10,6 +10,7 @@ import { debrisGeometry, disposeRacer, buildRacer, ghostCube, humanFor, sceneQua
 import { CELL, DIRS } from './parts';
 import { rotate } from './physics';
 import { designOf, quatOf } from './racer';
+import { ShelfViews } from './shelfView';
 
 /** What the views need from the local player's frontend. */
 export interface LocalView {
@@ -190,8 +191,11 @@ export function registerViews(ctx: DerbyContext, views: EntityViews, scene: THRE
   // parts torn off, flying about
   const debris: THREE.Mesh[] = [];
 
+  const shelves = new ShelfViews(scene, builder);
+
   return {
-    update: () => {
+    update: (dt) => {
+      shelves.update(dt);
       builder.aims.forEach((aim, i) => showGhost(ghosts[i], aim));
 
       const list = ctx.physics.debris;

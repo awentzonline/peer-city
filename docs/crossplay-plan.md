@@ -259,7 +259,23 @@ Decided by the project owner (2026-09-16):
   works best). A good phone version is the ideal for every game, but some games are weird enough that a phone
   can't do them full justice; then make the best one the game allows. Built as `derby/touch.ts` (below).
 - **Physics is trusted.** Owners simulate their own racers unchecked, and that's fine; no validation needed.
-- **Designs outlive the session.** First save and load them (locally), then share them (e.g. as codes).
+- **Designs outlive the session.** First save and load them (locally), then share them (e.g. as codes). Saving and
+  loading are built (below); codes aren't.
+
+### Derby design shelves, as built
+
+- **Diegetic, so every platform gets it for free.** Each bay has a shelf (`derby/shelf.ts` for the layout, picking and
+  storage, `shelfView.ts` for drawing): a SAVE plaque over each of four cubbies, and a turning model of the design
+  saved in each. The part gun and wrench press them, from a crosshair, a tap, or a tracked hand's laser, because
+  `aimBuild` picks the nearer of a racer's part and a shelf button. No platform had to change.
+- **Storage is a service in the context** (`DesignShelf`: `LocalShelf` in the browser, `MemoryShelf` in tests), like
+  settings: the rules save through it and never see `localStorage`. It also keeps the racer as last built, which
+  `Builder.spawn` restores.
+- **Saves replicate on the builder** (`save0`..`save3`, `t.bytes`), so friends see your models and can copy one onto
+  their own racer: a first, in-world kind of sharing. Only the owner can save on a shelf.
+- **Losing work takes two presses**: saving over a design, and loading over a racer that isn't saved anywhere.
+- Touch taps in the walking thumb's corner now count too (`TouchTuning.stickTaps`), since the lower cubbies (and
+  low racer parts) sit right there on screen.
 
 ### Derby on touch, as built
 

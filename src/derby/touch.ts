@@ -5,7 +5,7 @@ import { Platform } from '../crossplay/platform';
 import type { Rig } from '../crossplay/rig';
 import { Tilt } from '../crossplay/tilt';
 import type { Tool, UseEffect } from '../crossplay/tool';
-import { FIRE } from '../crossplay/touch';
+import { FIRE, TOUCH_TUNING } from '../crossplay/touch';
 import { TouchControls, type TouchButtonSpec } from '../crossplay/touchControls';
 import type { Builder, BuilderFrontend } from './builder';
 import { ChaseCamera } from './chase';
@@ -75,7 +75,7 @@ export class TouchBuilder implements BuilderFrontend {
     rig.setMode('desktop');
     this.held = new DesktopTool(rig);
     this.chase = new ChaseCamera(ctx, sim, rig);
-    this.controls = new TouchControls({ buttons: BUTTONS, onChip: (id) => this.chip(id) });
+    this.controls = new TouchControls({ buttons: BUTTONS, onChip: (id) => this.chip(id), tuning: { ...TOUCH_TUNING, stickTaps: true } });
     ctx.hud.message('Tap a racer to stick the part on where you tapped. Left thumb walks, right thumb looks.');
   }
 

@@ -94,6 +94,23 @@ describe('touch look and fire', () => {
     expect(t.pressed(FIRE)).toBe(false);
   });
 
+  it('can take a tap under the walking thumb too, where a game acts where the finger lands', () => {
+    const plain = new TouchInput();
+    plain.pointerDown(1, 100, 300, 'stick', 0);
+    plain.pointerUp(1, 100);
+    expect(plain.pressed(FIRE)).toBe(false);
+    const t = new TouchInput({ ...TOUCH_TUNING, stickTaps: true });
+    t.pointerDown(1, 100, 300, 'stick', 0);
+    t.pointerUp(1, 100);
+    expect(t.pressed(FIRE)).toBe(true);
+    expect(t.tapAt).toEqual({ x: 100, y: 300 });
+    // walking isn't a tap
+    t.endFrame();
+    walk(t, 0, -R);
+    t.pointerUp(1, 100);
+    expect(t.pressed(FIRE)).toBe(false);
+  });
+
   it('lets a second finger tap to fire while the first keeps aiming', () => {
     const t = new TouchInput();
     t.pointerDown(1, 500, 200, 'look', 0);

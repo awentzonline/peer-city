@@ -252,6 +252,22 @@ export function decodeDesign(bytes: Uint8Array): Design {
   return out;
 }
 
+/**
+ * A design that could have been built: the seat at the origin, no two parts in a cell, nothing out of reach,
+ * no more than fit, and only what hangs together with the seat. For designs from outside, such as storage.
+ */
+export function cleanDesign(design: Design): Design {
+  const out: Design = [{ x: 0, y: 0, z: 0, kind: PartKind.Seat, dir: Dir.PZ }];
+  for (const p of design) {
+    if (out.length >= MAX_PARTS) break;
+    if (p.kind === PartKind.Seat || partAt(out, p.x, p.y, p.z) >= 0) continue;
+    if (Math.abs(p.x) > EXTENT.x || Math.abs(p.y) > EXTENT.y || p.z < EXTENT.z[0] || p.z > EXTENT.z[1]) continue;
+    out.push(p);
+  }
+  const attached = connected(out, new Set());
+  return out.filter((_, i) => attached[i]);
+}
+
 export function partAt(design: Design, x: number, y: number, z: number): number {
   for (let i = 0; i < design.length; i++) {
     const p = design[i];

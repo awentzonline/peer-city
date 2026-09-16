@@ -5,6 +5,7 @@ import type { Builder, Race, Racer } from './defs';
 import type { Effects } from './effects';
 import type { Hud } from './hud';
 import type { Physics } from './physics';
+import type { DesignShelf } from './shelf';
 import type { Sfx } from './sfx';
 
 export { TAU, angleDiff, clamp, direction, headingToYaw, signedAngle, yawToHeading } from '../crossplay/math';
@@ -22,6 +23,8 @@ export interface DerbyContext {
   sfx: Sfx;
   hud: Hud;
   settings: Settings;
+  /** This player's saved designs, kept between visits. */
+  shelf: DesignShelf;
   fx: Effects;
   /** The local player's builder, and their racer. */
   me: BuilderEntity | null;

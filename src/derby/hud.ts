@@ -174,7 +174,8 @@ export class Hud {
         this.partsEl.appendChild(wrench);
       }
       const readyText = r.ready ? `READY · ${keys.ready} to keep building` : `${keys.ready} when you're ready to race`;
-      let hint = aim.problem ? problemText(aim.problem) : '';
+      const shelf = b.aims.find((x) => x.shelf)?.shelf;
+      let hint = shelf ? b.shelfText(shelf) : aim.problem ? problemText(aim.problem) : '';
       if (!hint && r.mode === RacerMode.Parked && (!race || race.state.phase === Phase.Building)) hint = readyText;
       if (!hint && race && race.state.phase !== Phase.Building) hint = 'A race is on: keep building for the next one';
       this.set('hint', hint, () => (this.hintEl.textContent = hint));

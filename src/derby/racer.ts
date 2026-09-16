@@ -6,6 +6,7 @@ import {
   DIRS,
   NO_BROKEN,
   PARTS,
+  cleanDesign,
   decodeDesign,
   designStats,
   encodeDesign,
@@ -124,10 +125,12 @@ export class RacerSim {
     return this.mode !== RacerMode.Parked;
   }
 
-  spawn(bay: number, builder: number, color: number): RacerEntity {
+  /** Into its bay, built as `design` if there is one (e.g. how it was left last time), or the starter cart. */
+  spawn(bay: number, builder: number, color: number, design: Uint8Array | null = null): RacerEntity {
     const { ctx } = this;
     const b = ctx.course.bay(bay);
-    this.entity = ctx.world.spawn(Racer, { x: b.x, y: b.y, z: b.z + 1, bay, builder, color, design: encodeDesign(starterDesign()), mode: RacerMode.Parked });
+    const parts = design?.length ? cleanDesign(decodeDesign(design)) : starterDesign();
+    this.entity = ctx.world.spawn(Racer, { x: b.x, y: b.y, z: b.z + 1, bay, builder, color, design: encodeDesign(parts), mode: RacerMode.Parked });
     this.entity.held = true;
     this.rebuild();
     this.park();
@@ -160,6 +163,17 @@ export class RacerSim {
     }
     if (!next) return false;
     e.state.design = encodeDesign(next);
+    e.state.ready = false;
+    this.rebuild();
+    this.park();
+    return true;
+  }
+
+  /** Rebuild it as a whole design, e.g. one off a shelf. Only while it's in its bay. Returns whether it could. */
+  loadDesign(design: Uint8Array): boolean {
+    const e = this.entity;
+    if (!e || this.mode !== RacerMode.Parked) return false;
+    e.state.design = encodeDesign(cleanDesign(decodeDesign(design)));
     e.state.ready = false;
     this.rebuild();
     this.park();

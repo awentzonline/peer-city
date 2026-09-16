@@ -24,6 +24,7 @@ import { RacerProxies } from './racer';
 import { Scenery } from './scenery';
 import type { Sfx } from './sfx';
 import { TouchBuilder } from './touch';
+import { LocalShelf } from './shelf';
 import { registerViews } from './views';
 import { VrBuilder } from './vr';
 
@@ -83,6 +84,7 @@ export class Game {
       sfx,
       hud,
       settings,
+      shelf: new LocalShelf(),
       fx: new Effects(stage.scene, course),
       me: null,
       racer: null,

@@ -23,6 +23,11 @@ export interface TouchTuning {
   tapSlop: number;
   /** Whether tapping the look zone fires at all. */
   tapToFire: boolean;
+  /**
+   * Whether a tap in the walk zone that doesn't walk fires too, for games where a tap acts where it lands
+   * (`tapAt`), so nothing under the walking thumb's corner is out of reach.
+   */
+  stickTaps: boolean;
 }
 
 export const TOUCH_TUNING: TouchTuning = {
@@ -33,6 +38,7 @@ export const TOUCH_TUNING: TouchTuning = {
   tapMs: 220,
   tapSlop: 14,
   tapToFire: true,
+  stickTaps: false,
 };
 
 /** The press that fires, whether it came from the fire button or a tap in the look zone. */
@@ -131,7 +137,8 @@ export class TouchInput {
     if (!f) return;
     this.fingers.delete(id);
     const { tuning } = this;
-    if (f.zone === 'look' && tuning.tapToFire && now - f.at <= tuning.tapMs && f.slop <= tuning.tapSlop) {
+    const tapped = now - f.at <= tuning.tapMs && f.slop <= tuning.tapSlop;
+    if (tapped && tuning.tapToFire && (f.zone === 'look' || tuning.stickTaps)) {
       this.tap(FIRE);
       this.tapAt = { x: f.ox, y: f.oy };
     }

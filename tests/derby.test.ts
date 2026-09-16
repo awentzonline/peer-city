@@ -14,6 +14,7 @@ import {
   Dir,
   MAX_PARTS,
   PartKind,
+  cleanDesign,
   connected,
   decodeDesign,
   designStats,
@@ -28,6 +29,7 @@ import {
 import { Physics, initPhysics, yawQuat } from '../src/derby/physics';
 import { COUNTDOWN, RaceKeeper, standings } from '../src/derby/race';
 import { RacerProxies, designOf } from '../src/derby/racer';
+import { MemoryShelf, ShelfAction, SHELF_SLOTS, pickShelf, sameBytes, shelves } from '../src/derby/shelf';
 import { Sim } from './harness';
 
 const course = new Course(7);
@@ -70,13 +72,13 @@ interface Player {
   messages: string[];
 }
 
-function player(net: Sim, id: string, name: string): Player {
+function player(net: Sim, id: string, name: string, shelf = new MemoryShelf()): Player {
   const world = net.add(id, { worldId: 'derby-test', entities: ENTITIES, actions: ACTIONS, zoneSize: 2048, cellSize: 512, interestRadius: 1400, spatialCellSize: 32 });
   const messages: string[] = [];
   const hud = { ...stub(), message: (text: string) => messages.push(text) };
   const physics = new Physics(course);
   const keeper = new RaceKeeper(world);
-  const ctx = { world, course, physics, sfx: stub(), hud, fx: stub(), settings: stub(), me: null, racer: null, playerName: name, now: net.now, race: () => keeper.race } as unknown as DerbyContext;
+  const ctx = { world, course, physics, sfx: stub(), hud, fx: stub(), settings: stub(), shelf, me: null, racer: null, playerName: name, now: net.now, race: () => keeper.race } as unknown as DerbyContext;
   const builder = new Builder(ctx);
   const body = new TestBody();
   builder.attach(body);
@@ -279,6 +281,97 @@ describe('Building by touch', () => {
     alice.intent.aim = null;
     run(net, [alice], 0.2);
     expect(designOf(alice.ctx.racer!, false).design.some((p) => p.kind === PartKind.Wing && p.x === 0 && p.y === 0 && p.z === 1)).toBe(true);
+  });
+});
+
+describe('Design shelves', () => {
+  it('clean up designs from outside: seat first, one part a cell, in reach, and attached', () => {
+    const design = cleanDesign([
+      { x: 1, y: 0, z: 0, kind: PartKind.Block, dir: Dir.PX },
+      { x: 1, y: 0, z: 0, kind: PartKind.Wheel, dir: Dir.PX },
+      { x: 5, y: 5, z: 0, kind: PartKind.Block, dir: Dir.PX },
+      { x: 40, y: 0, z: 0, kind: PartKind.Block, dir: Dir.PX },
+      { x: 3, y: 0, z: 0, kind: PartKind.Seat, dir: Dir.PZ },
+    ]);
+    expect(design).toEqual([
+      { x: 0, y: 0, z: 0, kind: PartKind.Seat, dir: Dir.PZ },
+      { x: 1, y: 0, z: 0, kind: PartKind.Block, dir: Dir.PX },
+    ]);
+  });
+
+  it('are found by a tool pointed at a SAVE plaque or a cubby', () => {
+    const shelf = shelves(course)[0];
+    const slot = shelf.slots[2];
+    const eye = { x: shelf.front + 3, y: slot.y, z: TOP + 1.65 };
+    const at = (z: number) => {
+      const d = { x: shelf.front - eye.x, y: 0, z: z - eye.z };
+      const n = Math.hypot(d.x, d.z);
+      return pickShelf(course, eye, { x: d.x / n, y: 0, z: d.z / n }, 7);
+    };
+    expect(at(TOP + 2.2)).toMatchObject({ bay: 0, slot: 2, action: ShelfAction.Save });
+    expect(at(TOP + 1.3)).toMatchObject({ bay: 0, slot: 2, action: ShelfAction.Load });
+    expect(at(TOP + 0.4)).toBeNull();
+    expect(shelf.slots).toHaveLength(SHELF_SLOTS);
+  });
+
+  it('save your racer, show it to everyone, and build it again', () => {
+    const net = new Sim();
+    const stored = new MemoryShelf();
+    const alice = player(net, 'alice', 'Alice', stored);
+    const bob = player(net, 'bob', 'Bob');
+    run(net, [alice, bob], 2);
+    const bay = alice.ctx.racer!.state.bay;
+    const b = alice.builder;
+    const starter = alice.ctx.racer!.state.design;
+
+    b.pressShelf({ bay, slot: 1, action: ShelfAction.Save, distance: 2 });
+    expect(sameBytes(stored.slots()[1], starter)).toBe(true);
+    run(net, [alice, bob], 1);
+    // Bob sees it on Alice's shelf, but can't save on it
+    expect(sameBytes(bob.builder.savedAt(bay, 1), starter)).toBe(true);
+    bob.builder.pressShelf({ bay, slot: 0, action: ShelfAction.Save, distance: 2 });
+    expect(bob.messages.at(-1)).toContain("Alice's shelf");
+
+    // Alice changes her racer, then asks for design 2 back: it isn't saved, so it takes a second go
+    b.edit(0, 0, 0, 1, Dir.PZ, PartKind.Balloon);
+    expect(designOf(alice.ctx.racer!, false).design).toHaveLength(8);
+    b.pressShelf({ bay, slot: 1, action: ShelfAction.Load, distance: 2 });
+    expect(designOf(alice.ctx.racer!, false).design).toHaveLength(8);
+    b.pressShelf({ bay, slot: 1, action: ShelfAction.Load, distance: 2 });
+    expect(sameBytes(alice.ctx.racer!.state.design, starter)).toBe(true);
+
+    // Bob copies Alice's balloon cart, after she saves it over design 1 (which takes a second press)
+    b.edit(0, 0, 0, 1, Dir.PZ, PartKind.Balloon);
+    b.pressShelf({ bay, slot: 1, action: ShelfAction.Save, distance: 2 });
+    expect(sameBytes(stored.slots()[1], starter)).toBe(true);
+    b.pressShelf({ bay, slot: 1, action: ShelfAction.Save, distance: 2 });
+    expect(sameBytes(stored.slots()[1], alice.ctx.racer!.state.design)).toBe(true);
+    run(net, [alice, bob], 1);
+    // Bob hasn't saved his own racer anywhere, so copying over it asks first too
+    bob.builder.pressShelf({ bay, slot: 1, action: ShelfAction.Load, distance: 2 });
+    bob.builder.pressShelf({ bay, slot: 1, action: ShelfAction.Load, distance: 2 });
+    expect(designOf(bob.ctx.racer!, false).design.some((p) => p.kind === PartKind.Balloon)).toBe(true);
+    expect(bob.messages.at(-1)).toContain("Copied Alice's design 2");
+  });
+
+  it('bring back your shelf and the racer you left, next time', () => {
+    const net = new Sim();
+    const stored = new MemoryShelf();
+    const alice = player(net, 'alice', 'Alice', stored);
+    run(net, [alice], 1);
+    alice.builder.edit(0, 0, 0, 1, Dir.PZ, PartKind.Rocket);
+    alice.builder.pressShelf({ bay: alice.ctx.racer!.state.bay, slot: 3, action: ShelfAction.Save, distance: 2 });
+    alice.builder.edit(0, -1, 0, 1, Dir.PZ, PartKind.Wing);
+    run(net, [alice], 0.5);
+
+    const later = new Sim();
+    const again = player(later, 'alice2', 'Alice', stored);
+    run(later, [again], 1);
+    const design = designOf(again.ctx.racer!, false).design;
+    expect(design.some((p) => p.kind === PartKind.Rocket) && design.some((p) => p.kind === PartKind.Wing)).toBe(true);
+    // design 4 was saved before the wing went on
+    const saved = decodeDesign(again.ctx.me!.state.save3);
+    expect(saved.some((p) => p.kind === PartKind.Rocket) && !saved.some((p) => p.kind === PartKind.Wing)).toBe(true);
   });
 });
 

@@ -400,6 +400,12 @@ npm run dev    # http://localhost:5173/derby.html
 **Building.** The part gun sticks the loaded part onto whichever face of a racer's part you point at, and the
 wrench takes parts off (with anything only held on by them). Anyone can build on anyone's racer.
 
+**Saving designs.** Beside every bay stands a shelf of four cubbies. Use either tool on a **SAVE** plaque to save
+your racer there, and a little model of it turns in the cubby below; use it on a model to rebuild your racer that
+way. Models on a friend's shelf can be copied onto your racer. Anything that would lose a design asks for a second
+press. The shelf and the racer you left are kept in your browser (`localStorage`) and come back next visit, on any
+hill: each builder carries their saves (`Builder.save0`..`save3`), so everyone sees the models.
+
 | Part | What it does |
 | --- | --- |
 | Crate | the frame everything's built from |

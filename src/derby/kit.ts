@@ -7,6 +7,7 @@ import { Edit, EditOp, Racer, RacerMode } from './defs';
 import { CELL, DIRS, Dir, PARTS, PROBLEM_TEXT, PartKind, placeProblem, type PlaceProblem } from './parts';
 import { rotate, type Quat } from './physics';
 import { designOf, quatOf } from './racer';
+import { pickShelf, type ShelfHit } from './shelf';
 
 /** How far the part gun and the wrench reach, m. */
 export const BUILD_REACH = 7;
@@ -29,10 +30,12 @@ export interface Aim {
   kind: PartKind | null;
   remove: boolean;
   problem: PlaceProblem | 'seat' | 'racing' | null;
+  /** A shelf's SAVE plaque or cubby, when that's nearer than any racer (and then `target` is null). */
+  shelf: ShelfHit | null;
 }
 
 export function noAim(): Aim {
-  return { target: null, cell: null, kind: null, remove: false, problem: null };
+  return { target: null, cell: null, kind: null, remove: false, problem: null, shelf: null };
 }
 
 const conj: Quat = { x: 0, y: 0, z: 0, w: 1 };
@@ -100,7 +103,10 @@ export function rayBox(o: Vec3, d: Vec3, cx: number, cy: number, cz: number, h: 
 
 /** Work out what a tool aimed from `use` would do, into `out`. */
 export function aimBuild(ctx: DerbyContext, use: ToolUse<Builder>, kind: PartKind | null, out: Aim): Aim {
-  const target = pickPart(ctx, use.origin, use.aim);
+  let target = pickPart(ctx, use.origin, use.aim);
+  const shelf = pickShelf(ctx.course, use.origin, use.aim, BUILD_REACH);
+  out.shelf = shelf && (!target || shelf.distance < target.distance) ? shelf : null;
+  if (out.shelf) target = null;
   out.target = target;
   out.kind = kind;
   out.remove = kind === null;
@@ -143,6 +149,7 @@ export class PartGun extends Tool<Builder> {
   override onUse(hand: Use): void {
     const b = hand.avatar;
     const aim = aimBuild(b.ctx, hand, b.part, b.aimFor(hand.side));
+    if (aim.shelf) return pressShelf(hand, aim.shelf);
     if (!aim.target || !aim.cell) return;
     if (aim.problem) {
       b.ctx.hud.message(problemText(aim.problem));
@@ -165,6 +172,7 @@ export class Wrench extends Tool<Builder> {
   override onUse(hand: Use): void {
     const b = hand.avatar;
     const aim = aimBuild(b.ctx, hand, null, b.aimFor(hand.side));
+    if (aim.shelf) return pressShelf(hand, aim.shelf);
     if (!aim.target) return;
     if (aim.problem) {
       b.ctx.hud.message(problemText(aim.problem));
@@ -177,6 +185,12 @@ export class Wrench extends Tool<Builder> {
     hand.effect({ kick: 0.6 });
     b.removed(aim);
   }
+}
+
+/** Either tool works the shelf's buttons: it's pointing, not building. */
+function pressShelf(hand: Use, hit: ShelfHit): void {
+  hand.effect({ kick: 0.15 });
+  hand.avatar.pressShelf(hit);
 }
 
 function gunGeometry(): THREE.BufferGeometry {

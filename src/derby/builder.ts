@@ -10,6 +10,11 @@ import { PART_GUN, TOOLS, noAim, type Aim } from './kit';
 import { CELL, PARTS, PLACEABLE, PartKind, designStats, type Dir } from './parts';
 import { rotate, uprightness } from './physics';
 import { RacerSim, designOf, quatOf, type RacerEvents } from './racer';
+import { ShelfAction, pushOut, sameBytes, shelves, type ShelfHit } from './shelf';
+
+/** A builder's replicated shelf, slot by slot. */
+export const SAVE_FIELDS = ['save0', 'save1', 'save2', 'save3'] as const;
+const EMPTY = new Uint8Array(0);
 
 /** Seated, the eyes are this far above the seat's middle. */
 export const SEAT_EYE = 0.95;
@@ -59,6 +64,10 @@ export class Builder extends Avatar<DerbyIntent, BuilderBody, Tool<Builder>> imp
   private wasSeated = false;
   private lastCount = -1;
   private readonly helpedAt = new Map<string, number>();
+  /** The design last handed to the shelf to keep, so it's only written when it changes. */
+  private kept: Uint8Array | null = null;
+  /** A shelf press that would lose a design, waiting for a second press to confirm it. */
+  private armed = { key: '', until: 0 };
 
   constructor(
     readonly ctx: DerbyContext,
@@ -107,8 +116,9 @@ export class Builder extends Avatar<DerbyIntent, BuilderBody, Tool<Builder>> imp
     }
   }
 
-  /** Keep out of racers sitting in their bays. */
+  /** Keep out of racers sitting in their bays, and the shelves beside them. */
   protected override collide(p: { x: number; y: number }): void {
+    for (const shelf of shelves(this.ctx.course)) pushOut(p, shelf.solid, RADIUS);
     for (const racer of this.ctx.world.query(p.x, p.y, 6, Racer)) {
       if (racer.render.mode !== RacerMode.Parked) continue;
       const s = racer.render;
@@ -151,8 +161,11 @@ export class Builder extends Avatar<DerbyIntent, BuilderBody, Tool<Builder>> imp
     const bay = this.freeBay();
     const stand = ctx.course.bayStand(bay);
     const skin = Math.floor(Math.random() * 30);
-    ctx.me = ctx.world.spawn(BuilderDef, { x: stand.x, y: stand.y, name: ctx.playerName, skin });
-    ctx.racer = this.racer.spawn(bay, ctx.me.id, skin);
+    const saves = ctx.shelf.slots();
+    const shelf = Object.fromEntries(SAVE_FIELDS.map((f, i) => [f, saves[i] ?? EMPTY]));
+    ctx.me = ctx.world.spawn(BuilderDef, { x: stand.x, y: stand.y, name: ctx.playerName, skin, ...shelf });
+    ctx.racer = this.racer.spawn(bay, ctx.me.id, skin, ctx.shelf.current());
+    this.kept = ctx.racer.state.design;
     ctx.me.state.racer = ctx.racer.id;
     this.heading = stand.heading;
     ctx.world.setFocus(stand.x, stand.y);
@@ -191,6 +204,7 @@ export class Builder extends Avatar<DerbyIntent, BuilderBody, Tool<Builder>> imp
     this.racer.wantsQuit = intent.quit;
     this.racer.update(dt, race);
     this.countdown(race);
+    this.keepDesign();
 
     if (this.racer.seated) {
       this.sit(intent);
@@ -318,6 +332,101 @@ export class Builder extends Avatar<DerbyIntent, BuilderBody, Tool<Builder>> imp
     }
     this.lastCount = n;
     this.body.countdown(n);
+  }
+
+  /** Hand the racer's design to the shelf whenever it's changed, so it's still there next time. */
+  private keepDesign(): void {
+    const design = this.ctx.racer?.state.design;
+    if (!design || design === this.kept || this.ctx.racer!.state.mode !== RacerMode.Parked) return;
+    this.kept = design;
+    this.ctx.shelf.keep(design);
+  }
+
+  /** Whose shelf a bay's is: the builder whose racer lives there. */
+  shelfOwner(bay: number): BuilderEntity | null {
+    const { ctx } = this;
+    if (ctx.racer?.state.bay === bay) return ctx.me;
+    for (const r of ctx.world.all(Racer)) {
+      if (r.state.bay !== bay) continue;
+      const b = ctx.world.getAs(BuilderDef, r.state.builder);
+      if (b) return b;
+    }
+    return null;
+  }
+
+  /** The design saved in a slot of a bay's shelf, or null for none. */
+  savedAt(bay: number, slot: number): Uint8Array | null {
+    const owner = this.shelfOwner(bay);
+    const bytes = owner?.state[SAVE_FIELDS[slot]];
+    return bytes?.length ? bytes : null;
+  }
+
+  /** What using a tool on a shelf would do, for the HUD. */
+  shelfText(hit: ShelfHit): string {
+    const owner = this.shelfOwner(hit.bay);
+    const n = hit.slot + 1;
+    if (!owner) return 'Nobody has this bay yet';
+    const mine = owner === this.me;
+    const saved = this.savedAt(hit.bay, hit.slot);
+    if (hit.action === ShelfAction.Save) {
+      if (!mine) return `${owner.state.name}'s shelf: save yours on your own, beside bay ${(this.ctx.racer?.state.bay ?? 0) + 1}`;
+      return saved ? `Save your racer over design ${n}` : `Save your racer as design ${n}`;
+    }
+    if (!saved) return mine ? `Design ${n}: nothing saved here yet` : `${owner.state.name} hasn't saved a design ${n}`;
+    return mine ? `Build your racer as design ${n}` : `Copy ${owner.state.name}'s design ${n} onto your racer`;
+  }
+
+  /** A tool was used on a shelf: save your racer to it, or build your racer from what's on it. */
+  pressShelf(hit: ShelfHit): void {
+    const { ctx } = this;
+    const racer = ctx.racer;
+    const me = this.me;
+    if (!racer || !me) return;
+    const owner = this.shelfOwner(hit.bay);
+    const n = hit.slot + 1;
+    const field = SAVE_FIELDS[hit.slot];
+    const current = racer.state.design;
+    const saved = this.savedAt(hit.bay, hit.slot);
+
+    if (hit.action === ShelfAction.Save) {
+      if (owner !== me) return this.refuse(this.shelfText(hit));
+      if (sameBytes(saved, current)) return this.refuse(`Design ${n} is already this racer`);
+      if (saved && !this.confirm(`save${hit.slot}`, `Save again to replace design ${n} with this racer`)) return;
+      me.state[field] = current;
+      ctx.shelf.save(hit.slot, current);
+      ctx.sfx.play('ready');
+      ctx.hud.message(`Saved your racer as design ${n}`);
+      return;
+    }
+
+    if (!saved) return this.refuse(this.shelfText(hit));
+    if (racer.state.mode !== RacerMode.Parked) return this.refuse('Not while your racer is out of its bay');
+    if (sameBytes(saved, current)) return this.refuse('Your racer is already built like that');
+    const unsaved = !SAVE_FIELDS.some((f) => sameBytes(me.state[f], current));
+    const whose = owner === me ? `design ${n}` : `${owner!.state.name}'s design ${n}`;
+    if (unsaved && !this.confirm(`load${hit.bay}:${hit.slot}`, `Your racer isn't saved: use ${whose} again to rebuild it anyway`)) return;
+    if (!this.racer.loadDesign(saved)) return;
+    ctx.sfx.play('place');
+    ctx.hud.message(owner === me ? `Rebuilt your racer as design ${n}` : `Copied ${whose} onto your racer`);
+  }
+
+  private refuse(text: string): void {
+    this.ctx.hud.message(text);
+    this.ctx.sfx.play('nope');
+  }
+
+  /** Whether this press confirms one made a moment ago; if not, ask for another. */
+  private confirm(key: string, ask: string): boolean {
+    const { ctx, armed } = this;
+    if (armed.key === key && ctx.now < armed.until) {
+      armed.key = '';
+      return true;
+    }
+    armed.key = key;
+    armed.until = ctx.now + 4000;
+    ctx.hud.message(ask);
+    ctx.sfx.play('switch');
+    return false;
   }
 
   /** The part gun stuck a part on. */

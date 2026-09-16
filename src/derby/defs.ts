@@ -19,6 +19,11 @@ export const Builder = defineEntity({
     skin: t.uint(8),
     racer: t.ref(),
     seated: t.bool(), // in their racer: drawn sitting in it, not standing
+    // the designs on their shelf (shelf.ts), empty for none
+    save0: t.bytes(1 + MAX_PARTS * 4),
+    save1: t.bytes(1 + MAX_PARTS * 4),
+    save2: t.bytes(1 + MAX_PARTS * 4),
+    save3: t.bytes(1 + MAX_PARTS * 4),
   },
   priority: 3,
   snapDistance: 12,
