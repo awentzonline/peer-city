@@ -1,8 +1,9 @@
-import { GRIP_IN_HAND, Holsters } from '../crossplay/holsters';
+import { Holsters } from '../crossplay/holsters';
 import { Side, handIntent, type HandIntent, type TrackedHead } from '../crossplay/intent';
 import { Platform } from '../crossplay/platform';
-import { Btn, type Rig, type XRHand, type XrPoseSource } from '../crossplay/rig';
+import { Btn, type Rig, type XrPoseSource } from '../crossplay/rig';
 import { VrSettings } from '../crossplay/settingsPanel';
+import { SnapTurn, readHand, readHead, deadzone } from '../crossplay/vrControls';
 import type { Tool, UseEffect } from '../crossplay/tool';
 import type { AvatarFrontend, AvatarSim } from './avatar';
 import { direction, type GameContext, type Vec3 } from './context';
@@ -10,10 +11,8 @@ import { idleIntent, type AvatarIntent } from './intent';
 import type { MinimapFeed } from './minimap';
 import { VrHud } from './vrhud';
 
-const SNAP_TURN = Math.PI / 6;
 const TRIGGER = 0.6;
 
-const deadzone = (v: number) => (Math.abs(v) < 0.15 ? 0 : v);
 
 /**
  * A headset. Walk round your room or use the left stick; the right stick snap-turns. Tools live in holsters
@@ -32,7 +31,7 @@ export class VrAvatar implements AvatarFrontend {
   private readonly intent = idleIntent();
   private readonly head: TrackedHead = { x: 0, y: 0, z: 0, heading: 0, pitch: 0 };
   private readonly hands: [HandIntent, HandIntent] = [handIntent(), handIntent()];
-  private turnArmed = true;
+  private readonly turn = new SnapTurn();
   private readonly tmp: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly dir: Vec3 = { x: 0, y: 0, z: 0 };
 
@@ -62,7 +61,7 @@ export class VrAvatar implements AvatarFrontend {
     const { rig, sim, intent } = this;
     this.source.read(rig, dt);
     const { left, right } = rig;
-    if (sim.onFoot) this.snapTurn(right.stickX);
+    if (sim.onFoot) this.turn.update(rig, right.stickX);
     if (sim.driving && left.pressed(Btn.B)) {
       rig.recenter();
       this.ctx.hud.message('Seat recentered');
@@ -71,9 +70,7 @@ export class VrAvatar implements AvatarFrontend {
     }
     const onMenu = this.menu.update(this.ctx.now);
 
-    rig.head(this.head);
-    this.head.heading = rig.headHeading();
-    this.head.pitch = rig.headPitch();
+    readHead(rig, this.head);
     intent.strafe = deadzone(left.stickX);
     intent.forward = -deadzone(left.stickY);
     intent.brake = right.down(Btn.Stick); // the grips are for grabbing tools
@@ -82,33 +79,14 @@ export class VrAvatar implements AvatarFrontend {
 
     // Holsters turn grips into which tool each hand holds; the rules only see what's in the hand.
     this.holsters.update(sim.inventory);
-    this.readHand(right, this.hands[Side.Right]);
-    this.readHand(left, this.hands[Side.Left]);
+    readHand(rig, this.holsters, right, this.hands[Side.Right], TRIGGER);
+    readHand(rig, this.holsters, left, this.hands[Side.Left], TRIGGER);
     // A trigger pulled at the settings panel is pressing a row, not firing what's in that hand.
     if (onMenu) {
       intent.interact = false;
       for (const hand of this.hands) hand.trigger = false;
     }
     return intent;
-  }
-
-  /** Spin the play space about the head. The rules never turn a headset; they just see it face a new way. */
-  private snapTurn(stick: number): void {
-    if (this.turnArmed && Math.abs(stick) > 0.7) {
-      this.rig.rotateAroundHead(stick > 0 ? -SNAP_TURN : SNAP_TURN);
-      this.turnArmed = false;
-    } else if (Math.abs(stick) < 0.3) {
-      this.turnArmed = true;
-    }
-  }
-
-  private readHand(hand: XRHand, out: HandIntent): void {
-    out.tracked = hand.connected;
-    out.tool = this.holsters.held(hand);
-    out.trigger = hand.trigger >= TRIGGER;
-    if (!hand.connected) return;
-    this.rig.handPose(hand, GRIP_IN_HAND, out.grip, out.pointing);
-    this.rig.handPose(hand, this.holsters.tip(hand), out.tip, out.aim, this.holsters.forward(hand));
   }
 
   present(dt: number): void {

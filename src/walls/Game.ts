@@ -112,7 +112,8 @@ export class Game {
         this.seat.step(dt);
         this.autosave();
       },
-      present: (dt) => {
+      present: (dt, now) => {
+        hud.tick(now);
         this.views.update(dt);
         this.extraViews.update(dt);
         this.seat.present(dt);

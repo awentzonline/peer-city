@@ -1,7 +1,8 @@
 import * as THREE from 'three';
+import { readMouseLook, readWalking } from '../crossplay/desktopControls';
 import { DesktopTool } from '../crossplay/desktopTool';
 import type { DesktopInput } from '../crossplay/input';
-import { idleIntent, type AvatarIntent, type Side } from '../crossplay/intent';
+import { idleIntent, stillIntent, type AvatarIntent, type Side } from '../crossplay/intent';
 import { toolMesh } from '../crossplay/models';
 import { Platform } from '../crossplay/platform';
 import type { Rig } from '../crossplay/rig';
@@ -12,7 +13,6 @@ import { AXE, BOW, HOE } from './kit';
 import { BowString } from './models';
 import type { Survivor, SurvivorFrontend } from './survivor';
 
-const MOUSE_SENSITIVITY = 0.0022;
 const VIEW_SCALE = new Map<Tool<any>, number>([
   [BOW, 0.3],
   [AXE, 0.5],
@@ -61,15 +61,9 @@ export class DesktopSurvivor implements SurvivorFrontend {
 
   read(): AvatarIntent {
     const { input: k, intent, sim } = this;
-    const key = (code: string) => (k.down(code) ? 1 : 0);
-    const [dx, dy] = k.consumeMouse();
-    intent.turn = dx * MOUSE_SENSITIVITY;
-    intent.lookUp = -dy * MOUSE_SENSITIVITY;
-    intent.strafe = key('KeyD') - key('KeyA');
-    intent.forward = key('KeyW') - key('KeyS');
-    intent.run = k.down('ShiftLeft') || k.down('ShiftRight');
+    readMouseLook(k, intent);
+    readWalking(k, intent);
     intent.crouch = k.down('KeyC') || k.down('ControlLeft');
-    intent.jump = k.pressed('Space');
     intent.interact = k.pressed('KeyE') || k.pressed('KeyF');
     intent.trigger = k.locked && k.mouse(0);
     intent.cycleTool = Math.sign(k.wheel());
@@ -93,10 +87,7 @@ export class DesktopSurvivor implements SurvivorFrontend {
 
   /** While a panel is open (the pack, the settings menu) you stand still and don't use anything: the mouse belongs to it. */
   private standStill(): void {
-    const { intent } = this;
-    Object.assign(intent, { turn: 0, lookUp: 0, strafe: 0, forward: 0, run: false, crouch: false, jump: false, interact: false, trigger: false });
-    intent.cycleTool = 0;
-    intent.selectTool = null;
+    stillIntent(this.intent);
   }
 
   present(dt: number): void {

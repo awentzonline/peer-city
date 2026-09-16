@@ -43,9 +43,9 @@ export const Animal = defineEntity({
     x: t.fixed(0.02),
     y: t.fixed(0.02),
     angle: t.angle(8),
-    kind: t.uint(8),
+    kind: t.enum<AnimalKind>(),
     hp: t.uint(8, 60),
-    mode: t.uint(8),
+    mode: t.enum<AnimalMode>(),
     target: t.ref(), // who it's running from or hunting (in the schema so it survives migration)
     tx: t.fixed(0.5), // where it's wandering to
     ty: t.fixed(0.5),
@@ -64,7 +64,7 @@ export const enum Crop {
 /** A tilled plot of soil, perhaps with a crop in it. Growth is worked out from `planted` on every peer, so nothing ticks. */
 export const Plot = defineEntity({
   name: 'plot',
-  fields: { x: t.fixed(0.05), y: t.fixed(0.05), crop: t.uint(8), planted: t.uint(32) },
+  fields: { x: t.fixed(0.05), y: t.fixed(0.05), crop: t.enum<Crop>(), planted: t.uint(32) },
   migratable: true,
   interpolate: [],
 });
@@ -118,7 +118,7 @@ export const Damage = defineCommand('damage', {
 });
 
 /** A victim's owner tells the attacker's owner they brought down an animal. */
-export const Hunted = defineCommand('hunted', { attacker: t.ref(), kind: t.uint(8) }, { target: 'attacker' });
+export const Hunted = defineCommand('hunted', { attacker: t.ref(), kind: t.enum<AnimalKind>() }, { target: 'attacker' });
 
 /** Carve a portion of meat off a carcass, which drops beside it. */
 export const Butcher = defineCommand('butcher', { animal: t.ref() }, { target: 'animal' });

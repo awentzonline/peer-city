@@ -1,6 +1,7 @@
 import { DesktopTool } from '../crossplay/desktopTool';
+import { MOUSE_SENSITIVITY, readWalking } from '../crossplay/desktopControls';
 import type { DesktopInput } from '../crossplay/input';
-import type { Side } from '../crossplay/intent';
+import { stillIntent, type Side } from '../crossplay/intent';
 import { Platform } from '../crossplay/platform';
 import type { Rig } from '../crossplay/rig';
 import type { Tool, UseEffect } from '../crossplay/tool';
@@ -11,8 +12,6 @@ import { RacerMode } from './defs';
 import { idleDerbyIntent, type DerbyIntent } from './intent';
 import { PART_GUN, WRENCH } from './kit';
 import { PLACEABLE } from './parts';
-
-const MOUSE_SENSITIVITY = 0.0022;
 
 const BUILD_HELP =
   '<b>WASD</b> move · <b>Mouse</b> look · <b>Click</b> place / remove · <b>1-9</b> parts · <b>Wheel</b> next part · <b>X</b> wrench · <b>F</b> ready · <b>Esc</b> settings · <b>V</b> mic';
@@ -63,11 +62,8 @@ export class DesktopBuilder implements BuilderFrontend {
     const key = (code: string) => (k.down(code) ? 1 : 0);
     const busy = this.ctx.settings.open;
     const [dx, dy] = k.consumeMouse();
-    Object.assign(intent, { turn: 0, lookUp: 0, strafe: 0, forward: 0, run: false, crouch: false, jump: false, trigger: false, steer: 0, brake: false, push: false, boost: false, reset: false, quit: false, ready: false });
-    intent.part = null;
-    intent.cyclePart = 0;
-    intent.selectTool = null;
-    intent.cycleTool = 0;
+    stillIntent(intent);
+    Object.assign(intent, { steer: 0, brake: false, push: false, boost: false, reset: false, quit: false, ready: false, part: null, cyclePart: 0 });
     if (busy) return intent;
 
     if (sim.seated) {
@@ -84,10 +80,7 @@ export class DesktopBuilder implements BuilderFrontend {
 
     intent.turn = dx * MOUSE_SENSITIVITY;
     intent.lookUp = -dy * MOUSE_SENSITIVITY;
-    intent.strafe = key('KeyD') - key('KeyA');
-    intent.forward = key('KeyW') - key('KeyS');
-    intent.run = k.down('ShiftLeft') || k.down('ShiftRight');
-    intent.jump = k.pressed('Space');
+    readWalking(k, intent);
     intent.trigger = k.locked && k.mouse(0);
     intent.ready = k.pressed('KeyF');
     for (let i = 0; i < PLACEABLE.length && i < 9; i++) if (k.pressed(`Digit${i + 1}`)) intent.part = PLACEABLE[i];

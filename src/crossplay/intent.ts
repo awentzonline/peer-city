@@ -80,6 +80,20 @@ export function handIntent(): HandIntent {
   return { tracked: false, grip: vec(), pointing: { x: 1, y: 0, z: 0 }, tip: vec(), aim: { x: 1, y: 0, z: 0 }, tool: null, trigger: false, grab: false };
 }
 
+/**
+ * Clear what the player's asking the body to do this frame (looking, moving, using, switching tools), keeping the
+ * device's poses (`head`, `hands`, `tip`). For a frontend whose player is busy with a menu, or starting a frame.
+ * A game's own fields are the game's to clear.
+ */
+export function stillIntent<I extends AvatarIntent>(intent: I): I {
+  intent.turn = intent.lookUp = intent.strafe = intent.forward = 0;
+  intent.run = intent.crouch = intent.jump = intent.interact = intent.trigger = false;
+  intent.aim = null;
+  intent.cycleTool = 0;
+  intent.selectTool = null;
+  return intent;
+}
+
 /** Nothing pressed, with a virtual head and a crosshair. Frontends keep one and overwrite it every frame. */
 export function idleIntent(): AvatarIntent {
   return {

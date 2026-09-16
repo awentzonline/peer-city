@@ -47,11 +47,11 @@ export const Car = defineEntity({
     y: t.fixed(0.02),
     angle: t.angle(12),
     speed: t.fixed(0.05, 0, 'none'),
-    kind: t.uint(8),
+    kind: t.enum<CarKind>(),
     color: t.uint(8),
     hp: t.uint(8, 100),
     driver: t.ref(),
-    mode: t.uint(8),
+    mode: t.enum<CarMode>(),
     // Traffic AI state lives in the schema so it survives migration to another peer.
     dir: t.uint(8), // 0 E, 1 S, 2 W, 3 N
     ri: t.uint(8), // road index
@@ -81,7 +81,7 @@ export const Ped = defineEntity({
     angle: t.angle(8),
     skin: t.uint(8),
     hp: t.uint(8, 30),
-    mode: t.uint(8),
+    mode: t.enum<PedMode>(),
     tx: t.uint(16), // target tile
     ty: t.uint(16),
     cop: t.bool(),
@@ -100,7 +100,7 @@ export const enum PickupKind {
 
 export const Pickup = defineEntity({
   name: 'pickup',
-  fields: { x: t.fixed(0.05), y: t.fixed(0.05), kind: t.uint(8), amount: t.uint(16), tool: t.uint(8) },
+  fields: { x: t.fixed(0.05), y: t.fixed(0.05), kind: t.enum<PickupKind>(), amount: t.uint(16), tool: t.uint(8) },
   migratable: true,
   cullDistance: 210,
   interpolate: [],
@@ -125,7 +125,7 @@ export const Shot = defineAction('shot', {
   yaw: t.angle(14),
   pitch: t.angle(14),
   dist: t.fixed(0.05),
-  impact: t.uint(8),
+  impact: t.enum<Impact>(),
   shooter: t.ref(),
   tool: t.uint(8), // the gun's tool id, for its sound
   quiet: t.bool(), // extra shotgun pellets: tracer only
@@ -142,7 +142,7 @@ export const Damage = defineCommand('damage', {
   target: t.ref(),
   amount: t.uint(8),
   attacker: t.ref(), // player entity id (0 = world/NPC)
-  cause: t.uint(8),
+  cause: t.enum<DamageCause>(),
   kx: t.fixed(0.05), // knockback impulse, m/s
   ky: t.fixed(0.05),
   head: t.bool(),

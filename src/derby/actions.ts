@@ -1,7 +1,6 @@
 import type { Builder } from './builder';
 import type { DerbyContext } from './context';
 import { Edit, Feed, Racer, Shatter } from './defs';
-import type { Dir, PartKind } from './parts';
 import { throwShattered } from './racer';
 
 /**
@@ -16,7 +15,7 @@ export function registerActions(ctx: DerbyContext, builder: Builder): void {
   world.onCommand(Edit, Racer, (racer, p, from) => {
     if (racer !== ctx.racer) return;
     const before = racer.state.design;
-    builder.edit(p.op, p.x, p.y, p.z, p.dir as Dir, p.kind as PartKind);
+    builder.edit(p.op, p.x, p.y, p.z, p.dir, p.kind);
     // someone else built on your racer: say so, once in a while
     if (racer.state.design !== before && !from.local) builder.helped(from.from);
   });

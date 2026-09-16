@@ -12,9 +12,9 @@ export interface ViewFactory<S, V> {
 }
 
 /**
- * Binds entity lifecycles to renderer objects so game code never tracks
- * spawn/despawn bookkeeping by hand. Renderer-agnostic, but designed for
- * Phaser GameObjects.
+ * Binds entity lifecycles to renderer objects (three.js meshes, Phaser
+ * GameObjects, DOM...) so game code never tracks spawn/despawn bookkeeping by
+ * hand.
  */
 export class EntityViews {
   private factories = new Map<EntityDef<any>, ViewFactory<any, any>>();

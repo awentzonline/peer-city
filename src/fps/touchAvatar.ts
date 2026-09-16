@@ -1,5 +1,5 @@
 import { DesktopTool } from '../crossplay/desktopTool';
-import type { Side } from '../crossplay/intent';
+import { stillIntent, type Side } from '../crossplay/intent';
 import { Platform } from '../crossplay/platform';
 import type { Rig } from '../crossplay/rig';
 import type { Tool, UseEffect } from '../crossplay/tool';
@@ -107,9 +107,9 @@ export class TouchAvatar implements AvatarFrontend {
   /** While the settings menu is open you stand still and don't use anything: the screen belongs to it. */
   private standStill(): void {
     const { intent } = this;
-    Object.assign(intent, { turn: 0, lookUp: 0, strafe: 0, forward: 0, run: false, jump: false, brake: false, horn: false, interact: false, trigger: false });
-    intent.cycleTool = 0;
-    intent.selectTool = null;
+    stillIntent(intent);
+    intent.crouch = this.crouching;
+    intent.brake = intent.horn = false;
   }
 
   present(dt: number): void {
@@ -170,7 +170,7 @@ export class TouchAvatar implements AvatarFrontend {
 
   used(_side: Side | null, _tool: Tool, effect: UseEffect): void {
     this.held.recoil(effect.kick);
-    if (effect.hit && effect.hit !== 'miss') this.ctx.hud.hitMarker(effect.hit === 'head');
+    if (effect.hit && effect.hit !== 'miss') this.ctx.hud.hitMarker(effect.hit === 'head' ? 'head' : 'hit');
   }
 
   died(): void {

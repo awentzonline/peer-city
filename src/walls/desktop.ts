@@ -1,6 +1,7 @@
 import { DesktopTool } from '../crossplay/desktopTool';
+import { readMouseLook, readWalking } from '../crossplay/desktopControls';
 import type { DesktopInput } from '../crossplay/input';
-import type { Side } from '../crossplay/intent';
+import { stillIntent, type Side } from '../crossplay/intent';
 import { Platform } from '../crossplay/platform';
 import type { Rig } from '../crossplay/rig';
 import type { Tool, UseEffect } from '../crossplay/tool';
@@ -8,8 +9,6 @@ import { direction, type Vec3, type WallsContext } from './context';
 import { idleWallsIntent, type WallsIntent } from './intent';
 import { MARKER_PEN, PAINT_ROLLER, SPRAY_CAN } from './kit';
 import type { Painter, PainterFrontend } from './painter';
-
-const MOUSE_SENSITIVITY = 0.0022;
 
 /** Paint tools are held lower and further out than a gun, so the wall you're painting isn't behind them. */
 export function lowerTool(held: DesktopTool): void {
@@ -49,21 +48,17 @@ export class DesktopPainter implements PainterFrontend {
 
   read(): WallsIntent {
     const { input: k, intent, sim } = this;
-    const key = (code: string) => (k.down(code) ? 1 : 0);
-    const [dx, dy] = k.consumeMouse();
     const wheel = Math.sign(k.wheel());
-    Object.assign(intent, { turn: 0, lookUp: 0, strafe: 0, forward: 0, run: false, crouch: false, jump: false, trigger: false, cycleColor: 0, cycleSize: 0 });
-    intent.selectTool = null;
-    intent.color = null;
-    if (this.ctx.settings.open) return intent;
+    stillIntent(intent);
+    Object.assign(intent, { color: null, cycleColor: 0, cycleSize: 0 });
+    if (this.ctx.settings.open) {
+      k.consumeMouse(); // the menu has the mouse
+      return intent;
+    }
 
-    intent.turn = dx * MOUSE_SENSITIVITY;
-    intent.lookUp = -dy * MOUSE_SENSITIVITY;
-    intent.strafe = key('KeyD') - key('KeyA');
-    intent.forward = key('KeyW') - key('KeyS');
-    intent.run = k.down('ShiftLeft') || k.down('ShiftRight');
+    readMouseLook(k, intent);
+    readWalking(k, intent);
     intent.crouch = k.down('KeyC') || k.down('ControlLeft');
-    intent.jump = k.pressed('Space');
     intent.trigger = k.locked && k.mouse(0);
     if (k.pressed('Digit1')) intent.selectTool = SPRAY_CAN;
     if (k.pressed('Digit2')) intent.selectTool = MARKER_PEN;

@@ -102,6 +102,17 @@ export class ByteWriter {
     return this;
   }
 
+  /** A string of char codes 0-255, one byte each (see `latin1` in schema.ts). */
+  charCodes(s: string): this {
+    const n = s.length;
+    this.ensure(n);
+    const buf = this.buf;
+    let at = this.length;
+    for (let i = 0; i < n; i++) buf[at++] = s.charCodeAt(i);
+    this.length = at;
+    return this;
+  }
+
   /** Copy of the written bytes. */
   finish(): Uint8Array {
     return this.buf.slice(0, this.length);

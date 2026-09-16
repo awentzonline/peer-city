@@ -1,6 +1,7 @@
 import { DesktopTool } from '../crossplay/desktopTool';
+import { readMouseLook, readWalking } from '../crossplay/desktopControls';
 import type { DesktopInput } from '../crossplay/input';
-import type { Side } from '../crossplay/intent';
+import { stillIntent, type Side } from '../crossplay/intent';
 import { Platform } from '../crossplay/platform';
 import type { Rig } from '../crossplay/rig';
 import type { Tool, UseEffect } from '../crossplay/tool';
@@ -8,8 +9,6 @@ import type { AvatarFrontend, AvatarSim } from './avatar';
 import { direction, type GameContext, type Vec3 } from './context';
 import { idleIntent, type AvatarIntent } from './intent';
 import type { MinimapFeed } from './minimap';
-
-const MOUSE_SENSITIVITY = 0.0022;
 
 /**
  * Keyboard and mouse. First person with a crosshair: tools are used from your eyes through the middle of
@@ -48,14 +47,8 @@ export class DesktopAvatar implements AvatarFrontend {
 
   read(): AvatarIntent {
     const { input: k, intent, sim } = this;
-    const key = (code: string) => (k.down(code) ? 1 : 0);
-    const [dx, dy] = k.consumeMouse();
-    intent.turn = dx * MOUSE_SENSITIVITY;
-    intent.lookUp = -dy * MOUSE_SENSITIVITY;
-    intent.strafe = key('KeyD') - key('KeyA');
-    intent.forward = key('KeyW') - key('KeyS');
-    intent.run = k.down('ShiftLeft') || k.down('ShiftRight');
-    intent.jump = k.pressed('Space');
+    readMouseLook(k, intent);
+    readWalking(k, intent);
     intent.brake = k.down('Space');
     intent.horn = k.pressed('KeyH');
     intent.interact = k.pressed('KeyF') || k.pressed('KeyE');
@@ -74,9 +67,8 @@ export class DesktopAvatar implements AvatarFrontend {
   /** While the settings menu is open you stand still and don't use anything: the mouse belongs to it. */
   private standStill(): void {
     const { intent } = this;
-    Object.assign(intent, { turn: 0, lookUp: 0, strafe: 0, forward: 0, run: false, jump: false, brake: false, horn: false, interact: false, trigger: false });
-    intent.cycleTool = 0;
-    intent.selectTool = null;
+    stillIntent(intent);
+    intent.brake = intent.horn = false;
   }
 
   present(dt: number): void {
@@ -120,7 +112,7 @@ export class DesktopAvatar implements AvatarFrontend {
 
   used(_side: Side | null, _tool: Tool, effect: UseEffect): void {
     this.held.recoil(effect.kick);
-    if (effect.hit && effect.hit !== 'miss') this.ctx.hud.hitMarker(effect.hit === 'head');
+    if (effect.hit && effect.hit !== 'miss') this.ctx.hud.hitMarker(effect.hit === 'head' ? 'head' : 'hit');
   }
 
   died(): void {

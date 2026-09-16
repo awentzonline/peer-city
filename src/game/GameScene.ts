@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { EntityViews } from '@engine/phaser/EntityViews';
+import { EntityViews } from '@engine/views/EntityViews';
 import { NetDebugPanel } from '@engine/ui/NetDebugPanel';
 import type { NetWorld } from '@engine/index';
 import { TILE, type City } from './city';

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { DesktopTool } from '../crossplay/desktopTool';
-import type { Side } from '../crossplay/intent';
+import { stillIntent, type Side } from '../crossplay/intent';
 import { Platform } from '../crossplay/platform';
 import type { Rig } from '../crossplay/rig';
 import type { Tool, UseEffect } from '../crossplay/tool';
@@ -71,8 +71,8 @@ export class TouchPainter implements PainterFrontend {
   read(): WallsIntent {
     const { controls, intent, sim } = this;
     const t = controls.input;
-    Object.assign(intent, { turn: 0, lookUp: 0, strafe: 0, forward: 0, run: false, crouch: false, jump: false, trigger: false, aim: null, cycleColor: 0, cycleSize: 0 });
-    intent.selectTool = null;
+    stillIntent(intent);
+    Object.assign(intent, { cycleColor: 0, cycleSize: 0 });
     intent.color = this.picked;
     this.picked = null;
     if (this.ctx.settings.open) {

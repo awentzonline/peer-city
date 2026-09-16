@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { DesktopTool } from '../crossplay/desktopTool';
-import type { Side } from '../crossplay/intent';
+import { stillIntent, type Side } from '../crossplay/intent';
 import { Platform } from '../crossplay/platform';
 import type { Rig } from '../crossplay/rig';
 import { Tilt } from '../crossplay/tilt';
@@ -114,11 +114,8 @@ export class TouchBuilder implements BuilderFrontend {
   read(): DerbyIntent {
     const { controls, intent, sim } = this;
     const t = controls.input;
-    Object.assign(intent, { turn: 0, lookUp: 0, strafe: 0, forward: 0, run: false, crouch: false, jump: false, trigger: false, aim: null, steer: 0, brake: false, push: false, boost: false, reset: false, quit: false, ready: false });
-    intent.part = null;
-    intent.cyclePart = 0;
-    intent.selectTool = null;
-    intent.cycleTool = 0;
+    stillIntent(intent);
+    Object.assign(intent, { steer: 0, brake: false, push: false, boost: false, reset: false, quit: false, ready: false, part: null, cyclePart: 0 });
     const quit = this.wantsQuit;
     this.wantsQuit = false;
     if (this.ctx.settings.open) {

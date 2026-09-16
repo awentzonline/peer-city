@@ -252,6 +252,8 @@ export class NetWorld {
   private requestSeq = 1;
   private readonly scratch = new ByteWriter(256);
   private readonly queryBuf: NetEntity<any>[] = [];
+  private readonly countBuf: NetEntity<any>[] = [];
+  private counting = 0;
   private readonly wants: Want[] = [];
   /** Reused Want records, so replication doesn't allocate per entity per peer per tick. */
   private readonly wantPool: Want[] = [];
@@ -410,6 +412,23 @@ export class NetWorld {
     }
     buf.length = 0;
     return out;
+  }
+
+  /** How many entities are within `r` of a point (optionally of one type, and that `accept` likes), without building a list. */
+  count<S extends Shape>(x: number, y: number, r: number, def?: EntityDef<S>, accept?: (e: NetEntity<Infer<S>>) => boolean): number {
+    // `accept` may count again: only the outermost call reuses the buffer.
+    const buf = this.spatial.queryRadius(x, y, r, this.counting++ ? [] : this.countBuf);
+    const r2 = r * r;
+    let n = 0;
+    try {
+      for (const e of buf) {
+        if ((!def || e.def === def) && e.alive && dist2(e.x, e.y, x, y) <= r2 && (!accept || accept(e as NetEntity<Infer<S>>))) n++;
+      }
+    } finally {
+      buf.length = 0;
+      this.counting--;
+    }
+    return n;
   }
 
   /** True if this peer or any connected peer focuses within `r` of the point. */
@@ -751,6 +770,9 @@ export class NetWorld {
   }
 
   private rebalance(now: number): void {
+    // Entities share zones and cells, so work each out once per pass rather than once per entity.
+    const candidatesByZone = new Map<string, string[]>();
+    const desiredByCell = new Map<string, string | null>();
     for (const e of [...this.allOwned]) {
       if (!e.def.migratable || e.held) continue;
       if (e.def.cullDistance !== Infinity && !this.isObserved(e.stateX, e.stateY, e.def.cullDistance)) {
@@ -758,7 +780,8 @@ export class NetWorld {
         continue;
       }
       const zk = this.zoneKey(e.stateX, e.stateY);
-      const candidates = this.zoneCandidates(zk);
+      let candidates = candidatesByZone.get(zk);
+      if (!candidates) candidatesByZone.set(zk, (candidates = this.zoneCandidates(zk)));
       if (!this.mesh.isJoined(zk) && candidates.length === 0) {
         // Wandered somewhere nobody (that we know of) can see.
         if (now - e._handoffSince > this.handoffDwellMs && e._handoffTo === '') this.despawn(e);
@@ -768,7 +791,10 @@ export class NetWorld {
         }
         continue;
       }
-      const desired = rendezvous(this.cellKey(e), candidates);
+      const cell = this.cellKey(e);
+      const key = `${zk}|${cell}`; // a cell can straddle zones when zoneSize isn't a multiple of cellSize
+      let desired = desiredByCell.get(key);
+      if (desired === undefined) desiredByCell.set(key, (desired = rendezvous(cell, candidates)));
       if (!desired || desired === this.selfId) {
         e._handoffTo = null;
         continue;
@@ -1221,9 +1247,7 @@ export class NetWorld {
     const state = e.state as Record<string, unknown>;
     const render = e.render as Record<string, unknown>;
     // non-interpolated fields apply immediately
-    for (let i = 0; i < keys.length; i++) {
-      if (!def.interpIdx.includes(i)) render[keys[i]] = state[keys[i]];
-    }
+    for (const i of def.plainIdx) render[keys[i]] = state[keys[i]];
     const buf = e._buf;
     if (!buf) return;
     const jump = dist2(e.stateX, e.stateY, e.x, e.y);

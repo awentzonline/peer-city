@@ -1,4 +1,4 @@
-import { disposePanel, panel } from '../crossplay/panel';
+import { HeadsetHud } from '../crossplay/headsetHud';
 import type { Rig } from '../crossplay/rig';
 import type { Builder } from './builder';
 import type { Hud } from './hud';
@@ -9,50 +9,32 @@ import { PARTS, PLACEABLE } from './parts';
  * racer adds up) and a head-locked strip for banners, hints and messages.
  */
 export class Wrist {
-  private readonly watch = panel(0.22, 0.22, 512, 512, false);
-  private readonly info = panel(1.2, 0.6, 1024, 512, true);
+  private readonly panels: HeadsetHud;
   private drawnVersion = -1;
   private drawnPart = -1;
-  private infoHasContent = false;
 
   constructor(
-    private readonly rig: Rig,
+    rig: Rig,
     private readonly hud: Hud,
   ) {
-    this.watch.mesh.position.set(0, 0.05, 0.16);
-    this.watch.mesh.rotation.x = -Math.PI / 2 + 0.5;
-    rig.left.object.add(this.watch.mesh);
-    this.info.mesh.position.set(0, -0.12, -1.5);
-    rig.camera.add(this.info.mesh);
+    this.panels = new HeadsetHud(rig, hud, 0.22);
   }
 
   update(now: number, builder: Builder): void {
-    this.watch.mesh.visible = this.rig.left.connected;
-    if (this.hud.version === this.drawnVersion && builder.part === this.drawnPart) {
-      this.info.mesh.visible = this.infoHasContent;
-      return;
-    }
+    if (!this.panels.update(now)) return;
+    if (this.hud.version === this.drawnVersion && builder.part === this.drawnPart) return;
     this.drawnVersion = this.hud.version;
     this.drawnPart = builder.part;
     this.drawWatch(builder);
-    this.drawInfo(now);
-    this.info.mesh.visible = this.infoHasContent;
   }
 
   dispose(): void {
-    disposePanel(this.watch);
-    disposePanel(this.info);
+    this.panels.dispose();
   }
 
   private drawWatch(builder: Builder): void {
-    const { ctx, tex } = this.watch;
     const hud = this.hud;
-    ctx.clearRect(0, 0, 512, 512);
-    ctx.fillStyle = 'rgba(20,24,30,0.9)';
-    ctx.beginPath();
-    ctx.roundRect(6, 6, 500, 500, 44);
-    ctx.fill();
-    ctx.textAlign = 'left';
+    const ctx = this.panels.face('rgba(20,24,30,0.9)');
     ctx.fillStyle = '#f5c542';
     ctx.font = 'bold 30px Trebuchet MS, sans-serif';
     ctx.fillText(hud.phase, 30, 56, 452);
@@ -88,49 +70,6 @@ export class Wrist {
         ctx.fillText(PARTS[kind].name, x + 10, y + 68, 124);
       });
     }
-    tex.needsUpdate = true;
-  }
-
-  private drawInfo(now: number): void {
-    const { ctx, tex } = this.info;
-    const hud = this.hud;
-    ctx.clearRect(0, 0, 1024, 512);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    let any = false;
-    if (hud.banner.text && hud.banner.until > now) {
-      ctx.font = 'bold 130px Trebuchet MS, sans-serif';
-      ctx.lineWidth = 12;
-      ctx.strokeStyle = '#000';
-      ctx.strokeText(hud.banner.text, 512, 170);
-      ctx.fillStyle = hud.banner.color;
-      ctx.fillText(hud.banner.text, 512, 170);
-      any = true;
-    }
-    if (hud.hint) {
-      ctx.font = 'bold 40px Trebuchet MS, sans-serif';
-      const w = ctx.measureText(hud.hint).width + 60;
-      ctx.fillStyle = 'rgba(0,0,0,0.55)';
-      ctx.beginPath();
-      ctx.roundRect(512 - w / 2, 300, w, 70, 20);
-      ctx.fill();
-      ctx.fillStyle = '#fff';
-      ctx.fillText(hud.hint, 512, 336);
-      any = true;
-    }
-    ctx.font = '32px Trebuchet MS, sans-serif';
-    hud.feed
-      .filter((line) => line.until > now)
-      .slice(-2)
-      .forEach((line, i) => {
-        ctx.lineWidth = 6;
-        ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-        ctx.strokeText(line.text, 512, 420 + i * 44);
-        ctx.fillStyle = '#fff';
-        ctx.fillText(line.text, 512, 420 + i * 44);
-        any = true;
-      });
-    this.infoHasContent = any;
-    tex.needsUpdate = true;
+    this.panels.watch.tex.needsUpdate = true;
   }
 }

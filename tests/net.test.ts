@@ -48,7 +48,30 @@ describe('codec', () => {
   });
 });
 
+describe('enum fields', () => {
+  it('round-trip in a byte', () => {
+    const enum Mood {
+      Calm = 0,
+      Angry = 2,
+    }
+    const f = t.enum<Mood>(Mood.Calm);
+    const w = new ByteWriter();
+    f.write(w, f.quantize(Mood.Angry));
+    expect(f.dequantize(f.read(new ByteReader(w.finish())))).toBe(Mood.Angry);
+    expect(w.length).toBe(1);
+  });
+});
+
 describe('bytes fields', () => {
+  it('round-trip blobs bigger than one conversion chunk', () => {
+    const f = t.bytes(64000);
+    const blob = new Uint8Array(20000).map((_, i) => (i * 131) & 255);
+    const w = new ByteWriter();
+    f.write(w, f.quantize(blob));
+    expect([...f.dequantize(f.read(new ByteReader(w.finish())))]).toEqual([...blob]);
+  });
+
+
   it('round-trip a blob, diff by contents, and clip to the limit', () => {
     const f = t.bytes(4);
     const blob = new Uint8Array([0, 7, 200, 255]);
@@ -472,5 +495,19 @@ describe('commands, locks, singletons and tracking', () => {
     expect(Mind.of(two)).toEqual({ fleeUntil: 0 });
     expect(Memory.of(one).seen).toBe(3);
     expect(Memory.of(two).seen).toBeUndefined();
+  });
+
+  it('counts entities near a point without building a list, even when the filter counts too', () => {
+    const sim = new Sim();
+    const a = sim.add('a', base);
+    for (let i = 0; i < 5; i++) a.spawn(Crate, { x: i * 10, y: 0, color: i % 2 });
+    a.spawn(Avatar, { x: 0, y: 0 });
+    sim.run(50);
+    expect(a.count(0, 0, 25)).toBe(4);
+    expect(a.count(0, 0, 25, Crate)).toBe(3);
+    expect(a.count(0, 0, 100, Crate, (c) => c.state.color === 1)).toBe(2);
+    // a crate "with company" has another crate within 12
+    expect(a.count(0, 0, 100, Crate, (c) => a.count(c.x, c.y, 12, Crate) > 1)).toBe(5);
+    expect(a.query(0, 0, 100, Crate)).toHaveLength(5);
   });
 });

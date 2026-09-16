@@ -1,3 +1,4 @@
+import { seenByOthers, spawnShare } from '../crossplay/spawning';
 import { animalSpec } from './bodies';
 import { isNight } from './clock';
 import type { WildsContext } from './context';
@@ -33,7 +34,7 @@ export class Spawner {
     const { world, land } = ctx;
     const focus = world.focus;
     if (!focus) return;
-    const share = 1 / Math.max(1, world.query(focus.x, focus.y, 90, Survivor).length);
+    const share = spawnShare(world, focus.x, focus.y, 90, Survivor);
 
     const counts = [0, 0, 0];
     for (const a of world.query(focus.x, focus.y, RANGE, Animal)) if (a.state.mode !== AnimalMode.Dead) counts[a.state.kind]++;
@@ -42,7 +43,7 @@ export class Spawner {
       const want = kind === AnimalKind.Wolf ? (night ? TARGETS[kind] : 0) : TARGETS[kind];
       if (counts[kind] >= want || Math.random() > share * 0.5) continue;
       const spot = land.randomOpen(focus.x, focus.y, kind === AnimalKind.Wolf ? 60 : 45, RANGE, HABITAT[kind]);
-      if (!spot || this.visibleToOthers(spot.x, spot.y)) continue;
+      if (!spot || this.seen(spot.x, spot.y)) continue;
       const spec = animalSpec(kind);
       world.spawn(Animal, { x: spot.x, y: spot.y, kind, hp: spec.hp, mode: AnimalMode.Graze, tx: spot.x, ty: spot.y, angle: Math.random() * Math.PI * 2 });
     }
@@ -51,12 +52,11 @@ export class Spawner {
     for (const item of world.query(focus.x, focus.y, RANGE, Item)) if (item.state.tool === SEEDS.id) seeds++;
     if (seeds < WILD_SEEDS && Math.random() < share * 0.15) {
       const spot = land.randomOpen(focus.x, focus.y, 20, RANGE, (g) => g === Ground.Grass);
-      if (spot && !this.visibleToOthers(spot.x, spot.y)) world.spawn(Item, { x: spot.x, y: spot.y, tool: SEEDS.id, amount: SEEDS.charges!.pickup });
+      if (spot && !this.seen(spot.x, spot.y)) world.spawn(Item, { x: spot.x, y: spot.y, tool: SEEDS.id, amount: SEEDS.charges!.pickup });
     }
   }
 
-  private visibleToOthers(x: number, y: number): boolean {
-    for (const f of this.ctx.world.peerFoci()) if (Math.hypot(f.x - x, f.y - y) < 40) return true;
-    return false;
+  private seen(x: number, y: number): boolean {
+    return seenByOthers(this.ctx.world, x, y, 40);
   }
 }

@@ -166,7 +166,7 @@ export function updateOwnedHomestead(ctx: WildsContext): void {
     if (wall - stump.state.felled < REGROW_SECONDS) continue;
     const o = land.obstacles[stump.state.tree];
     // not while someone's standing where the trunk would be
-    if (o && world.query(o.x, o.y, o.r + 0.6, Survivor).length) continue;
+    if (o && world.count(o.x, o.y, o.r + 0.6, Survivor)) continue;
     world.despawn(stump);
   }
   for (const fire of world.owned(Campfire)) {

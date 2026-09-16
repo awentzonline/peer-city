@@ -1,4 +1,4 @@
-import { Platform } from '../crossplay/platform';
+import { HudBase } from '../crossplay/hud';
 import type { Builder } from './builder';
 import type { DerbyContext, RacerEntity } from './context';
 import { FINISH } from './course';
@@ -16,27 +16,20 @@ export interface StandingLine {
 }
 
 /**
- * Status and announcements. On desktop it drives DOM elements; a headset paints the same state onto panels in
- * the scene (see wrist.ts), because the DOM isn't visible inside one. Frontends call `showBuilder` every frame
- * with how the device names its controls.
+ * Status and announcements (see crossplay/hud.ts). A headset paints the same state onto panels in the scene
+ * (wrist.ts). Frontends call `showBuilder` every frame with how the device names its controls.
  */
-export class Hud {
+export class Hud extends HudBase {
   phase = '';
   build = '';
   buildDetail = '';
   stats = '';
   drive = '';
-  hint = '';
   /** Starts unset, so the first frame decides whether the rockets bar shows at all. */
   fuel = -1;
   progress = 0;
   lines: StandingLine[] = [];
-  readonly banner = { text: '', color: '#fff', until: 0 };
-  readonly feed: { text: string; until: number }[] = [];
-  /** Bumped whenever something the VR panels show changes. */
-  version = 0;
 
-  private readonly root = document.getElementById('hud')!;
   private readonly phaseEl = document.getElementById('phase')!;
   private readonly buildEl = document.getElementById('build')!;
   private readonly buildDetailEl = document.getElementById('build-detail')!;
@@ -47,29 +40,15 @@ export class Hud {
   private readonly fuelEl = document.getElementById('fuel-fill')!;
   private readonly progressEl = document.getElementById('progress-fill')!;
   private readonly standingsEl = document.getElementById('standings')!;
-  private readonly feedEl = document.getElementById('feed')!;
-  private readonly bannerEl = document.getElementById('banner')!;
-  private readonly hintEl = document.getElementById('hint')!;
-  private readonly crosshair = document.getElementById('crosshair')!;
-  private readonly lockEl = document.getElementById('lock')!;
   private readonly helpEl = document.getElementById('help')!;
-  private bannerTimer = 0;
   private partsDrawn = '';
   private standingsDrawn = '';
-  private locked = false;
-  private platform = Platform.Desktop;
   private seated = false;
 
-  show(): void {
-    this.root.hidden = false;
-  }
-
-  /** Whether the "click to play" prompt shows: only the mouse has to be captured. */
-  setLocked(locked: boolean, platform: Platform): void {
-    this.locked = locked;
-    this.platform = platform;
-    this.lockEl.hidden = locked || platform !== Platform.Desktop;
-    this.crosshair.hidden = platform === Platform.Vr || this.seated;
+  /** No crosshair while driving. */
+  protected override showCursor(): void {
+    super.showCursor();
+    if (this.seated && this.crosshairEl) this.crosshairEl.hidden = true;
   }
 
   /**
@@ -85,7 +64,7 @@ export class Hud {
       this.seated = seated;
       this.driveEl.hidden = !seated;
       this.buildEl.parentElement!.hidden = seated;
-      this.setLocked(this.locked, this.platform);
+      this.showCursor();
     }
 
     // the race, top middle
@@ -146,7 +125,7 @@ export class Hud {
       });
       const progress = Math.round((Math.min(r.progress, FINISH) / FINISH) * 100) / 100;
       this.set('progress', progress, () => (this.progressEl.style.width = `${this.progress * 100}%`));
-      this.set('hint', '', () => (this.hintEl.textContent = ''));
+      this.setHint('');
       this.set('build', '', () => {});
     } else {
       const tool = b.tool;
@@ -178,7 +157,7 @@ export class Hud {
       let hint = shelf ? b.shelfText(shelf) : aim.problem ? problemText(aim.problem) : '';
       if (!hint && r.mode === RacerMode.Parked && (!race || race.state.phase === Phase.Building)) hint = readyText;
       if (!hint && race && race.state.phase !== Phase.Building) hint = 'A race is on: keep building for the next one';
-      this.set('hint', hint, () => (this.hintEl.textContent = hint));
+      this.setHint(hint);
       const buildStats = `${stats.parts}/${MAX_PARTS} parts · ${Math.round(stats.mass)} kg · ${stats.wheels} wheels${stats.rockets ? ` · ${stats.rockets} rockets` : ''}`;
       this.set('stats', buildStats, () => (this.statsEl.textContent = buildStats));
     }
@@ -191,33 +170,5 @@ export class Hud {
     const name = builder?.state.name ?? '?';
     const detail = s.finish ? raceTime(s.finish) : s.quit ? 'gave up' : s.mode === RacerMode.Gridded ? 'on the grid' : `${Math.round((Math.min(s.progress, FINISH) / FINISH) * 100)}%`;
     return { place: !s.quit && (s.finish || s.progress > 0) ? ordinal(i + 1) : '–', name, detail, me: racer === mine };
-  }
-
-  private set<K extends 'phase' | 'build' | 'buildDetail' | 'stats' | 'drive' | 'hint' | 'fuel' | 'progress'>(key: K, value: this[K], apply: () => void): void {
-    if (this[key] === value) return;
-    this[key] = value;
-    apply();
-    this.version++;
-  }
-
-  message(text: string): void {
-    const div = document.createElement('div');
-    div.textContent = text;
-    this.feedEl.appendChild(div);
-    while (this.feedEl.children.length > 6) this.feedEl.firstChild!.remove();
-    setTimeout(() => div.remove(), 6200);
-    this.feed.push({ text, until: performance.now() + 6000 });
-    while (this.feed.length > 4) this.feed.shift();
-    this.version++;
-  }
-
-  showBanner(text: string, color: string, ms = 2500): void {
-    this.bannerEl.textContent = text;
-    this.bannerEl.style.color = color;
-    this.bannerEl.classList.add('show');
-    clearTimeout(this.bannerTimer);
-    this.bannerTimer = window.setTimeout(() => this.bannerEl.classList.remove('show'), ms);
-    Object.assign(this.banner, { text, color, until: performance.now() + ms });
-    this.version++;
   }
 }

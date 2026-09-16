@@ -1,7 +1,6 @@
 import { EntityViews, type NetWorld } from '@engine/index';
 import type { AvatarIntent } from '../crossplay/intent';
 import type { Launch } from '../crossplay/lobby';
-import { Platform } from '../crossplay/platform';
 import type { Seat } from '../crossplay/role';
 import { Shell } from '../crossplay/shell';
 import { updateOwnedAnimals } from './animals';
@@ -53,7 +52,7 @@ export class Game {
       players: SurvivorDef,
       company: 'survivors',
       announce: (text) => hud.message(text),
-      showLock: (locked, platform) => hud.setLocked(locked, platform === Platform.Vr),
+      showLock: (locked, platform) => hud.setLocked(locked, platform),
     }));
     const { rig, scene } = shell.stage;
     this.scenery = new Scenery(land, scene);

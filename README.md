@@ -39,7 +39,7 @@ zone hops without entity churn.
 Every peer advertises its **focus** (camera position + radius). Owners send each peer only the
 entities inside that peer's radius:
 
-- Fields are **quantized per type** (`t.fixed(0.5)`, `t.angle(10)`, `t.uint(8)`, ...) and diffed
+- Fields are **quantized per type** (`t.fixed(0.5)`, `t.angle(10)`, `t.uint(8)`, `t.enum<CarMode>()`, ...) and diffed
   against *what that particular peer last received*. Data channels are reliable and ordered, so a
   field that didn't change costs nothing: no acks, no snapshots.
 - **Distance-based update rates**: near entities every tick, mid every 2, far every 4.
@@ -160,7 +160,7 @@ update() {
 | `world.all(Def)`, `world.get(id)`, `world.getAs(Def, id)` | lookup |
 | `world.owned(Def)`, `world.remote(Def)` | the entities of a type this peer simulates, or only receives |
 | `defineLocal(() => init).of(e)` | typed data a peer keeps per entity and never sends (AI scratch, cooldowns) |
-| `world.query(x, y, r, Def?)` | spatial query on rendered positions |
+| `world.query(x, y, r, Def?)`, `world.count(x, y, r, Def?, accept?)` | spatial query on rendered positions, or just how many |
 | `world.requestOwnership(e)` → `Promise<boolean>`, `world.release(e)` | take / give back control |
 | `world.setTransferPolicy(Def, (e, requester) => bool)` | guard handovers |
 | `world.send(Action, payload, target)`, `world.onAction(Action, fn)` | typed actions: events, or anything routed by hand |
@@ -170,7 +170,7 @@ update() {
 | `world.track(Def, {added, removed})` | keep something derived in step with one type's entities |
 | `world.on('entityAdded' / 'entityRemoved' / 'ownershipGained' / 'ownershipLost' / 'peerJoined' / 'peerLeft')` | lifecycle |
 | `world.isAuthorityFor(x, y)`, `world.isObserved(x, y, r)`, `world.peerFoci()` | coordination helpers |
-| `new EntityViews(world).register(Def, {create, update, destroy})` | bind entities to Phaser objects |
+| `new EntityViews(world).register(Def, {create, update, destroy})` | bind entities to renderer objects (three.js, Phaser, DOM) |
 | `new NetDebugPanel(world)` | overlay with peers, rooms, KB/s, RTT |
 
 ### Transports
@@ -317,6 +317,9 @@ any one game. It came out of building a second game (Peer Wilds) on what Peer Ci
 | `models.ts`, `avatarView.ts`, `desktopTool.ts` | people and tools built from vertex-coloured parts, drawing another player's replicated body and hands, the first-person tool on desktop |
 | `voice.ts` | proximity voice chat: your microphone goes to the people near you and their voices play from where they stand |
 | `settings.ts`, `settingsMenu.ts`, `settingsPanel.ts` | the in-game settings menu: one set of rows, drawn as a DOM overlay on desktop and as a panel you poke in a headset |
+| `hud.ts`, `headsetHud.ts`, `minimap.ts` | `HudBase`: the message feed, banner, hint, crosshair and lock prompt every game's HUD extends, as state a headset can paint (`version`) and on the page. `HeadsetHud`: a watch on the left wrist whose face the game draws, and a strip before your eyes with the banner, hint and messages. A round heading-up minimap for either |
+| `desktopControls.ts`, `vrControls.ts`, `intent.ts`' `stillIntent` | reading a device into an avatar's intent the same way in every game: mouse look and WASD; snap turning, tracked head and hands, and the play space following hilly ground; clearing an intent while a menu has the device |
+| `spawning.ts` | populating the world without a server: `spawnShare` (how much of the spawning near a point is this peer's) and `seenByOthers` (don't spawn in front of anyone) |
 | `particles.ts`, `audio.ts`, `panel.ts`, `assets.ts`, `textures.ts`, `math.ts` | GPU particles, spatial synthesized sound, canvas panels for headset HUDs, GLB loading |
 
 ### Proximity voice chat

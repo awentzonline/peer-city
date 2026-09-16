@@ -1,6 +1,6 @@
 import { defineAction, defineCommand, defineEntity, t } from '@engine/index';
 import { BODY_FIELDS } from '../crossplay/avatar';
-import { MAX_PARTS } from './parts';
+import { MAX_PARTS, type Dir, type PartKind } from './parts';
 import { FUEL_SECONDS } from './physics';
 
 /**
@@ -57,7 +57,7 @@ export const Racer = defineEntity({
     bay: t.uint(8),
     color: t.uint(8),
     builder: t.ref(),
-    mode: t.uint(8),
+    mode: t.enum<RacerMode>(),
     ready: t.bool(),
     quit: t.bool(), // gave up on this round and went home
     round: t.uint(16), // the race it's in (Race.round)
@@ -87,7 +87,7 @@ export const Race = defineEntity({
   fields: {
     x: t.fixed(1),
     y: t.fixed(1),
-    phase: t.uint(8),
+    phase: t.enum<Phase>(),
     round: t.uint(16),
     timer: t.fixed(0.1, 0, 'none'),
   },
@@ -113,12 +113,12 @@ export const Edit = defineCommand(
   'edit',
   {
     racer: t.ref(),
-    op: t.uint(8),
+    op: t.enum<EditOp>(),
     x: t.int(),
     y: t.int(),
     z: t.int(),
-    dir: t.uint(8),
-    kind: t.uint(8),
+    dir: t.enum<Dir>(),
+    kind: t.enum<PartKind>(),
   },
   { target: 'racer' },
 );

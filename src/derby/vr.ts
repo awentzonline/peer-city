@@ -1,8 +1,9 @@
-import { GRIP_IN_HAND, Holsters } from '../crossplay/holsters';
+import { Holsters } from '../crossplay/holsters';
 import { Side, handIntent, type HandIntent, type TrackedHead } from '../crossplay/intent';
 import { Platform } from '../crossplay/platform';
-import { Btn, type Rig, type XRHand, type XrPoseSource } from '../crossplay/rig';
+import { Btn, type Rig, type XrPoseSource } from '../crossplay/rig';
 import { VrSettings } from '../crossplay/settingsPanel';
+import { FollowGround, SnapTurn, readHand, readHead, deadzone } from '../crossplay/vrControls';
 import type { Tool, UseEffect } from '../crossplay/tool';
 import type { Builder, BuilderFrontend } from './builder';
 import { direction, type DerbyContext, type Vec3 } from './context';
@@ -14,9 +15,7 @@ import { headingOf } from './physics';
 import { quatOf } from './racer';
 import { Wrist } from './wrist';
 
-const SNAP_TURN = Math.PI / 6;
 const TRIGGER = 0.6;
-const deadzone = (v: number) => (Math.abs(v) < 0.15 ? 0 : v);
 
 /**
  * A headset. In the garage, walk round your room or use the left stick, and snap-turn with the right. The part
@@ -38,7 +37,8 @@ export class VrBuilder implements BuilderFrontend {
   private readonly intent = idleDerbyIntent();
   private readonly head: TrackedHead = { x: 0, y: 0, z: 0, heading: 0, pitch: 0 };
   private readonly hands: [HandIntent, HandIntent] = [handIntent(), handIntent()];
-  private turnArmed = true;
+  private readonly turn = new SnapTurn();
+  private readonly ground = new FollowGround();
   private nextRumble = 0;
   private readonly giveUp = new GiveUp();
   private readonly tmp: Vec3 = { x: 0, y: 0, z: 0 };
@@ -85,9 +85,7 @@ export class VrBuilder implements BuilderFrontend {
 
     if (sim.seated) {
       this.seat();
-      rig.head(this.head);
-      this.head.heading = rig.headHeading();
-      this.head.pitch = rig.headPitch();
+      readHead(rig, this.head);
       intent.steer = -deadzone(left.stickX);
       intent.brake = left.trigger >= TRIGGER;
       intent.boost = right.trigger >= TRIGGER;
@@ -103,17 +101,15 @@ export class VrBuilder implements BuilderFrontend {
     }
 
     this.followGround(dt);
-    this.snapTurn(right.stickX);
-    rig.head(this.head);
-    this.head.heading = rig.headHeading();
-    this.head.pitch = rig.headPitch();
+    this.turn.update(rig, right.stickX);
+    readHead(rig, this.head);
     intent.strafe = deadzone(left.stickX);
     intent.forward = -deadzone(left.stickY);
     intent.ready = left.pressed(Btn.A);
 
     this.holsters.update(sim.inventory);
-    this.readHand(right, this.hands[Side.Right]);
-    this.readHand(left, this.hands[Side.Left]);
+    readHand(rig, this.holsters, right, this.hands[Side.Right], TRIGGER);
+    readHand(rig, this.holsters, left, this.hands[Side.Left], TRIGGER);
     // the button on the hand holding the part gun loads the next part; its stick click the one before
     for (const [hand, other] of [
       [right, this.hands[Side.Right]],
@@ -130,11 +126,7 @@ export class VrBuilder implements BuilderFrontend {
   /** Keep your real floor on the ground under you, easing over bumps so it doesn't jitter. */
   private followGround(dt: number): void {
     const s = this.sim.me?.state;
-    if (!s) return;
-    const target = this.rig.floorY + this.ctx.course.heightAt(s.x, s.y);
-    const root = this.rig.root.position;
-    if (Math.abs(target - root.y) > 2) root.y = target;
-    else root.y += (target - root.y) * Math.min(1, dt * 10);
+    if (s) this.ground.update(this.rig, this.ctx.course.heightAt(s.x, s.y), dt);
   }
 
   /** Put your head where the driver's eyes are, facing where the racer faces. */
@@ -143,25 +135,6 @@ export class VrBuilder implements BuilderFrontend {
     if (!racer) return;
     const eye = this.sim.seatEye(this.tmp);
     this.rig.seatIn(eye.x, eye.y, eye.z, headingOf(quatOf(racer.state)));
-  }
-
-  private snapTurn(stick: number): void {
-    if (this.turnArmed && Math.abs(stick) > 0.7) {
-      this.rig.rotateAroundHead(stick > 0 ? -SNAP_TURN : SNAP_TURN);
-      this.turnArmed = false;
-    } else if (Math.abs(stick) < 0.3) {
-      this.turnArmed = true;
-    }
-  }
-
-  private readHand(hand: XRHand, out: HandIntent): void {
-    out.tracked = hand.connected;
-    out.tool = this.holsters.held(hand);
-    out.trigger = hand.trigger >= TRIGGER;
-    out.grab = this.holsters.grabbing(hand);
-    if (!hand.connected) return;
-    this.rig.handPose(hand, GRIP_IN_HAND, out.grip, out.pointing);
-    this.rig.handPose(hand, this.holsters.tip(hand), out.tip, out.aim, this.holsters.forward(hand));
   }
 
   present(dt: number): void {

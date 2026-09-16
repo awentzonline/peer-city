@@ -23,6 +23,15 @@ export interface FieldType<T> {
 
 const TAU = Math.PI * 2;
 
+/** Bytes as a string of char codes 0-255: a cheap immutable key that compares by contents. Chunked, since apply() has an argument limit. */
+function latin1(b: Uint8Array): string {
+  const CHUNK = 8192;
+  if (b.length <= CHUNK) return String.fromCharCode.apply(null, b as unknown as number[]);
+  const parts: string[] = [];
+  for (let i = 0; i < b.length; i += CHUNK) parts.push(String.fromCharCode.apply(null, b.subarray(i, i + CHUNK) as unknown as number[]));
+  return parts.join('');
+}
+
 function wrapAngle(a: number): number {
   a = a % TAU;
   return a < 0 ? a + TAU : a;
@@ -53,6 +62,22 @@ export const t = {
       dequantize: (q) => q as number,
       write: bits === 8 ? (w, q) => w.u8(q as number) : bits === 16 ? (w, q) => w.u16(q as number) : (w, q) => w.u32(q as number),
       read: bits === 8 ? (r) => r.u8() : bits === 16 ? (r) => r.u16() : (r) => r.u32(),
+    };
+  },
+
+  /**
+   * One of a `const enum`'s values (0-255), in a byte: `mode: t.enum<CarMode>()`. The field is typed as the
+   * enum, so the compiler catches a mode set from the wrong enum.
+   */
+  enum<E extends number>(defaultValue = 0 as E): FieldType<E> {
+    return {
+      kind: 'enum',
+      defaultValue,
+      interp: 'none',
+      quantize: (v) => Math.max(0, Math.min(255, Math.round(v))),
+      dequantize: (q) => q as E,
+      write: (w, q) => w.u8(q as number),
+      read: (r) => r.u8(),
     };
   },
 
@@ -141,11 +166,7 @@ export const t = {
       interp: 'none',
       quantize: (v) => {
         let q = strings.get(v);
-        if (q === undefined) {
-          q = '';
-          for (let i = 0, n = Math.min(v.length, maxLength); i < n; i++) q += String.fromCharCode(v[i]);
-          strings.set(v, q);
-        }
+        if (q === undefined) strings.set(v, (q = latin1(v.length > maxLength ? v.subarray(0, maxLength) : v)));
         return q;
       },
       dequantize: (q) => {
@@ -155,19 +176,8 @@ export const t = {
         strings.set(b, s);
         return b;
       },
-      write: (w, q) => {
-        const s = q as string;
-        w.varuint(s.length);
-        const b = new Uint8Array(s.length);
-        for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i);
-        w.bytes(b);
-      },
-      read: (r) => {
-        const b = r.bytes(r.varuint());
-        let q = '';
-        for (let i = 0; i < b.length; i++) q += String.fromCharCode(b[i]);
-        return q;
-      },
+      write: (w, q) => w.varuint((q as string).length).charCodes(q as string),
+      read: (r) => latin1(r.bytes(r.varuint())),
     };
   },
 
@@ -274,6 +284,8 @@ export interface EntityDef<S extends Shape = Shape> {
   readonly priority: number;
   /** Field indices that interpolate, and how. */
   readonly interpIdx: number[];
+  /** Field indices that don't: remote peers apply them as they arrive. */
+  readonly plainIdx: number[];
   readonly interpKinds: InterpKind[];
   readonly snapDistance: number;
   readonly maxExtrapolateMs: number;
@@ -301,6 +313,7 @@ export function defineEntity<S extends Shape>(opts: EntityOptions<S>): EntityDef
     migratable: opts.migratable ?? false,
     priority: opts.priority ?? 1,
     interpIdx,
+    plainIdx: layout.keys.map((_, i) => i).filter((i) => !interpIdx.includes(i)),
     interpKinds: interpIdx.map((i) => (layout.types[i].interp === 'none' ? 'linear' : layout.types[i].interp)),
     snapDistance: opts.snapDistance ?? 250,
     maxExtrapolateMs: opts.maxExtrapolateMs ?? 150,

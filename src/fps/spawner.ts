@@ -1,3 +1,4 @@
+import { seenByOthers, spawnShare } from '../crossplay/spawning';
 import { TOOLS } from './arsenal';
 import { TILE } from './city';
 import type { GameContext } from './context';
@@ -34,15 +35,14 @@ export class Spawner {
     const focus = world.focus;
     if (!focus) return;
 
-    const playersNear = world.query(focus.x, focus.y, 85, Player).length;
-    const share = 1 / Math.max(1, playersNear);
+    const share = spawnShare(world, focus.x, focus.y, 85, Player);
 
     let peds = 0;
     for (const p of world.query(focus.x, focus.y, 110, Ped)) if (p.state.mode !== PedMode.Dead) peds++;
     for (let i = 0; i < 2 && peds < PED_TARGET; i++) {
       if (Math.random() > share) continue;
       const pt = city.randomWalkableNear(focus.x, focus.y, 60, 110);
-      if (!pt || this.visibleToOthers(pt.x, pt.y)) continue;
+      if (!pt || this.seen(pt.x, pt.y)) continue;
       world.spawn(Ped, {
         x: pt.x,
         y: pt.y,
@@ -62,7 +62,7 @@ export class Spawner {
     }
     if (moving < CAR_TARGET && Math.random() < share) {
       const spot = city.randomLaneNear(focus.x, focus.y, 70, 115);
-      if (spot && !this.visibleToOthers(spot.x, spot.y) && world.query(spot.x, spot.y, 8, Car).length === 0) {
+      if (spot && !this.seen(spot.x, spot.y) && world.count(spot.x, spot.y, 8, Car) === 0) {
         const roll = Math.random();
         const kind = roll < 0.58 ? CarKind.Sedan : roll < 0.72 ? CarKind.Taxi : roll < 0.84 ? CarKind.Sport : roll < 0.95 ? CarKind.Van : CarKind.Police;
         world.spawn(Car, {
@@ -83,7 +83,7 @@ export class Spawner {
     if (parked < PARKED_TARGET && Math.random() < share * 0.5 && city.parking.length) {
       const spot = city.parking[Math.floor(Math.random() * city.parking.length)];
       const d = Math.hypot(spot.x - focus.x, spot.y - focus.y);
-      if (d > 60 && d < 115 && !this.visibleToOthers(spot.x, spot.y) && world.query(spot.x, spot.y, 4, Car).length === 0) {
+      if (d > 60 && d < 115 && !this.seen(spot.x, spot.y) && world.count(spot.x, spot.y, 4, Car) === 0) {
         world.spawn(Car, {
           x: spot.x,
           y: spot.y,
@@ -99,7 +99,7 @@ export class Spawner {
     for (const p of world.query(focus.x, focus.y, 120, Pickup)) if (p.state.kind === PickupKind.Tool) tools++;
     if (tools < TOOL_TARGET && LOOT.length && Math.random() < share * 0.35) {
       const pt = city.randomWalkableNear(focus.x, focus.y, 45, 110);
-      if (pt && !this.visibleToOthers(pt.x, pt.y)) {
+      if (pt && !this.seen(pt.x, pt.y)) {
         const tool = LOOT[Math.floor(Math.random() * LOOT.length)];
         world.spawn(Pickup, { x: pt.x, y: pt.y, kind: PickupKind.Tool, tool: tool.id, amount: tool.charges?.pickup ?? 0 });
       }
@@ -146,8 +146,7 @@ export class Spawner {
     });
   }
 
-  private visibleToOthers(x: number, y: number): boolean {
-    for (const f of this.ctx.world.peerFoci()) if (Math.hypot(f.x - x, f.y - y) < 55) return true;
-    return false;
+  private seen(x: number, y: number): boolean {
+    return seenByOthers(this.ctx.world, x, y, 55);
   }
 }

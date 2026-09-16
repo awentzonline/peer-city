@@ -1,22 +1,22 @@
 import * as THREE from 'three';
-import { GRIP_IN_HAND, Holsters } from '../crossplay/holsters';
+import { Holsters } from '../crossplay/holsters';
 import { Side, handIntent, idleIntent, type AvatarIntent, type HandIntent, type TrackedHead } from '../crossplay/intent';
 import { toolMesh } from '../crossplay/models';
 import { Platform } from '../crossplay/platform';
 import { Btn, type Rig, type XRHand, type XrPoseSource } from '../crossplay/rig';
 import { VrSettings } from '../crossplay/settingsPanel';
+import { FollowGround, SnapTurn, readHand, readHead, deadzone } from '../crossplay/vrControls';
 import type { Tool, UseEffect } from '../crossplay/tool';
 import { direction, type Vec3, type WildsContext } from './context';
-import { Hud, mapDots, type MapDot } from './hud';
+import type { MinimapDot } from '../crossplay/minimap';
+import { Hud, mapDots } from './hud';
 import { ARROWS, BOW, type WildTool } from './kit';
 import { BowString } from './models';
 import { VrPack } from './pack';
 import type { Survivor, SurvivorFrontend } from './survivor';
 import { Wrist } from './wrist';
 
-const SNAP_TURN = Math.PI / 6;
 const TRIGGER = 0.6;
-const deadzone = (v: number) => (Math.abs(v) < 0.15 ? 0 : v);
 const pull = new THREE.Vector3();
 
 /**
@@ -39,10 +39,10 @@ export class VrSurvivor implements SurvivorFrontend {
   private readonly head: TrackedHead = { x: 0, y: 0, z: 0, heading: 0, pitch: 0 };
   private readonly hands: [HandIntent, HandIntent] = [handIntent(), handIntent()];
   private readonly taught = new Set<Tool<any>>();
-  private turnArmed = true;
-  private grounded = false;
+  private readonly turn = new SnapTurn();
+  private readonly ground = new FollowGround();
   private nextMap = 0;
-  private dots: MapDot[] = [];
+  private dots: MinimapDot[] = [];
   private readonly tmp: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly dir: Vec3 = { x: 0, y: 0, z: 0 };
 
@@ -79,11 +79,9 @@ export class VrSurvivor implements SurvivorFrontend {
     this.source.read(rig, dt);
     this.followGround(dt);
     const { left, right } = rig;
-    if (sim.alive) this.snapTurn(right.stickX);
+    if (sim.alive) this.turn.update(rig, right.stickX);
 
-    rig.head(this.head);
-    this.head.heading = rig.headHeading();
-    this.head.pitch = rig.headPitch();
+    readHead(rig, this.head);
     intent.strafe = deadzone(left.stickX);
     intent.forward = -deadzone(left.stickY);
     intent.interact = right.pressed(Btn.A) || left.pressed(Btn.A);
@@ -107,36 +105,17 @@ export class VrSurvivor implements SurvivorFrontend {
   /** Keep your real floor on the ground under the avatar, easing over bumps so it doesn't jitter. */
   private followGround(dt: number): void {
     const s = this.sim.me?.state;
-    if (!s) return;
-    const target = this.rig.floorY + this.ctx.land.heightAt(s.x, s.y);
-    const root = this.rig.root.position;
-    if (!this.grounded || Math.abs(target - root.y) > 2) root.y = target;
-    else root.y += (target - root.y) * Math.min(1, dt * 10);
-    this.grounded = true;
-  }
-
-  private snapTurn(stick: number): void {
-    if (this.turnArmed && Math.abs(stick) > 0.7) {
-      this.rig.rotateAroundHead(stick > 0 ? -SNAP_TURN : SNAP_TURN);
-      this.turnArmed = false;
-    } else if (Math.abs(stick) < 0.3) {
-      this.turnArmed = true;
-    }
+    if (s) this.ground.update(this.rig, this.ctx.land.heightAt(s.x, s.y), dt);
   }
 
   private readHand(hand: XRHand, out: HandIntent): void {
-    out.tracked = hand.connected;
-    out.tool = this.holsters.held(hand);
-    out.trigger = hand.trigger >= TRIGGER;
-    out.grab = this.holsters.grabbing(hand);
+    readHand(this.rig, this.holsters, hand, out, TRIGGER);
+    // the first time a hand takes a kind of tool, say how it's used
     if (out.tool && !this.taught.has(out.tool)) {
       this.taught.add(out.tool);
       const how = Hud.vrHow(out.tool as WildTool);
       if (how) this.ctx.hud.message(how);
     }
-    if (!hand.connected) return;
-    this.rig.handPose(hand, GRIP_IN_HAND, out.grip, out.pointing);
-    this.rig.handPose(hand, this.holsters.tip(hand), out.tip, out.aim, this.holsters.forward(hand));
   }
 
   present(dt: number): void {
@@ -178,7 +157,7 @@ export class VrSurvivor implements SurvivorFrontend {
   }
 
   placed(x: number, y: number): void {
-    this.grounded = false;
+    this.ground.reset();
     this.rig.placeHeadAt(x, y);
   }
 

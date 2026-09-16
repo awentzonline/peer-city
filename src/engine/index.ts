@@ -11,6 +11,6 @@ export { fnv1a, rendezvous, mulberry32 } from './net/hash';
 export { SpatialHash } from './spatial/SpatialHash';
 export type { Transport, TransportRoom } from './transport/types';
 export { MemoryNetwork } from './transport/memory';
-export { EntityViews } from './phaser/EntityViews';
-export type { ViewFactory } from './phaser/EntityViews';
+export { EntityViews } from './views/EntityViews';
+export type { ViewFactory } from './views/EntityViews';
 export { NetDebugPanel } from './ui/NetDebugPanel';
