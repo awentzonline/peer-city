@@ -23,6 +23,7 @@ import { RaceKeeper } from './race';
 import { RacerProxies } from './racer';
 import { Scenery } from './scenery';
 import type { Sfx } from './sfx';
+import { TouchBuilder } from './touch';
 import { registerViews } from './views';
 import { VrBuilder } from './vr';
 
@@ -38,6 +39,8 @@ export interface GameDeps {
   container: HTMLElement;
   /** Emulate a headset on desktop (?xrsim). */
   sim: boolean;
+  /** Play with fingers: the touch frontend rather than keys and mouse. */
+  touch: boolean;
 }
 
 export class Game {
@@ -55,12 +58,14 @@ export class Game {
   private readonly scenery: Scenery;
   private readonly debug: NetDebugPanel;
   private readonly simulateXr: boolean;
+  private readonly touch: boolean;
   private readonly vrButton = document.getElementById('vr-enter') as HTMLButtonElement;
 
   constructor(deps: GameDeps) {
     const { world, course, hud, sfx } = deps;
     const stage = (this.stage = new Stage(deps.container));
     this.simulateXr = deps.sim;
+    this.touch = deps.touch;
     this.scenery = new Scenery(course, stage.scene);
     this.voice = new Voice({
       transport: deps.transport,
@@ -109,7 +114,8 @@ export class Game {
     this.showLockPrompt();
     hud.show();
     hud.message(`Welcome to the derby, ${deps.playerName}! Your racer is in bay ${(this.ctx.racer?.state.bay ?? 0) + 1}.`);
-    hud.message('Point at a racer and click to stick parts on. Anyone can help build anyone else\'s.');
+    if (!this.touch) hud.message('Point at a racer and click to stick parts on.');
+    hud.message("Anyone can help build anyone else's racer.");
 
     void Stage.vrSupported().then((ok) => (this.vrButton.hidden = !ok));
     this.vrButton.addEventListener('click', () => {
@@ -141,11 +147,16 @@ export class Game {
     const { rig, input } = stage;
     if (stage.presenting) return new VrBuilder(ctx, builder, rig, new WebXrPoses(stage.renderer.xr));
     if (this.simulateXr) return new VrBuilder(ctx, builder, rig, new SimulatedXr(input));
+    // Touch has no keyboard to reach the menu or the microphone with, so its chips call them directly.
+    if (this.touch) return new TouchBuilder(ctx, builder, rig, { menu: () => this.menu.toggle(), mic: () => void this.talk() });
     return new DesktopBuilder(ctx, builder, input, rig);
   }
 
   private showLockPrompt(): void {
-    this.ctx.hud.setLocked(this.stage.input.locked, this.stage.presenting);
+    // a simulated headset is still played with a captured mouse
+    const { stage } = this;
+    const platform = stage.presenting ? Platform.Vr : this.touch ? Platform.Touch : Platform.Desktop;
+    this.ctx.hud.setLocked(stage.input.locked, platform);
   }
 
   private step(dt: number, visible: boolean): void {

@@ -58,6 +58,8 @@ export class TouchInput {
   run = false;
   /** Where the overlay draws the stick: the origin the thumb set, and the knob's offset from it, in pixels. */
   readonly stickPose = { active: false, ox: 0, oy: 0, kx: 0, ky: 0 };
+  /** Where the look zone was tapped this frame, in pixels, or null: a game can act where the finger was, not only mid-screen. */
+  tapAt: { x: number; y: number } | null = null;
 
   private readonly fingers = new Map<number, Finger>();
   private readonly held = new Set<string>();
@@ -129,7 +131,10 @@ export class TouchInput {
     if (!f) return;
     this.fingers.delete(id);
     const { tuning } = this;
-    if (f.zone === 'look' && tuning.tapToFire && now - f.at <= tuning.tapMs && f.slop <= tuning.tapSlop) this.tap(FIRE);
+    if (f.zone === 'look' && tuning.tapToFire && now - f.at <= tuning.tapMs && f.slop <= tuning.tapSlop) {
+      this.tap(FIRE);
+      this.tapAt = { x: f.ox, y: f.oy };
+    }
     if (f.zone === 'stick' && f.owner) this.stopStick();
     // Another finger already in the zone takes it over, so lifting the first doesn't drop the walk.
     if (f.owner) this.handOver(f.zone);
@@ -152,6 +157,7 @@ export class TouchInput {
 
   endFrame(): void {
     this.edges.clear();
+    this.tapAt = null;
   }
 
   private owned(zone: TouchZone): boolean {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { tiltSteer, upOnScreen } from '../src/crossplay/tilt';
 import { FIRE, TOUCH_TUNING, TouchInput } from '../src/crossplay/touch';
 
 const R = TOUCH_TUNING.stickRadius;
@@ -77,8 +78,11 @@ describe('touch look and fire', () => {
     t.pointerDown(1, 500, 200, 'look', 0);
     t.pointerUp(1, 100);
     expect(t.pressed(FIRE)).toBe(true);
+    // and says where, for a game that acts under the finger
+    expect(t.tapAt).toEqual({ x: 500, y: 200 });
     t.endFrame();
     expect(t.pressed(FIRE)).toBe(false);
+    expect(t.tapAt).toBeNull();
 
     t.pointerDown(2, 500, 200, 'look', 0);
     t.pointerMove(2, 560, 200);
@@ -129,5 +133,37 @@ describe('touch buttons', () => {
     t.clear();
     expect(t.down(FIRE)).toBe(false);
     expect(t.stick.y).toBe(0);
+  });
+});
+
+describe('tilt steering', () => {
+  it('finds up on the screen however the screen is turned', () => {
+    // upright in portrait
+    const portrait = upOnScreen(90, 0, 0);
+    expect(portrait.x).toBeCloseTo(0, 5);
+    expect(portrait.y).toBeCloseTo(1, 5);
+    // upright in landscape, turned anticlockwise: the phone's left edge is down
+    const landscape = upOnScreen(0, -90, 90);
+    expect(landscape.x).toBeCloseTo(0, 5);
+    expect(landscape.y).toBeCloseTo(1, 5);
+  });
+
+  it('steers left for a phone turned anticlockwise like a wheel, and right the other way', () => {
+    // landscape, tipped back 45 degrees, then turned: rolling about the screen's normal
+    const level = tiltSteer(0, -45, 90);
+    expect(level).toBe(0);
+    const left = tiltSteer(-20, -45, 90);
+    const right = tiltSteer(20, -45, 90);
+    expect(left).toBeGreaterThan(0);
+    expect(right).toBeLessThan(0);
+    expect(left).toBeCloseTo(-right, 5);
+    // the other landscape is the mirror image
+    expect(tiltSteer(20, 45, 270)).toBeCloseTo(left, 5);
+    // turned hard, full lock and no further
+    expect(tiltSteer(-80, -45, 90)).toBe(1);
+  });
+
+  it('does nothing lying flat', () => {
+    expect(tiltSteer(0, 0, 90)).toBe(0);
   });
 });

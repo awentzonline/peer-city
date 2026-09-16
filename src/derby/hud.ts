@@ -1,3 +1,4 @@
+import { Platform } from '../crossplay/platform';
 import type { Builder } from './builder';
 import type { DerbyContext, RacerEntity } from './context';
 import { FINISH } from './course';
@@ -56,19 +57,19 @@ export class Hud {
   private partsDrawn = '';
   private standingsDrawn = '';
   private locked = false;
-  private vr = false;
+  private platform = Platform.Desktop;
   private seated = false;
 
   show(): void {
     this.root.hidden = false;
   }
 
-  /** Desktop: whether the "click to play" prompt shows (pointer not captured). */
-  setLocked(locked: boolean, vr: boolean): void {
+  /** Whether the "click to play" prompt shows: only the mouse has to be captured. */
+  setLocked(locked: boolean, platform: Platform): void {
     this.locked = locked;
-    this.vr = vr;
-    this.lockEl.hidden = locked || vr;
-    this.crosshair.hidden = vr || this.seated;
+    this.platform = platform;
+    this.lockEl.hidden = locked || platform !== Platform.Desktop;
+    this.crosshair.hidden = platform === Platform.Vr || this.seated;
   }
 
   /**
@@ -84,7 +85,7 @@ export class Hud {
       this.seated = seated;
       this.driveEl.hidden = !seated;
       this.buildEl.parentElement!.hidden = seated;
-      this.setLocked(this.locked, this.vr);
+      this.setLocked(this.locked, this.platform);
     }
 
     // the race, top middle

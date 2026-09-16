@@ -415,10 +415,10 @@ wrench takes parts off (with anything only held on by them). Anyone can build on
 the grid, count down, and roll. Parts hit hard enough tear off, and so does whatever was only attached through
 them. Falling off, flipping or getting stuck puts you back at the last checkpoint, mended.
 
-| | Desktop | VR |
-| --- | --- | --- |
-| Build | click with the part gun; **1-9** / wheel pick the part, **X** wrench, **F** ready | grab the part gun (right hip) or wrench (left hip), point, trigger; **A** next part, **X** ready |
-| Drive | **A D** steer, **W** push off, **S** brake, **Space** rockets, **R** checkpoint, **C** camera | left stick steers, **A** push, left / right trigger brake / rockets, **B** checkpoint, **Y** recentre |
+| | Desktop | VR | Touch |
+| --- | --- | --- | --- |
+| Build | click with the part gun; **1-9** / wheel pick the part, **X** wrench, **F** ready | grab the part gun (right hip) or wrench (left hip), point, trigger; **A** next part, **X** ready | **tap** a face to build there (or **STICK** for the crosshair); left thumb walks, right looks; parts strip on the right, **READY** |
+| Drive | **A D** steer, **W** push off, **S** brake, **Space** rockets, **R** checkpoint, **C** camera | left stick steers, **A** push, left / right trigger brake / rockets, **B** checkpoint, **Y** recentre | left thumb slides to steer (or **TILT**), hold **ROCKETS** / **BRAKE** / **PUSH**, **RESET**, **CAM**, **QUIT** twice |
 
 How it uses the engine, and what it found:
 

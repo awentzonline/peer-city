@@ -254,6 +254,34 @@ describe('Building', () => {
   });
 });
 
+describe('Building by touch', () => {
+  it('uses the part gun along an aim the device gives, not only through the middle of the view', () => {
+    const net = new Sim();
+    const alice = player(net, 'alice', 'Alice');
+    run(net, [alice], 1);
+    const r = alice.ctx.racer!.state;
+    const me = alice.ctx.me!.state;
+    alice.builder.part = PartKind.Wing;
+    // walk up to the racer, then look away from it, and tap on the seat's top
+    alice.intent.forward = 1;
+    run(net, [alice], 0.6);
+    alice.intent.forward = 0;
+    alice.intent.turn = Math.PI / 2;
+    run(net, [alice], 1 / 60);
+    alice.intent.turn = 0;
+    expect(Math.hypot(r.x - me.x, r.y - me.y)).toBeLessThan(5);
+    const eye = alice.builder.eyePosition({ x: 0, y: 0, z: 0 });
+    const to = { x: r.x - eye.x, y: r.y - eye.y, z: r.z + CELL * 0.4 - eye.z };
+    const len = Math.hypot(to.x, to.y, to.z);
+    alice.intent.aim = { x: to.x / len, y: to.y / len, z: to.z / len };
+    alice.intent.trigger = true;
+    run(net, [alice], 1 / 60);
+    alice.intent.aim = null;
+    run(net, [alice], 0.2);
+    expect(designOf(alice.ctx.racer!, false).design.some((p) => p.kind === PartKind.Wing && p.x === 0 && p.y === 0 && p.z === 1)).toBe(true);
+  });
+});
+
 describe('Racing', () => {
   it('goes from ready to the grid to the go, and home again when it is over', () => {
     const net = new Sim();

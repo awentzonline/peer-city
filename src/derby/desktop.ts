@@ -5,17 +5,14 @@ import { Platform } from '../crossplay/platform';
 import type { Rig } from '../crossplay/rig';
 import type { Tool, UseEffect } from '../crossplay/tool';
 import type { Builder, BuilderFrontend } from './builder';
-import { clamp, direction, type DerbyContext, type Vec3 } from './context';
+import { direction, type DerbyContext, type Vec3 } from './context';
+import { ChaseCamera } from './chase';
 import { RacerMode } from './defs';
 import { idleDerbyIntent, type DerbyIntent } from './intent';
 import { PART_GUN, WRENCH } from './kit';
 import { PLACEABLE } from './parts';
-import { rotate } from './physics';
-import { quatOf } from './racer';
 
 const MOUSE_SENSITIVITY = 0.0022;
-const CHASE_DISTANCE = 7;
-const CHASE_HEIGHT = 2.6;
 
 const BUILD_HELP =
   '<b>WASD</b> move · <b>Mouse</b> look · <b>Click</b> place / remove · <b>1-9</b> parts · <b>Wheel</b> next part · <b>X</b> wrench · <b>F</b> ready · <b>Esc</b> settings · <b>V</b> mic';
@@ -34,11 +31,7 @@ export class DesktopBuilder implements BuilderFrontend {
   private readonly tip: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly tmp: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly dir: Vec3 = { x: 0, y: 0, z: 0 };
-  private readonly cam = { x: 0, y: 0, z: 0, ready: false };
-  /** Looking round the racer: yaw and pitch offsets from behind it, springing back when the mouse is still. */
-  private orbit = 0;
-  private orbitPitch = 0;
-  private firstPerson = false;
+  private readonly chase: ChaseCamera;
   private nextRumble = 0;
   private readonly giveUp = new GiveUp();
 
@@ -50,6 +43,7 @@ export class DesktopBuilder implements BuilderFrontend {
   ) {
     rig.setMode('desktop');
     this.held = new DesktopTool(rig);
+    this.chase = new ChaseCamera(ctx, sim, rig);
   }
 
   get showSelf(): boolean {
@@ -57,7 +51,7 @@ export class DesktopBuilder implements BuilderFrontend {
   }
 
   get showDriver(): boolean {
-    return !this.firstPerson;
+    return !this.chase.firstPerson;
   }
 
   dispose(): void {
@@ -83,9 +77,8 @@ export class DesktopBuilder implements BuilderFrontend {
       intent.boost = k.down('Space') || k.down('ShiftLeft');
       intent.reset = k.pressed('KeyR');
       intent.quit = k.pressed('KeyQ') && this.giveUp.press(this.ctx, 'Q');
-      if (k.pressed('KeyC')) this.firstPerson = !this.firstPerson;
-      this.orbit = clamp(this.orbit - dx * MOUSE_SENSITIVITY, -Math.PI, Math.PI);
-      this.orbitPitch = clamp(this.orbitPitch - dy * MOUSE_SENSITIVITY, -0.5, 0.9);
+      if (k.pressed('KeyC')) this.chase.firstPerson = !this.chase.firstPerson;
+      this.chase.look(dx * MOUSE_SENSITIVITY, -dy * MOUSE_SENSITIVITY);
       return intent;
     }
 
@@ -115,10 +108,10 @@ export class DesktopBuilder implements BuilderFrontend {
     const s = sim.me?.state;
     if (!s) return;
     if (sim.seated && ctx.racer) {
-      this.chase(dt);
+      this.chase.update(dt);
       this.held.update(dt, false);
     } else {
-      this.cam.ready = false;
+      this.chase.reset();
       const e = sim.eyePosition(this.tmp);
       rig.setDesktopView(e.x, e.y, e.z, sim.heading, sim.pitch);
       this.held.setTool(sim.inventory.current);
@@ -131,39 +124,6 @@ export class DesktopBuilder implements BuilderFrontend {
       this.nextRumble = ctx.now + 110;
       raceSounds(ctx);
     }
-  }
-
-  /** Behind and above the racer, looking where it's going, eased so bumps don't shake the view to bits. */
-  private chase(dt: number): void {
-    const { ctx, rig, sim } = this;
-    const r = ctx.racer!.state;
-    const q = quatOf(r);
-    if (this.firstPerson) {
-      const eye = sim.seatEye(this.tmp);
-      const f = rotate(q, { x: Math.cos(this.orbit), y: Math.sin(this.orbit), z: 0 });
-      const heading = Math.atan2(f.y, f.x);
-      const pitch = Math.asin(clamp(f.z, -1, 1)) + this.orbitPitch * 0.6;
-      rig.setDesktopView(eye.x, eye.y, eye.z, heading, pitch);
-      ctx.sfx.setListener(eye, direction(heading, pitch, this.dir));
-      return;
-    }
-    const f = rotate(q, { x: 1, y: 0, z: 0 });
-    const heading = Math.atan2(f.y, f.x) + this.orbit;
-    const back = Math.cos(this.orbitPitch) * CHASE_DISTANCE;
-    const want = { x: r.x - Math.cos(heading) * back, y: r.y - Math.sin(heading) * back, z: r.z + CHASE_HEIGHT + Math.sin(this.orbitPitch) * CHASE_DISTANCE };
-    const ground = ctx.course.heightAt(want.x, want.y) + 0.8;
-    want.z = Math.max(want.z, ground);
-    const cam = this.cam;
-    const k = cam.ready ? 1 - Math.exp(-dt * 8) : 1;
-    cam.x += (want.x - cam.x) * k;
-    cam.y += (want.y - cam.y) * k;
-    cam.z += (want.z - cam.z) * k;
-    cam.ready = true;
-    rig.setDesktopChase(cam, { x: r.x + Math.cos(heading) * 3, y: r.y + Math.sin(heading) * 3, z: r.z + 0.8 });
-    // the look swings back behind the racer when you let go of the mouse
-    this.orbit *= Math.exp(-dt * 1.5);
-    this.orbitPitch += (0.05 - this.orbitPitch) * (1 - Math.exp(-dt * 1.5));
-    ctx.sfx.setListener(cam, direction(heading, 0, this.dir));
   }
 
   moved(): void {}
@@ -179,10 +139,8 @@ export class DesktopBuilder implements BuilderFrontend {
   died(): void {}
 
   seated(on: boolean): void {
-    this.orbit = 0;
-    this.orbitPitch = 0.05;
-    this.cam.ready = false;
-    this.ctx.hud.setLocked(this.input.locked, false);
+    this.chase.reset();
+    this.ctx.hud.setLocked(this.input.locked, Platform.Desktop);
     if (on) this.ctx.hud.message('Seated! A/D steer, W to push off, S brakes, Space fires rockets, R if you get stuck');
   }
 

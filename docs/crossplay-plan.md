@@ -252,14 +252,32 @@ What the engine and crossplay layer didn't have, and what was done about it:
 - **Headless physics tests are cheap.** A steering bot runs a full race in about a second in vitest, which is how
   the course and part strengths were tuned (the jumps originally ended in cliffs that smashed every cart).
 
-Decided by the project owner (2026-09-16), not built yet:
+Decided by the project owner (2026-09-16):
 
 - **A good phone version.** Touch should be a first-class way to play the derby, not a port: think outside the box
   if the desktop controls don't suit thumbs (tap a face to build, tilt or thumb controls to drive, whatever
   works best). A good phone version is the ideal for every game, but some games are weird enough that a phone
-  can't do them full justice; then make the best one the game allows.
+  can't do them full justice; then make the best one the game allows. Built as `derby/touch.ts` (below).
 - **Physics is trusted.** Owners simulate their own racers unchecked, and that's fine; no validation needed.
 - **Designs outlive the session.** First save and load them (locally), then share them (e.g. as codes).
+
+### Derby on touch, as built
+
+- **Building is touching the racer.** A tap in the look zone sticks the loaded part on the face under the finger (or
+  the wrench takes that part off), so aiming is pointing at the screen, not dragging a crosshair onto a face. The
+  intent gained `aim`, a direction to use the crosshair tool along instead of through the middle of the view, and
+  `TouchInput.tapAt` says where the tap was; the frontend unprojects it through the camera the frame was drawn
+  with. STICK still uses the crosshair, for faces too small for a fingertip. The preview ghost stays on the
+  crosshair, since a finger has no hover.
+- The parts and wrench are the tool strip, in two columns; the HUD's key list and parts list hide on touch.
+- **Racing:** the left thumb's stick steers on its x axis only; ROCKETS (only with rockets built), BRAKE and PUSH are
+  held; RESET, and chips for CAM, TILT and QUIT (pressed twice, like Q). Dragging looks round the racer, the same
+  `ChaseCamera` (`derby/chase.ts`) the desktop uses.
+- **Tilt** (`crossplay/tilt.ts`) is opt-in: it turns `deviceorientation`'s angles into which way is up on the screen,
+  allowing for the screen's rotation, so it doesn't jump when a landscape phone passes vertical, and adds to the
+  thumb's steering. iOS only grants it from a tap, hence a chip. The sign conventions are tested headless, but
+  **tilt hasn't been tried on a real phone yet**.
+- Starting on a phone asks for fullscreen and a landscape lock (Android; iOS ignores both). Portrait still works.
 
 ## Later: mobile
 

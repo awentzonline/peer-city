@@ -294,7 +294,8 @@ export abstract class Avatar<I extends AvatarIntent = AvatarIntent, B extends Av
     if (inv.current !== before) this.switchedTool();
 
     const heading = intent.head?.heading ?? this.heading;
-    direction(heading, intent.head?.pitch ?? this.pitch, this.aim);
+    if (intent.aim) copy(this.aim, intent.aim);
+    else direction(heading, intent.head?.pitch ?? this.pitch, this.aim);
     const c = Math.cos(heading);
     const sn = Math.sin(heading);
     this.grip.x = s.x + c * 0.45 - sn * 0.22;

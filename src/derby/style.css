@@ -400,3 +400,120 @@ body {
 #lobby a {
   color: #f5c542;
 }
+
+/* ---------------- played with fingers ---------------- */
+/* The bottom left is the steering and walking thumb's, the bottom right the buttons', and there are no keys to list. */
+body.touch #help,
+body.touch #parts,
+body.touch #build-detail {
+  display: none;
+}
+
+body.touch #phase {
+  top: 10px;
+  padding: 4px 12px;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+body.touch #build-panel {
+  top: 10px;
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  width: auto;
+  max-width: 34%;
+}
+
+body.touch #build {
+  font-size: 15px;
+}
+
+body.touch #stats {
+  margin-top: 2px;
+  font-size: 11px;
+}
+
+body.touch #standings {
+  top: 58px;
+  left: calc(12px + env(safe-area-inset-left, 0px));
+  width: 200px;
+  font-size: 12px;
+}
+
+body.touch #standings small {
+  font-size: 11px;
+}
+
+body.touch #feed {
+  left: calc(12px + env(safe-area-inset-left, 0px));
+  right: auto;
+  top: 58px;
+  bottom: auto;
+  max-width: 44%;
+  text-align: left;
+  font-size: 12px;
+}
+
+/* racing, the standings take the top left and the feed goes under them */
+body.touch #standings:not(:empty) + #build-panel ~ #feed {
+  top: auto;
+  bottom: 42%;
+}
+
+body.touch #hint {
+  top: auto;
+  bottom: 22px;
+  left: 50%;
+  width: 36%;
+  transform: translateX(-50%);
+  font-size: 13px;
+}
+
+body.touch #drive {
+  bottom: 16px;
+  width: 240px;
+}
+
+body.touch #speed {
+  font-size: 24px;
+}
+
+body.touch #banner {
+  font-size: 56px;
+}
+
+/* the chips go top left, where there's no minimap to make room for */
+body.touch .touch-chips {
+  left: calc(12px + env(safe-area-inset-left, 0px));
+  top: 10px;
+}
+
+/* nine parts and the wrench: two columns up the right edge, clear of the buttons */
+body.touch .touch-strip {
+  top: 60px;
+  bottom: auto;
+  max-height: none;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 4px;
+}
+
+body.touch .touch-slot {
+  min-width: 78px;
+  padding: 4px 8px;
+}
+
+body.touch .touch-slot b {
+  font-size: 11px;
+}
+
+/* held upright, the buttons take the whole bottom: the hint goes above them */
+@media (orientation: portrait) {
+  body.touch #hint {
+    bottom: 130px;
+    width: 80%;
+  }
+
+  body.touch #drive {
+    bottom: 130px;
+  }
+}

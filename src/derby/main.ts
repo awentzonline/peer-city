@@ -2,6 +2,7 @@ import { NetWorld, type Transport } from '@engine/index';
 import { BroadcastTransport } from '@engine/transport/broadcast';
 import { TrysteroTransport } from '@engine/transport/trystero';
 import { Stage, VR_SESSION_INIT, errorText } from '../crossplay/stage';
+import { isTouchDevice } from '../crossplay/touch';
 import { Course } from './course';
 import { ACTIONS, ENTITIES } from './defs';
 import { Game } from './Game';
@@ -13,6 +14,9 @@ const APP_ID = 'peer-derby.p2p-game-engine.v1';
 const COURSE_SEED = 20260916;
 
 const params = new URLSearchParams(location.search);
+// ?touch and ?desktop force a frontend; otherwise fingers on a coarse pointer get the touch one.
+const touch = params.has('touch') || (!params.has('desktop') && isTouchDevice());
+if (touch) document.body.classList.add('touch');
 const nameInput = document.getElementById('name') as HTMLInputElement;
 const netSelect = document.getElementById('net') as HTMLSelectElement;
 const roomInput = document.getElementById('room') as HTMLInputElement;
@@ -67,6 +71,9 @@ function start(vr: boolean): void {
   url.searchParams.delete('autostart');
   history.replaceState(null, '', url);
 
+  // A phone gets the whole screen, turned sideways where the browser allows it, for thumbs either side.
+  if (touch && !vr) void landscape();
+
   const sfx = new Sfx();
   sfx.unlock();
   document.getElementById('lobby')!.hidden = true;
@@ -102,14 +109,24 @@ function start(vr: boolean): void {
       netLabel: `${mode}/${shard}`,
       container: document.getElementById('game')!,
       sim: params.has('xrsim'),
+      touch,
     });
 
     if (session) session.then((s) => game.startSession(s)).catch((err: unknown) => hud.message(`Couldn't start VR: ${errorText(err)}`));
-    else game.input.requestLock();
+    else if (!touch) game.input.requestLock();
 
     Object.assign(window as object, { peerDerby: { world, course, game } });
     window.addEventListener('pagehide', () => game.dispose());
   });
+}
+
+async function landscape(): Promise<void> {
+  try {
+    await document.documentElement.requestFullscreen?.();
+    await (screen.orientation as unknown as { lock?: (o: string) => Promise<void> }).lock?.('landscape');
+  } catch {
+    /* not allowed here (iOS never locks); the controls work either way up */
+  }
 }
 
 function safeStorage(op: 'get' | 'set', key: string, value?: string): string | null {

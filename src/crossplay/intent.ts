@@ -62,6 +62,11 @@ export interface AvatarIntent {
   interact: boolean;
   /** Crosshair trigger. */
   trigger: boolean;
+  /**
+   * A unit direction to use the crosshair tool along instead of through the middle of the view, e.g. where a
+   * touch screen was tapped. Null for the middle.
+   */
+  aim: Vec3 | null;
   /** Where the crosshair tool's tip is seen (a first-person model), for effects such as tracers, or null for the eyes. */
   tip: Vec3 | null;
   /** Crosshair: step through the tools carried (-1, 0 or 1), or take one out. */
@@ -89,6 +94,7 @@ export function idleIntent(): AvatarIntent {
     jump: false,
     interact: false,
     trigger: false,
+    aim: null,
     tip: null,
     cycleTool: 0,
     selectTool: null,
