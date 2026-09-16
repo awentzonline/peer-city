@@ -1,0 +1,402 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #12171d;
+  font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+  color: #fff;
+  user-select: none;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+}
+
+#game canvas {
+  display: block;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ---------------- HUD ---------------- */
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  text-shadow: 1px 1px 0 #000;
+}
+
+#crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 2px #000;
+}
+
+#phase {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 16px;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.45);
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #f5c542;
+  white-space: nowrap;
+}
+
+#standings {
+  position: absolute;
+  top: 60px;
+  left: 18px;
+  width: 260px;
+  font-size: 15px;
+}
+
+#standings div {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  gap: 6px;
+  padding: 4px 8px;
+  margin-bottom: 3px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+#standings div.me {
+  background: rgba(245, 197, 66, 0.35);
+}
+
+#standings small {
+  font-size: 13px;
+  color: #dfe6e9;
+}
+
+#build-panel {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  width: 290px;
+  text-align: right;
+}
+
+#build {
+  font-size: 22px;
+  font-weight: 900;
+}
+
+#build-detail {
+  margin-top: 2px;
+  font-size: 13px;
+  color: #dfe6e9;
+}
+
+#stats {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #b2bec3;
+}
+
+#parts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+#parts div {
+  padding: 3px 7px;
+  font-size: 12px;
+  border-radius: 5px;
+  border-left: 4px solid #888;
+  background: rgba(0, 0, 0, 0.4);
+  color: #dfe6e9;
+}
+
+#parts div.on {
+  background: rgba(255, 255, 255, 0.9);
+  color: #111;
+  text-shadow: none;
+  font-weight: 900;
+}
+
+#drive {
+  position: absolute;
+  left: 50%;
+  bottom: 44px;
+  width: 320px;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+#speed {
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #dfe6e9;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.bar span {
+  width: 64px;
+  text-align: left;
+}
+
+.track {
+  flex: 1;
+  height: 10px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 2px solid rgba(0, 0, 0, 0.8);
+  border-radius: 3px;
+}
+
+.track > div {
+  height: 100%;
+  width: 0;
+  transition: width 0.2s;
+}
+
+#fuel-fill {
+  background: linear-gradient(#ffb142, #d35400);
+}
+
+#progress-fill {
+  background: linear-gradient(#7bed9f, #2ed573);
+}
+
+#feed {
+  position: absolute;
+  right: 18px;
+  bottom: 150px;
+  max-width: 420px;
+  text-align: right;
+  font-size: 14px;
+}
+
+#feed div {
+  margin-top: 4px;
+  animation: fadeout 6s forwards;
+}
+
+@keyframes fadeout {
+  0%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+#banner {
+  position: absolute;
+  top: 30%;
+  width: 100%;
+  text-align: center;
+  font-size: 84px;
+  font-weight: 900;
+  letter-spacing: 6px;
+  opacity: 0;
+  transition: opacity 0.25s;
+  text-shadow: 4px 4px 0 #000;
+}
+
+#banner.show {
+  opacity: 1;
+}
+
+#hint {
+  position: absolute;
+  top: 58%;
+  width: 100%;
+  text-align: center;
+  font-size: 17px;
+}
+
+#help {
+  position: absolute;
+  bottom: 12px;
+  left: 18px;
+  right: 18px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+#lock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  text-shadow: 2px 2px 0 #000;
+}
+
+#lock small {
+  font-size: 13px;
+  font-weight: normal;
+  letter-spacing: 1px;
+}
+
+#vr-enter {
+  position: absolute;
+  left: 18px;
+  top: 14px;
+  pointer-events: auto;
+  padding: 8px 14px;
+  font: 900 14px/1 'Trebuchet MS', sans-serif;
+  letter-spacing: 2px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(90deg, #0984e3, #6c5ce7);
+}
+
+/* ---------------- Lobby ---------------- */
+#lobby {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(245, 197, 66, 0.35), transparent 50%),
+    radial-gradient(circle at 80% 90%, rgba(9, 132, 227, 0.35), transparent 55%),
+    #12171d;
+  padding: 16px;
+  overflow: auto;
+}
+
+#lobby .panel {
+  width: min(480px, 100%);
+  background: rgba(0, 0, 0, 0.55);
+  border: 2px solid rgba(245, 197, 66, 0.2);
+  border-radius: 14px;
+  padding: 26px 28px;
+  backdrop-filter: blur(6px);
+}
+
+#lobby h1 {
+  margin: 0;
+  font-size: 50px;
+  letter-spacing: 3px;
+  background: linear-gradient(90deg, #f5c542, #e17055, #0984e3);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(3px 3px 0 #000);
+}
+
+#lobby .tag {
+  margin: 4px 0 18px;
+  color: #dfe6e9;
+}
+
+#lobby label {
+  display: block;
+  margin: 10px 0;
+  font-size: 13px;
+  color: #b2bec3;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+#lobby input,
+#lobby select {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 9px 10px;
+  font-size: 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+#lobby select option {
+  color: #000;
+}
+
+#lobby .buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+#lobby button {
+  flex: 1;
+  padding: 12px;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #1b1b1b;
+  background: linear-gradient(90deg, #f5c542, #e17055);
+}
+
+#lobby #play-vr {
+  color: #fff;
+  background: linear-gradient(90deg, #0984e3, #6c5ce7);
+}
+
+#lobby button:disabled {
+  cursor: default;
+  filter: grayscale(1) brightness(0.6);
+}
+
+#lobby button:not(:disabled):hover {
+  filter: brightness(1.1);
+}
+
+#lobby .small {
+  font-size: 12px;
+  color: #b2bec3;
+  margin: 10px 0 0;
+}
+
+#lobby details summary {
+  cursor: pointer;
+  color: #dfe6e9;
+}
+
+#lobby ul {
+  padding-left: 18px;
+}
+
+#lobby a {
+  color: #f5c542;
+}

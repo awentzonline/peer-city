@@ -388,6 +388,62 @@ and hoe, sneaking up on a deer, gathering into the pack, eating and cooking, wol
 
 ---
 
+## Peer Derby (build downhill racers together, then race them)
+
+`/derby.html` is a fourth game on the engine: everyone gets a bay in a garage at the top of a hill, builds a
+ridiculous racer out of parts (with their friends' help, if they like), and then races it to the bottom.
+
+```bash
+npm run dev    # http://localhost:5173/derby.html
+```
+
+**Building.** The part gun sticks the loaded part onto whichever face of a racer's part you point at, and the
+wrench takes parts off (with anything only held on by them). Anyone can build on anyone's racer.
+
+| Part | What it does |
+| --- | --- |
+| Crate | the frame everything's built from |
+| Wheel / Big wheel | rolls; wheels in front of the centre of mass steer. Big wheels ride over bumps |
+| Rocket | pushes away from the way it points while you boost (six seconds of fuel a race) |
+| Wing | lift that grows with speed, and drag against falling flat |
+| Balloon | pulls up; pops on anything hard |
+| Anvil | 60 kg of keeping low |
+| Bumper | bouncy |
+| Ski | nearly frictionless: build a sled |
+
+**Racing.** Press ready; the race starts when everyone is, or 25 seconds after the first person is. Racers go to
+the grid, count down, and roll. Parts hit hard enough tear off, and so does whatever was only attached through
+them. Falling off, flipping or getting stuck puts you back at the last checkpoint, mended.
+
+| | Desktop | VR |
+| --- | --- | --- |
+| Build | click with the part gun; **1-9** / wheel pick the part, **X** wrench, **F** ready | grab the part gun (right hip) or wrench (left hip), point, trigger; **A** next part, **X** ready |
+| Drive | **A D** steer, **W** push off, **S** brake, **Space** rockets, **R** checkpoint, **C** camera | left stick steers, **A** push, left / right trigger brake / rockets, **B** checkpoint, **Y** recentre |
+
+How it uses the engine, and what it found:
+
+- **Rigid-body physics, one world per peer.** Rapier (`@dimforge/rapier3d-compat`, WASM) runs on every peer over
+  the same seeded course. Only the owner simulates its racer, as a dynamic body on raycast wheels; everyone else's
+  racer is a kinematic stand-in that follows its replicated pose. Bumping into someone is plausible rather than
+  exact, and nobody is in charge of a collision.
+- **A design is one replicated blob.** `t.bytes` (new in the engine) carries a racer's parts, 4 bytes each, and a
+  bitmask of the parts torn off in this race. Other peers rebuild models and stand-ins when either changes.
+- **Edits by cell, sent to the owner.** Helpers send `Edit { racer, cell, face, kind }` to the racer's owner, who
+  validates and applies it. Addressing a cell rather than an index keeps concurrent edits from tripping over each
+  other.
+- **A rotation is a quaternion in four fixed-point fields.** The owner keeps the sign continuous, so linear
+  interpolation of the components (normalized on read) never goes the long way round.
+- **One migratable `Race` runs the phases.** Its owner decides when to count down, start and finish; each racer's
+  owner reacts to the phase it sees (to the grid, go, home), so there's no start signal to lose.
+- **Debris is cosmetic.** The owner throws its torn-off parts and sends `Shatter`; everyone else throws copies
+  from where they see that racer. Debris collides only with the course and other debris.
+
+Source: `src/derby/`. Tests: `tests/derby.test.ts` builds on someone else's racer across two peers, builds with
+tracked hands, runs a race from ready to the go, rolls a starter cart down the whole hill with a steering bot
+(no parts lost on the jumps), and smashes a racer into a wall.
+
+---
+
 ## Scaling results
 
 `scripts/loadsim.ts` runs many `NetWorld`s in one process over a simulated network (45ms latency

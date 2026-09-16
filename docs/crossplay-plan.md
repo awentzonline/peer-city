@@ -219,6 +219,47 @@ Open questions for the project owner:
 - **Desktop tool views.** Desktop frontends scale long tools to fit the view per game. Should `Tool` say how
   it's shown first person on a crosshair?
 
+## Lessons from a third game
+
+Peer Derby (`src/derby/`, `/derby.html`, 2026-09-16) is building downhill racers together in a garage and racing
+them. It was the first game to need real physics, and the first where a player's role changes mid-game.
+
+What carried over unchanged: `Avatar` for walking the garage, tools and holsters for the part gun and wrench (both
+hands, a laser to aim with), `Seat` and frontends, `Stage`, voice and settings, `DesktopTool`, panels.
+
+What the engine and crossplay layer didn't have, and what was done about it:
+
+- **Blobs.** A racer's design is structured, changes rarely and is edited by several people. The engine gained
+  `t.bytes(max)`, diffed by contents. Worth considering: a first-class quaternion field. For now a rotation is four
+  `t.fixed` fields, with the owner keeping the sign continuous and readers normalizing.
+- **Physics as a per-peer service.** Each peer runs its own Rapier world; owned bodies are dynamic, everyone
+  else's are kinematic stand-ins following render state (`RacerProxies`). That pattern, plus fixed-step
+  accumulation and "debris only collides with the world", is game-neutral and could move to `crossplay/` when a
+  second game wants physics.
+- **A role that changes what it is.** The builder is an avatar in the garage and a driver in the race. Rather than
+  swapping roles in the `Seat` (which still assumes one role), one role holds both and the intent carries both
+  sets of fields (walk and tools, steer and boost). Frontends switch presentation on `builder.seated`, and the
+  body gained `seated`, `countdown`, `crashed` and `finished` callbacks. If more games do this, `Seat` could swap
+  roles, and intents could be split per mode.
+- **Seated VR.** `Rig.seatIn` from Peer City's cars was enough: it follows the racer's heading only, never its
+  pitch or roll, which is kinder to stomachs.
+- **Coordination without a start signal.** A migratable `Race` entity holds the phase and a timer; its owner runs
+  it, and each racer's owner acts on the phase it sees. A lost message can't leave anyone on the grid, and the
+  race survives its owner leaving. Duplicates from two peers creating one at once are resolved by lowest id.
+- **The whole map is one neighbourhood.** Racers spread over a kilometre but everyone needs everyone's
+  standings, so the world uses one big zone and a large interest radius. Fine for a group of friends; many
+  racers would want a lighter "standings" channel than full entity replication.
+- **Headless physics tests are cheap.** A steering bot runs a full race in about a second in vitest, which is how
+  the course and part strengths were tuned (the jumps originally ended in cliffs that smashed every cart).
+
+Decided by the project owner (2026-09-16), not built yet:
+
+- **A good phone version.** Touch should be a first-class way to play the derby, not a port: think outside the box
+  if the desktop controls don't suit thumbs (tap a face to build, tilt or thumb controls to drive, whatever
+  works best), but it has to work well.
+- **Physics is trusted.** Owners simulate their own racers unchecked, and that's fine; no validation needed.
+- **Designs outlive the session.** First save and load them (locally), then share them (e.g. as codes).
+
 ## Later: mobile
 
 - Detection is done (`isTouchDevice()`), and the lobby's PLAY starts the touch frontend on a phone. A

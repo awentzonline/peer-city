@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Peer Derby</title>
+    <link rel="stylesheet" href="/src/derby/style.css" />
+    <link rel="stylesheet" href="/src/crossplay/settings.css" />
+  </head>
+  <body>
+    <div id="game"></div>
+
+    <div id="hud" hidden>
+      <div id="crosshair"></div>
+      <div id="phase"></div>
+      <div id="standings"></div>
+      <div id="build-panel">
+        <div id="build"></div>
+        <div id="build-detail"></div>
+        <div id="stats"></div>
+        <div id="parts"></div>
+      </div>
+      <div id="drive" hidden>
+        <div id="speed"></div>
+        <div class="bar"><span>Rockets</span><div class="track"><div id="fuel-fill"></div></div></div>
+        <div class="bar"><span>Course</span><div class="track"><div id="progress-fill"></div></div></div>
+      </div>
+      <div id="feed"></div>
+      <div id="banner"></div>
+      <div id="hint"></div>
+      <div id="help"></div>
+      <button id="vr-enter" hidden>ENTER VR</button>
+      <div id="lock" hidden>
+        <div>CLICK TO PLAY</div>
+        <small>Esc releases the mouse</small>
+      </div>
+    </div>
+
+    <div id="lobby">
+      <div class="panel">
+        <h1>PEER DERBY</h1>
+        <p class="tag">Build a ridiculous downhill racer with your friends, then race it to the bottom of the hill. No server: everyone's browser is the game.</p>
+        <label>Name <input id="name" maxlength="16" autocomplete="off" /></label>
+        <label
+          >Network
+          <select id="net">
+            <option value="online">Online (WebRTC via Trystero / Nostr)</option>
+            <option value="local">Local tabs (BroadcastChannel)</option>
+          </select>
+        </label>
+        <label>Hill <input id="room" maxlength="24" autocomplete="off" /></label>
+        <div class="buttons">
+          <button id="play">PLAY</button>
+          <button id="play-vr" disabled>PLAY IN VR</button>
+        </div>
+        <p class="small" id="vr-note">Checking for a VR headset…</p>
+        <details class="small">
+          <summary>How to play</summary>
+          Everyone gets a bay in the garage at the top of the hill with a starter cart in it. Build it into anything you like with the
+          <b>part gun</b>: point at a face of any part and click to stick the loaded part on. The <b>wrench</b> takes parts off again. You can
+          walk over and build on anyone's racer, and they can build on yours.
+          <ul>
+            <li><b>Crates</b> are the frame. <b>Wheels</b> roll, and the ones in front steer; <b>big wheels</b> ride over bumps.</li>
+            <li><b>Rockets</b> push away from the way they point: hold boost. <b>Wings</b> lift you off jumps, <b>balloons</b> pull you up.</li>
+            <li><b>Anvils</b> are heavy, <b>bumpers</b> bounce, and <b>skis</b> slide: build a sled.</li>
+            <li>Parts hit hard enough tear off, along with anything only held on by them.</li>
+          </ul>
+          Press <b>F</b> when you're ready. The race starts when everyone is, or soon after the first person is. Racing: <b>A D</b> steer,
+          <b>W</b> pushes off, <b>S</b> brakes, <b>Space</b> fires rockets, <b>R</b> puts you back at the last checkpoint.
+          <br /><br />
+          <b>VR:</b> the part gun is on your right hip and the wrench on your left. Squeeze to take one, point, pull the trigger. A loads the next
+          part, X says you're ready. Racing, the left stick steers, the triggers brake and fire rockets, and A pushes off.
+        </details>
+        <p class="small">Open more tabs or share the URL to add players. <a href="./wilds.html">Peer Wilds →</a></p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/derby/main.ts"></script>
+  </body>
+</html>

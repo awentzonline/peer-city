@@ -45,6 +45,20 @@ describe('codec', () => {
   });
 });
 
+describe('bytes fields', () => {
+  it('round-trip a blob, diff by contents, and clip to the limit', () => {
+    const f = t.bytes(4);
+    const blob = new Uint8Array([0, 7, 200, 255]);
+    const q = f.quantize(blob);
+    expect(f.quantize(new Uint8Array([0, 7, 200, 255]))).toBe(q);
+    const w = new ByteWriter();
+    f.write(w, q);
+    const back = f.dequantize(f.read(new ByteReader(w.finish())));
+    expect([...back]).toEqual([0, 7, 200, 255]);
+    expect(f.quantize(new Uint8Array([1, 2, 3, 4, 5]))).toHaveLength(4);
+  });
+});
+
 describe('replication', () => {
   it('replicates spawn, deltas and despawn inside the interest radius', () => {
     const sim = new Sim();

@@ -16,6 +16,7 @@
     "sim": "tsx scripts/loadsim.ts"
   },
   "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.20.0",
     "phaser": "4.2.1",
     "three": "^0.186.0",
     "trystero": "0.25.4"

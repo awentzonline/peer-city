@@ -180,6 +180,14 @@ export class ByteReader {
     return hi * TWO_32 + lo;
   }
 
+  /** `n` raw bytes (a view into the buffer: copy it to keep it). */
+  bytes(n: number): Uint8Array {
+    this.check(n);
+    const b = this.buf.subarray(this.pos, this.pos + n);
+    this.pos += n;
+    return b;
+  }
+
   string(): string {
     const len = this.varuint();
     this.check(len);

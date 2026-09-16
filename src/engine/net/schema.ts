@@ -128,6 +128,49 @@ export const t = {
     };
   },
 
+  /**
+   * Up to `maxLength` bytes, length-prefixed: a compact blob for structured data that changes rarely, such as
+   * something players build. Replace the array to change it rather than writing into it: it's diffed by
+   * contents, and the quantized form of an array is cached.
+   */
+  bytes(maxLength = 255): FieldType<Uint8Array> {
+    const strings = new WeakMap<Uint8Array, string>();
+    return {
+      kind: `bytes:${maxLength}`,
+      defaultValue: new Uint8Array(0),
+      interp: 'none',
+      quantize: (v) => {
+        let q = strings.get(v);
+        if (q === undefined) {
+          q = '';
+          for (let i = 0, n = Math.min(v.length, maxLength); i < n; i++) q += String.fromCharCode(v[i]);
+          strings.set(v, q);
+        }
+        return q;
+      },
+      dequantize: (q) => {
+        const s = q as string;
+        const b = new Uint8Array(s.length);
+        for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i);
+        strings.set(b, s);
+        return b;
+      },
+      write: (w, q) => {
+        const s = q as string;
+        w.varuint(s.length);
+        const b = new Uint8Array(s.length);
+        for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i);
+        w.bytes(b);
+      },
+      read: (r) => {
+        const b = r.bytes(r.varuint());
+        let q = '';
+        for (let i = 0; i < b.length; i++) q += String.fromCharCode(b[i]);
+        return q;
+      },
+    };
+  },
+
   /** Reference to another entity by network id (0 = none). */
   ref(): FieldType<number> {
     return {
