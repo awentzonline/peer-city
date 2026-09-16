@@ -1,4 +1,4 @@
-import { defineAction, defineEntity, t } from '@engine/index';
+import { defineAction, defineCommand, defineEntity, t } from '@engine/index';
 import { BODY_FIELDS } from '../crossplay/avatar';
 import { MAX_PARTS } from './parts';
 import { FUEL_SECONDS } from './physics';
@@ -106,18 +106,22 @@ export const enum EditOp {
 }
 
 /**
- * Sent to a racer's owner. By cell, not by index, so edits from several builders at once don't trip over each
- * other: Add puts `kind` in cell (x, y, z) against the neighbour on its `dir` side; Remove takes out the cell.
+ * Carried out by the racer's owner. By cell, not by index, so edits from several builders at once don't trip over
+ * each other: Add puts `kind` in cell (x, y, z) against the neighbour on its `dir` side; Remove takes out the cell.
  */
-export const Edit = defineAction('edit', {
-  racer: t.ref(),
-  op: t.uint(8),
-  x: t.int(),
-  y: t.int(),
-  z: t.int(),
-  dir: t.uint(8),
-  kind: t.uint(8),
-});
+export const Edit = defineCommand(
+  'edit',
+  {
+    racer: t.ref(),
+    op: t.uint(8),
+    x: t.int(),
+    y: t.int(),
+    z: t.int(),
+    dir: t.uint(8),
+    kind: t.uint(8),
+  },
+  { target: 'racer' },
+);
 
 /** Parts tore off a racer: everyone nearby throws their own copies, moving at about (vx, vy, vz). */
 export const Shatter = defineAction('shatter', {

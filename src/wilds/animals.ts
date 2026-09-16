@@ -241,7 +241,7 @@ function hunt(ctx: WildsContext, a: AnimalEntity, dt: number): void {
   if (d < BITE_RANGE && now >= (l.nextBite ?? 0)) {
     l.nextBite = now + BITE_MS;
     const k = 1 / Math.max(d, 0.1);
-    world.send(Damage, { target: target.id, amount: BITE, attacker: a.id, kx: (target.x - s.x) * k * 3, ky: (target.y - s.y) * k * 3 }, { to: 'owner', entity: target });
+    world.command(Damage, { target: target.id, amount: BITE, attacker: a.id, kx: (target.x - s.x) * k * 3, ky: (target.y - s.y) * k * 3 });
     ctx.sfx.play('bite', { x: s.x, y: s.y, z: ctx.land.heightAt(s.x, s.y) + 0.6 });
   }
 }

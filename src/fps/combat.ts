@@ -44,13 +44,11 @@ export function registerCombat(ctx: GameContext, player: AvatarSim): void {
 
   world.onAction(Feed, (p) => ctx.hud.message(p.text));
 
-  world.onAction(Busted, (p) => {
-    if (ctx.me && p.target === ctx.me.id) player.busted(world.getAs(Ped, p.cop));
+  world.onCommand(Busted, Player, (suspect, p) => {
+    if (suspect === ctx.me) player.busted(world.getAs(Ped, p.cop));
   });
 
-  world.onAction(Kill, (p) => {
-    const attacker = world.getAs(Player, p.attacker);
-    if (!attacker?.mine) return;
+  world.onCommand(Kill, Player, (attacker, p) => {
     attacker.state.kills++;
     if (p.victimKind === VICTIM_PED) {
       player.crime(1);
@@ -62,66 +60,58 @@ export function registerCombat(ctx: GameContext, player: AvatarSim): void {
     }
   });
 
-  world.onAction(Damage, (p) => {
-    const target = world.get(p.target);
-    if (!target || !target.mine) return;
-    const credit = (victimKind: number) => {
-      const attacker = world.get(p.attacker);
-      if (attacker) world.send(Kill, { attacker: p.attacker, victimKind, x: target.x, y: target.y }, { to: 'owner', entity: attacker });
-    };
+  /** Tell whoever did it that they got a kill. */
+  const credit = (attacker: number, victimKind: number, x: number, y: number) => world.command(Kill, { attacker, victimKind, x, y });
 
-    if (target.is(Ped)) {
-      const s = target.state;
-      if (s.mode === PedMode.Dead) return;
-      s.hp = Math.max(0, s.hp - p.amount);
-      moveCircle(ctx.city, s, p.kx * 0.08, p.ky * 0.08, PED_RADIUS);
-      if (s.hp === 0) {
-        s.mode = PedMode.Dead;
-        s.angle = Math.atan2(p.ky, p.kx) + Math.PI; // falls away from the hit
-        if (Math.random() < 0.6) {
-          world.spawn(Pickup, { x: s.x + 0.8, y: s.y + 0.5, kind: PickupKind.Cash, amount: 10 + Math.floor(Math.random() * 60) });
-        }
-        credit(s.cop ? VICTIM_COP : VICTIM_PED);
-      } else if (s.cop) {
-        // an officer who gets shot goes after the shooter
-        if (s.mode === PedMode.Walk && world.getAs(Player, p.attacker)) {
-          s.mode = PedMode.Attack;
-          s.target = p.attacker;
-        }
-      } else {
-        panicPeds(ctx, s.x - p.kx, s.y - p.ky, 4);
+  world.onCommand(Damage, Ped, (target, p) => {
+    const s = target.state;
+    if (s.mode === PedMode.Dead) return;
+    s.hp = Math.max(0, s.hp - p.amount);
+    moveCircle(ctx.city, s, p.kx * 0.08, p.ky * 0.08, PED_RADIUS);
+    if (s.hp === 0) {
+      s.mode = PedMode.Dead;
+      s.angle = Math.atan2(p.ky, p.kx) + Math.PI; // falls away from the hit
+      if (Math.random() < 0.6) {
+        world.spawn(Pickup, { x: s.x + 0.8, y: s.y + 0.5, kind: PickupKind.Cash, amount: 10 + Math.floor(Math.random() * 60) });
       }
-      return;
+      credit(p.attacker, s.cop ? VICTIM_COP : VICTIM_PED, target.x, target.y);
+    } else if (s.cop) {
+      // an officer who gets shot goes after the shooter
+      if (s.mode === PedMode.Walk && world.getAs(Player, p.attacker)) {
+        s.mode = PedMode.Attack;
+        s.target = p.attacker;
+      }
+    } else {
+      panicPeds(ctx, s.x - p.kx, s.y - p.ky, 4);
     }
+  });
 
-    if (target.is(Player)) {
-      const s = target.state;
-      if (s.hp === 0 || target !== ctx.me) return;
-      s.hp = Math.max(0, s.hp - p.amount);
-      if (p.cause !== DamageCause.Explosion && !s.car) player.nudge(p.kx * 0.05, p.ky * 0.05);
-      player.hurt(p.amount);
-      if (s.hp === 0) {
-        const killer = world.getAs(Player, p.attacker);
-        const byPolice = !!world.getAs(Ped, p.attacker)?.state.cop;
-        if (killer && killer !== target) credit(VICTIM_PLAYER);
-        player.die(killer && killer !== target ? killer.state.name : byPolice ? 'Police' : null);
-      }
-      return;
+  world.onCommand(Damage, Player, (target, p) => {
+    const s = target.state;
+    if (s.hp === 0 || target !== ctx.me) return;
+    s.hp = Math.max(0, s.hp - p.amount);
+    if (p.cause !== DamageCause.Explosion && !s.car) player.nudge(p.kx * 0.05, p.ky * 0.05);
+    player.hurt(p.amount);
+    if (s.hp === 0) {
+      const killer = world.getAs(Player, p.attacker);
+      const byPolice = !!world.getAs(Ped, p.attacker)?.state.cop;
+      if (killer && killer !== target) credit(p.attacker, VICTIM_PLAYER, target.x, target.y);
+      player.die(killer && killer !== target ? killer.state.name : byPolice ? 'Police' : null);
     }
+  });
 
-    if (target.is(Car)) {
-      const s = target.state;
-      if (s.mode === CarMode.Wrecked) return;
-      if (p.attacker) target.local.lastAttacker = p.attacker;
-      s.hp = Math.max(0, s.hp - p.amount);
-      if (p.cause === DamageCause.Vehicle) {
-        target.local.vx = (target.local.vx ?? 0) + p.kx * 0.4;
-        target.local.vy = (target.local.vy ?? 0) + p.ky * 0.4;
-      }
-      if (s.hp === 0) {
-        if (s.kind === CarKind.Police) credit(VICTIM_COP);
-        wreckCar(ctx, target);
-      }
+  world.onCommand(Damage, Car, (target, p) => {
+    const s = target.state;
+    if (s.mode === CarMode.Wrecked) return;
+    if (p.attacker) target.local.lastAttacker = p.attacker;
+    s.hp = Math.max(0, s.hp - p.amount);
+    if (p.cause === DamageCause.Vehicle) {
+      target.local.vx = (target.local.vx ?? 0) + p.kx * 0.4;
+      target.local.vy = (target.local.vy ?? 0) + p.ky * 0.4;
+    }
+    if (s.hp === 0) {
+      if (s.kind === CarKind.Police) credit(p.attacker, VICTIM_COP, target.x, target.y);
+      wreckCar(ctx, target);
     }
   });
 }

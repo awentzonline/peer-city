@@ -1,4 +1,4 @@
-import { defineAction, defineEntity, t } from '@engine/index';
+import { defineAction, defineCommand, defineEntity, t } from '@engine/index';
 import { BODY_FIELDS } from '../crossplay/avatar';
 
 /**
@@ -137,8 +137,8 @@ export const enum DamageCause {
   Explosion = 2,
 }
 
-/** Sent to the owner of the victim, who applies it authoritatively. */
-export const Damage = defineAction('damage', {
+/** The victim's owner applies it. */
+export const Damage = defineCommand('damage', {
   target: t.ref(),
   amount: t.uint(8),
   attacker: t.ref(), // player entity id (0 = world/NPC)
@@ -150,11 +150,11 @@ export const Damage = defineAction('damage', {
 
 export const Explosion = defineAction('boom', { x: t.fixed(0.05), y: t.fixed(0.05) });
 export const Horn = defineAction('horn', { car: t.ref() });
-/** An officer finished cuffing `target`; sent to the suspect's owner, who checks the officer is really there. */
-export const Busted = defineAction('busted', { target: t.ref(), cop: t.ref() });
+/** An officer finished cuffing `target`; the suspect's owner checks the officer is really there. */
+export const Busted = defineCommand('busted', { target: t.ref(), cop: t.ref() });
 export const Feed = defineAction('feed', { text: t.string(80) });
 /** Victim tells the attacker's owner about a kill, so crimes and cash are credited. */
-export const Kill = defineAction('kill', { attacker: t.ref(), victimKind: t.uint(8), x: t.fixed(0.05), y: t.fixed(0.05) });
+export const Kill = defineCommand('kill', { attacker: t.ref(), victimKind: t.uint(8), x: t.fixed(0.05), y: t.fixed(0.05) }, { target: 'attacker' });
 
 export const ENTITIES = [Player, Car, Ped, Pickup];
 export const ACTIONS = [Shot, Damage, Explosion, Horn, Busted, Feed, Kill];

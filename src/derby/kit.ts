@@ -134,7 +134,7 @@ export function problemText(problem: Aim['problem']): string {
 
 /** Ask a racer's owner to make an edit (or make it, if it's ours). */
 function sendEdit(ctx: DerbyContext, racer: RacerEntity, op: EditOp, cell: { x: number; y: number; z: number }, dir: Dir, kind: PartKind): void {
-  ctx.world.send(Edit, { racer: racer.id, op, x: cell.x, y: cell.y, z: cell.z, dir, kind }, { to: 'owner', entity: racer });
+  ctx.world.command(Edit, { racer: racer.id, op, x: cell.x, y: cell.y, z: cell.z, dir, kind });
 }
 
 export type Use = ToolUse<Builder>;

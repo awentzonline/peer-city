@@ -157,7 +157,7 @@ function copAI(ctx: GameContext, cop: PedEntity, dt: number): void {
       l.cuff = (l.cuff ?? 0) + dt * 1000;
       if (l.cuff >= CUFF_MS) {
         l.cuff = 0;
-        ctx.world.send(Busted, { target: suspect.id, cop: cop.id }, { to: 'owner', entity: suspect });
+        ctx.world.command(Busted, { target: suspect.id, cop: cop.id });
       }
       return;
     }

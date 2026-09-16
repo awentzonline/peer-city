@@ -90,11 +90,7 @@ export class Arrows {
         ctx.sfx.play('hit', { x: bx, y: by, z: bz });
         if (f.mine) {
           const k = Math.min(1, (speed - ARROW_MIN_SPEED) / (ARROW_MAX_SPEED - ARROW_MIN_SPEED));
-          ctx.world.send(
-            Damage,
-            { target: body.entity.id, amount: Math.round(22 + 58 * Math.max(0, k)), attacker: f.shooter, kx: dir.x * 3, ky: dir.y * 3 },
-            { to: 'owner', entity: body.entity },
-          );
+          ctx.world.command(Damage, { target: body.entity.id, amount: Math.round(22 + 58 * Math.max(0, k)), attacker: f.shooter, kx: dir.x * 3, ky: dir.y * 3 });
         }
         return true;
       }

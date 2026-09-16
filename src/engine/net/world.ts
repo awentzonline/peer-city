@@ -2,7 +2,7 @@ import { ByteReader, ByteWriter } from './codec';
 import { NetEntity } from './entity';
 import { fnv1a, rendezvous } from './hash';
 import { PeerMesh } from './mesh';
-import type { ActionDef, EntityDef, Infer, Quantized, Shape } from './schema';
+import type { ActionDef, CommandDef, EntityDef, Infer, Quantized, Shape } from './schema';
 import { SpatialHash } from '../spatial/SpatialHash';
 import type { Transport } from '../transport/types';
 
@@ -32,6 +32,8 @@ const REMOVE_DESTROYED = 0;
 const REMOVE_OUT_OF_INTEREST = 1;
 
 const ROUTE_OWNER = 1;
+/** Forwarded on behalf of another peer, whose id follows, so handlers still know who sent it. */
+const ROUTE_ORIGIN = 2;
 
 export type RemoveReason = 'despawned' | 'destroyed' | 'out-of-interest' | 'owner-left' | 'stale' | 'unloaded';
 
@@ -510,6 +512,69 @@ export class NetWorld {
     }
   }
 
+  /** Send a command (see `defineCommand`) to its target's owner, or queue it here if that's us. Dropped if the target isn't known. */
+  command<S extends Shape>(def: CommandDef<S>, payload: Infer<S>): void {
+    this.send(def, payload, { to: 'owner', entity: payload[def.target] as number });
+  }
+
+  /**
+   * Carry out a command on the target's owner. `fn` runs only here, only while this peer owns the target, and,
+   * given an entity type, only for targets of that type (register a handler per type a command can hit).
+   */
+  onCommand<S extends Shape, E extends Shape>(
+    def: CommandDef<S>,
+    type: EntityDef<E>,
+    fn: (target: NetEntity<Infer<E>>, payload: Infer<S>, ctx: ActionContext) => void,
+  ): () => void;
+  onCommand<S extends Shape>(def: CommandDef<S>, fn: (target: NetEntity<any>, payload: Infer<S>, ctx: ActionContext) => void): () => void;
+  onCommand<S extends Shape>(
+    def: CommandDef<S>,
+    typeOrFn: EntityDef<any> | ((target: NetEntity<any>, payload: Infer<S>, ctx: ActionContext) => void),
+    maybeFn?: (target: NetEntity<any>, payload: Infer<S>, ctx: ActionContext) => void,
+  ): () => void {
+    const type = typeof typeOrFn === 'function' ? null : typeOrFn;
+    const fn = maybeFn ?? (typeOrFn as (target: NetEntity<any>, payload: Infer<S>, ctx: ActionContext) => void);
+    return this.onAction(def, (payload, ctx) => {
+      const target = this.entities.get(payload[def.target] as number);
+      if (target?.mine && (!type || target.def === type)) fn(target, payload, ctx);
+    });
+  }
+
+  /**
+   * Change an entity no other peer may be changing at the same moment, such as collecting a pickup or sowing a
+   * plot. Ownership is the lock: this asks for it, and `change` runs once it's granted, if the entity still
+   * exists. Recheck whatever made the change worth making inside `change`, since the entity may have changed
+   * while the request was in flight. It's released afterwards (unless it was already held here, or `change`
+   * despawned it). Resolves to what `change` returned, or undefined if the lock wasn't won.
+   */
+  async withLock<S, R>(e: NetEntity<S>, change: (e: NetEntity<S>) => R): Promise<R | undefined> {
+    const wasHeld = e.mine && e.held;
+    if (!(await this.requestOwnership(e)) || !e.alive || !e.mine) return undefined;
+    try {
+      return change(e);
+    } finally {
+      if (!wasHeld) this.release(e);
+    }
+  }
+
+  /**
+   * Follow the entities of one type this peer knows about: `added` for each one already known and each that
+   * arrives, `removed` as each goes. For keeping something derived in step, such as an index or a scene object.
+   * Returns a function that stops following.
+   */
+  track<S extends Shape>(
+    def: EntityDef<S>,
+    handlers: { added?: (e: NetEntity<Infer<S>>) => void; removed?: (e: NetEntity<Infer<S>>, reason: RemoveReason) => void },
+  ): () => void {
+    const offAdded = this.on('entityAdded', (e) => e.def === def && handlers.added?.(e));
+    const offRemoved = this.on('entityRemoved', (e, reason) => e.def === def && handlers.removed?.(e, reason));
+    if (handlers.added) for (const e of this.all(def)) handlers.added(e);
+    return () => {
+      offAdded();
+      offRemoved();
+    };
+  }
+
   /** Call once per frame, before simulating owned entities. */
   update(now = this.clock()): void {
     this.nowMs = now;
@@ -811,11 +876,13 @@ export class NetWorld {
     e.def.layout.writeMasked(w, q, mask);
   }
 
-  private writeAction(peerId: string, def: ActionDef<any>, body: Uint8Array, route: number, entityId: number, ttl: number): void {
+  private writeAction(peerId: string, def: ActionDef<any>, body: Uint8Array, route: number, entityId: number, ttl: number, origin?: string): void {
     const peer = this.peers.get(peerId);
     if (!peer) return;
+    if (origin !== undefined) route |= ROUTE_ORIGIN;
     peer.out.u8(MSG_ACTION).u8(def.typeId).u8(route);
     if (route & ROUTE_OWNER) peer.out.id48(entityId).u8(ttl);
+    if (origin !== undefined) peer.out.string(origin);
     peer.out.bytes(body);
     if (peer.out.length > 16000) this.flush(peer, this.nowMs);
   }
@@ -1092,6 +1159,7 @@ export class NetWorld {
       targetId = r.id48();
       ttl = r.u8();
     }
+    const from = route & ROUTE_ORIGIN ? r.string() : peer.id;
     const start = r.pos;
     const payload = def.layout.defaults() as Record<string, unknown>;
     def.layout.readMaskedInto(r, def.layout.allMask, payload);
@@ -1101,12 +1169,12 @@ export class NetWorld {
       if (e && !e.mine) {
         // Ownership moved while the action was in flight: forward it.
         if (ttl > 0 && e.owner !== peer.id && this.peers.has(e.owner)) {
-          this.writeAction(e.owner, def, r.buf.slice(start, r.pos), ROUTE_OWNER, targetId, ttl - 1);
+          this.writeAction(e.owner, def, r.buf.slice(start, r.pos), ROUTE_OWNER, targetId, ttl - 1, from);
         }
         return;
       }
     }
-    this.dispatch(def, payload, peer.id, false);
+    this.dispatch(def, payload, from, from === this.selfId);
   }
 
   private dispatch(def: ActionDef<any>, payload: unknown, from: string, local: boolean): void {

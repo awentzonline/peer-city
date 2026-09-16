@@ -13,9 +13,8 @@ export function registerActions(ctx: DerbyContext, builder: Builder): void {
 
   world.onAction(Feed, (p) => ctx.hud.message(p.text));
 
-  world.onAction(Edit, (p, from) => {
-    const racer = world.getAs(Racer, p.racer);
-    if (!racer?.mine || racer !== ctx.racer) return;
+  world.onCommand(Edit, Racer, (racer, p, from) => {
+    if (racer !== ctx.racer) return;
     const before = racer.state.design;
     builder.edit(p.op, p.x, p.y, p.z, p.dir as Dir, p.kind as PartKind);
     // someone else built on your racer: say so, once in a while

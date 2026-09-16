@@ -1,4 +1,4 @@
-import type { NetWorld } from '@engine/index';
+import { Singleton, type NetWorld } from '@engine/index';
 import type { RaceEntity, RacerEntity } from './context';
 import { Feed, Phase, Race, Racer, RacerMode } from './defs';
 
@@ -22,31 +22,23 @@ export const RACE_SPOT = { x: -60, y: 0 };
  * go when they see it racing, and go back to their bays when they see it over.
  */
 export class RaceKeeper {
-  private lookedSince = -1;
+  private readonly one: Singleton<typeof Race>;
   private spentRacing = 0;
 
-  constructor(private readonly world: NetWorld) {}
-
-  /** The race, if this peer knows it. With more than one (two peers made one at once), the oldest. */
-  get race(): RaceEntity | null {
-    let best: RaceEntity | null = null;
-    for (const r of this.world.all(Race)) if (!best || r.id < best.id) best = r;
-    return best;
+  constructor(private readonly world: NetWorld) {
+    // Give the network a moment to tell us about one first. Two peers making one at once keep the lowest id.
+    this.one = new Singleton(world, Race, { init: () => ({ x: RACE_SPOT.x, y: RACE_SPOT.y, phase: Phase.Building, round: 0 }) });
   }
 
-  /** Make the race if nobody has, get rid of our duplicates, and run it if it's ours. */
+  /** The race, if this peer knows it. */
+  get race(): RaceEntity | null {
+    return this.one.entity;
+  }
+
+  /** Make the race if nobody has, and run it if it's ours. */
   update(dt: number, now: number): void {
-    const { world } = this;
-    const race = this.race;
-    for (const r of world.all(Race)) if (r !== race && r.mine) world.despawn(r);
-    if (!race) {
-      // give the network a moment to tell us about one first
-      if (this.lookedSince < 0) this.lookedSince = now + 2000 + Math.random() * 1500;
-      if (now >= this.lookedSince) world.spawn(Race, { x: RACE_SPOT.x, y: RACE_SPOT.y, phase: Phase.Building, round: 0 });
-      return;
-    }
-    this.lookedSince = -1;
-    if (race.mine) this.run(race, dt);
+    const race = this.one.update(now);
+    if (race?.mine) this.run(race, dt);
   }
 
   private run(race: RaceEntity, dt: number): void {

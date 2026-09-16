@@ -322,5 +322,24 @@ export function defineAction<S extends Shape>(name: string, fields: S): ActionDe
   return { kind: 'action', name, layout: new FieldLayout(fields), typeId: -1 };
 }
 
+/**
+ * An action addressed to one entity and carried out by that entity's owner, the only peer allowed to change it:
+ * damage to its victim, an edit to a racer, logs onto a fire. `target` names the `t.ref()` field that says which
+ * entity (default 'target'). Send it with `world.command` and handle it with `world.onCommand`, which only runs on
+ * the target's owner. It's still an action: register it in `actions`, and `send` / `onAction` work on it too.
+ *
+ * Plain actions sent `near` or to `all` are events: something happened, and whoever hears it shows it.
+ */
+export interface CommandDef<S extends Shape = Shape> extends ActionDef<S> {
+  /** The name of the field holding the target entity's id. */
+  readonly target: keyof S & string;
+}
+
+export function defineCommand<S extends Shape>(name: string, fields: S, opts: { target?: keyof S & string } = {}): CommandDef<S> {
+  const target = opts.target ?? ('target' as keyof S & string);
+  if (fields[target]?.kind !== 'ref') throw new Error(`Command "${name}" needs a t.ref() field "${target}" naming its target`);
+  return { ...defineAction(name, fields), target };
+}
+
 export type StateOf<D> = D extends EntityDef<infer S> ? Infer<S> : never;
 export type PayloadOf<D> = D extends ActionDef<infer S> ? Infer<S> : never;

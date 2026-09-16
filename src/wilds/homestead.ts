@@ -68,29 +68,28 @@ export function till(ctx: WildsContext, x: number, y: number): boolean {
 
 /** Plant a crop in an empty plot. Resolves true once it's in. */
 export async function sow(ctx: WildsContext, plot: PlotEntity, crop: Crop): Promise<boolean> {
-  const { world } = ctx;
   if (plot.state.crop !== Crop.None) return false;
-  const ok = await world.requestOwnership(plot);
-  if (!ok) return false;
-  world.release(plot);
-  if (!plot.alive || plot.state.crop !== Crop.None) return false;
-  plot.state.crop = crop;
-  plot.state.planted = Math.floor(ctx.wall);
-  ctx.sfx.play('sow', { x: plot.x, y: plot.y, z: ctx.land.heightAt(plot.x, plot.y) });
-  return true;
+  const sown = await ctx.world.withLock(plot, (p) => {
+    if (p.state.crop !== Crop.None) return false;
+    p.state.crop = crop;
+    p.state.planted = Math.floor(ctx.wall);
+    return true;
+  });
+  if (sown) ctx.sfx.play('sow', { x: plot.x, y: plot.y, z: ctx.land.heightAt(plot.x, plot.y) });
+  return !!sown;
 }
 
 /** Pull a ripe crop, leaving the soil tilled. Resolves to the crop pulled, or None. */
 export async function harvest(ctx: WildsContext, plot: PlotEntity): Promise<Crop> {
-  const { world } = ctx;
   if (!ripe(plot, ctx.wall)) return Crop.None;
-  const ok = await world.requestOwnership(plot);
-  if (!ok) return Crop.None;
-  world.release(plot);
-  const crop = plot.state.crop;
-  if (!plot.alive || !ripe(plot, ctx.wall)) return Crop.None;
-  plot.state.crop = Crop.None;
-  plot.state.planted = 0;
+  const crop = await ctx.world.withLock(plot, (p) => {
+    if (!ripe(p, ctx.wall)) return Crop.None;
+    const pulled = p.state.crop;
+    p.state.crop = Crop.None;
+    p.state.planted = 0;
+    return pulled;
+  });
+  if (!crop) return Crop.None;
   const z = ctx.land.heightAt(plot.x, plot.y);
   ctx.fx.dirt(plot.x, plot.y, z);
   ctx.sfx.play('harvest', { x: plot.x, y: plot.y, z });
@@ -126,7 +125,7 @@ export function buildFire(ctx: WildsContext, x: number, y: number): CampfireEnti
 
 /** Put logs on a fire (lit or ashes). Its owner does it. */
 export function addLogs(ctx: WildsContext, fire: CampfireEntity, logs: number): void {
-  ctx.world.send(Fuel, { fire: fire.id, seconds: logs * FIRE_LOG_SECONDS }, { to: 'owner', entity: fire });
+  ctx.world.command(Fuel, { fire: fire.id, seconds: logs * FIRE_LOG_SECONDS });
   ctx.sfx.play('ignite', { x: fire.x, y: fire.y, z: ctx.land.heightAt(fire.x, fire.y) });
 }
 
@@ -150,14 +149,13 @@ export function fell(ctx: WildsContext, tree: number): boolean {
 /** Keep the land's felled trees in step with the stumps this peer knows about. */
 export function trackStumps(ctx: WildsContext): void {
   const { world, land } = ctx;
-  world.on('entityAdded', (e) => {
-    if (e.is(Stump)) land.felled.add(e.state.tree);
-  });
-  world.on('entityRemoved', (e) => {
-    if (!e.is(Stump)) return;
-    const tree = e.state.tree;
-    for (const other of world.all(Stump)) if (other !== e && other.state.tree === tree) return;
-    land.felled.delete(tree);
+  world.track(Stump, {
+    added: (stump) => land.felled.add(stump.state.tree),
+    removed: (stump) => {
+      const tree = stump.state.tree;
+      for (const other of world.all(Stump)) if (other !== stump && other.state.tree === tree) return;
+      land.felled.delete(tree);
+    },
   });
 }
 

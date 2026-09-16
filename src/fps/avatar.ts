@@ -327,12 +327,13 @@ export class AvatarSim extends Avatar<AvatarIntent, AvatarBody, Tool> implements
       }
       this.collecting.add(pk.id);
       // Ownership doubles as a lock: only one player can win the pickup.
-      void ctx.world.requestOwnership(pk).then((ok) => {
-        this.collecting.delete(pk.id);
-        if (!ok || !pk.alive || !this.me) return;
-        this.applyPickup(pk);
-        ctx.world.despawn(pk);
-      });
+      void ctx.world
+        .withLock(pk, () => {
+          if (!this.me) return;
+          this.applyPickup(pk);
+          ctx.world.despawn(pk);
+        })
+        .then(() => this.collecting.delete(pk.id));
     }
   }
 

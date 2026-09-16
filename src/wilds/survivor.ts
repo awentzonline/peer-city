@@ -192,13 +192,14 @@ export class Survivor extends Avatar<AvatarIntent, AvatarBody, WildTool> impleme
       if (!tool || !this.inventory.wants(tool)) continue;
       this.collecting.add(item.id);
       // Ownership doubles as a lock: only one survivor gets it.
-      void ctx.world.requestOwnership(item).then((ok) => {
-        this.collecting.delete(item.id);
-        if (!ok || !item.alive || !this.alive) return;
-        this.give(tool, item.state.amount);
-        ctx.world.despawn(item);
-        ctx.sfx.play('pickup');
-      });
+      void ctx.world
+        .withLock(item, () => {
+          if (!this.alive) return;
+          this.give(tool, item.state.amount);
+          ctx.world.despawn(item);
+          ctx.sfx.play('pickup');
+        })
+        .then(() => this.collecting.delete(item.id));
     }
   }
 

@@ -120,7 +120,7 @@ function strike(use: Use, body: Body, at: Vec3, amount: number, butchers = false
   const { ctx } = use.avatar;
   if (body.is(Animal) && body.render.mode === AnimalMode.Dead) {
     if (!butchers) return;
-    ctx.world.send(Butcher, { animal: body.id }, { to: 'owner', entity: body });
+    ctx.world.command(Butcher, { animal: body.id });
   } else {
     if (body.is(Animal) && body.render.mode === AnimalMode.Graze) {
       amount *= SNEAK_ATTACK;
@@ -128,11 +128,7 @@ function strike(use: Use, body: Body, at: Vec3, amount: number, butchers = false
     }
     const v = use.side === null ? use.aim : use.velocity;
     const k = 4 / (Math.hypot(v.x, v.y) || 1);
-    ctx.world.send(
-      Damage,
-      { target: body.id, amount: Math.min(255, Math.round(amount)), attacker: ctx.me!.id, kx: v.x * k, ky: v.y * k },
-      { to: 'owner', entity: body },
-    );
+    ctx.world.command(Damage, { target: body.id, amount: Math.min(255, Math.round(amount)), attacker: ctx.me!.id, kx: v.x * k, ky: v.y * k });
   }
   ctx.world.send(Chop, { x: at.x, y: at.y, z: at.z, wood: false }, { to: 'near', x: at.x, y: at.y, radius: 80 });
 }

@@ -172,11 +172,7 @@ function collideWithEntities(ctx: GameContext, car: CarEntity): void {
         s.hp = Math.max(0, s.hp - Math.round(dmg * 0.5));
         ctx.sfx.play('crash', { x: s.x, y: s.y, z: 0.8 });
         ctx.fx.sparks((s.x + other.x) / 2, (s.y + other.y) / 2, 0.7);
-        ctx.world.send(
-          Damage,
-          { target: other.id, amount: dmg, attacker, cause: DamageCause.Vehicle, kx: -nxn * closing * 0.5, ky: -nyn * closing * 0.5, head: false },
-          { to: 'owner', entity: other },
-        );
+        ctx.world.command(Damage, { target: other.id, amount: dmg, attacker, cause: DamageCause.Vehicle, kx: -nxn * closing * 0.5, ky: -nyn * closing * 0.5, head: false });
       }
       continue;
     }
@@ -195,11 +191,7 @@ function collideWithEntities(ctx: GameContext, car: CarEntity): void {
     if (Math.abs(rx) > hl + 0.4 || Math.abs(ry) > hw + 0.4) continue;
     const sp = Math.abs(s.speed);
     if (sp > 6 && cooldownOk(car, e.id, ctx.now, 700)) {
-      ctx.world.send(
-        Damage,
-        { target: e.id, amount: Math.min(255, Math.round(sp * 4.5)), attacker, cause: DamageCause.Vehicle, kx: l.vx! * 0.8, ky: l.vy! * 0.8, head: false },
-        { to: 'owner', entity: e },
-      );
+      ctx.world.command(Damage, { target: e.id, amount: Math.min(255, Math.round(sp * 4.5)), attacker, cause: DamageCause.Vehicle, kx: l.vx! * 0.8, ky: l.vy! * 0.8, head: false });
       ctx.sfx.play('hit', { x: e.x, y: e.y, z: 1 });
       l.vx! *= 0.85;
       l.vy! *= 0.85;
@@ -228,19 +220,15 @@ export function wreckCar(ctx: GameContext, car: CarEntity): void {
     const dx = e.x - s.x;
     const dy = e.y - s.y;
     const d = Math.max(0.1, Math.hypot(dx, dy));
-    ctx.world.send(
-      Damage,
-      {
-        target: e.id,
-        amount: e.def === Car ? 45 : Math.round(150 * Math.min(1, 1.4 - d / 11)),
-        attacker: l.lastAttacker ?? 0,
-        cause: DamageCause.Explosion,
-        kx: (dx / d) * 28,
-        ky: (dy / d) * 28,
-        head: false,
-      },
-      { to: 'owner', entity: e },
-    );
+    ctx.world.command(Damage, {
+      target: e.id,
+      amount: e.def === Car ? 45 : Math.round(150 * Math.min(1, 1.4 - d / 11)),
+      attacker: l.lastAttacker ?? 0,
+      cause: DamageCause.Explosion,
+      kx: (dx / d) * 28,
+      ky: (dy / d) * 28,
+      head: false,
+    });
   }
 }
 

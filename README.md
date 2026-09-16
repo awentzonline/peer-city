@@ -63,12 +63,23 @@ Every entity has exactly one **owner** that simulates it; others only receive it
 - `requestOwnership(e)` asks the current owner to hand over an entity (enter a car, pick up an
   item). The owner's **transfer policy** decides, which makes ownership a distributed lock.
 
-### 4. Typed actions
+### 4. Typed actions: state, commands and events
 
-Events and RPCs are schema-encoded binary messages with routing:
+Besides entity state, peers send schema-encoded binary actions with routing:
 `{to:'owner', entity}` (forwarded if ownership moved in flight), `{to:'near', x, y, radius}`,
-`{to:'peer', peer}`, `{to:'all'}`. Damage, for example, is sent to the victim's owner, the
-only peer allowed to write the victim's state.
+`{to:'peer', peer}`, `{to:'all'}`. Games use them in two ways:
+
+- **Commands** ask an entity's owner, the only peer allowed to write its state, to change it: damage to a
+  victim, an edit to a racer, logs onto a fire. `defineCommand` names the field holding the target, and
+  `world.onCommand` only runs on the target's owner.
+- **Events** say something happened, for whoever's near to show: a gunshot, wood chips, a feed message.
+
+And two patterns for coordinating without a server:
+
+- **Ownership is a lock.** `world.withLock(e, change)` wins ownership, makes the change and lets go, so only one
+  peer collects a pickup or sows a plot.
+- **One of something for everyone nearby.** `Singleton` makes an entity (a race, a match) if nobody has,
+  and settles on the lowest id if several peers made one at once.
 
 ---
 
@@ -77,7 +88,7 @@ only peer allowed to write the victim's state.
 ### Declare what's replicated
 
 ```ts
-import { defineEntity, defineAction, t } from '@engine/index';
+import { defineEntity, defineAction, defineCommand, t } from '@engine/index';
 
 export const Car = defineEntity({
   name: 'car',
@@ -95,7 +106,10 @@ export const Car = defineEntity({
   cullDistance: 1700,         // owner despawns it when no player is near
 });
 
-export const Damage = defineAction('damage', { target: t.ref(), amount: t.uint(8) });
+// carried out by the victim's owner
+export const Damage = defineCommand('damage', { target: t.ref(), amount: t.uint(8) });
+// shown by whoever's near
+export const Shot = defineAction('shot', { x: t.fixed(0.5), y: t.fixed(0.5) });
 ```
 
 Only fields that change are sent, so put AI state that must survive migration (waypoints,
@@ -111,7 +125,7 @@ const world = new NetWorld({
   transport: new TrysteroTransport({ appId: 'my-game' }),   // or BroadcastTransport / MemoryNetwork
   worldId: 'my-game/shard-1',
   entities: [Player, Car, Ped],      // same order on every peer (schema is fingerprinted)
-  actions: [Damage],
+  actions: [Damage, Shot],
   zoneSize: 2048,
   cellSize: 512,
   interestRadius: 1100,
@@ -143,7 +157,11 @@ update() {
 | `world.query(x, y, r, Def?)` | spatial query on rendered positions |
 | `world.requestOwnership(e)` → `Promise<boolean>`, `world.release(e)` | take / give back control |
 | `world.setTransferPolicy(Def, (e, requester) => bool)` | guard handovers |
-| `world.send(Action, payload, target)`, `world.onAction(Action, fn)` | typed events |
+| `world.send(Action, payload, target)`, `world.onAction(Action, fn)` | typed actions: events, or anything routed by hand |
+| `world.command(Command, payload)`, `world.onCommand(Command, Def?, (target, payload, ctx) => ...)` | ask a target's owner to change it; handled only there, per target type |
+| `world.withLock(e, (e) => ...)` → `Promise<result \| undefined>` | change something only one peer may: ownership as a lock |
+| `new Singleton(world, Def, {init}).update(now)` | one entity for everyone nearby (a race, a match), made by whoever's first |
+| `world.track(Def, {added, removed})` | keep something derived in step with one type's entities |
 | `world.on('entityAdded' / 'entityRemoved' / 'ownershipGained' / 'ownershipLost' / 'peerJoined' / 'peerLeft')` | lifecycle |
 | `world.isAuthorityFor(x, y)`, `world.isObserved(x, y, r)`, `world.peerFoci()` | coordination helpers |
 | `new EntityViews(world).register(Def, {create, update, destroy})` | bind entities to Phaser objects |

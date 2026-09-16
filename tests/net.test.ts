@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ByteReader, ByteWriter } from '../src/engine/net/codec';
-import { defineAction, defineEntity, t } from '../src/engine/net/schema';
+import { defineAction, defineCommand, defineEntity, t } from '../src/engine/net/schema';
+import { Singleton } from '../src/engine/net/singleton';
 import type { NetEntity } from '../src/engine/net/entity';
 import type { NetWorld } from '../src/engine/net/world';
 import { Sim } from './harness';
@@ -16,8 +17,10 @@ const Crate = defineEntity({
 });
 const Ping = defineAction('ping', { n: t.int(), who: t.string() });
 const Hit = defineAction('hit', { target: t.ref(), dmg: t.uint(8) });
+const Paint = defineCommand('paint', { crate: t.ref(), color: t.uint(8) }, { target: 'crate' });
+const Match = defineEntity({ name: 'match', fields: { x: t.fixed(1), y: t.fixed(1), round: t.uint(8) }, migratable: true });
 
-const base = { worldId: 'test', entities: [Avatar, Crate], actions: [Ping, Hit], interestRadius: 800, zoneSize: 2048 };
+const base = { worldId: 'test', entities: [Avatar, Crate, Match], actions: [Ping, Hit, Paint], interestRadius: 800, zoneSize: 2048 };
 
 function find(w: { get(id: number): NetEntity<any> | undefined }, id: number) {
   return w.get(id);
@@ -308,5 +311,122 @@ describe('replication', () => {
     expect(maxLagMs).toBeLessThan(400);
     // zones keep each peer connected to a fraction of the population
     expect(avgPeers).toBeLessThan(N / 3);
+  });
+});
+
+describe('commands, locks, singletons and tracking', () => {
+  it('carries out a command only on its target\'s owner, following the target when it changes hands', () => {
+    const sim = new Sim();
+    const a = sim.add('a', base);
+    const b = sim.add('b', base);
+    const c = sim.add('c', base);
+    for (const w of [a, b, c]) w.setFocus(0, 0);
+    const ran: string[] = [];
+    for (const w of [a, b, c]) {
+      w.onCommand(Paint, Avatar, () => ran.push(`${w.selfId} avatar`));
+      w.onCommand(Paint, Crate, (crate, p, ctx) => {
+        crate.state.color = p.color;
+        ran.push(`${w.selfId} crate from ${ctx.from}`);
+      });
+    }
+    const crate = a.spawn(Crate, { x: 10, y: 10 }, { held: true });
+    sim.run(600);
+    c.command(Paint, { crate: crate.id, color: 5 });
+    sim.run(300);
+    expect(crate.state.color).toBe(5);
+    expect(ran).toEqual(['a crate from c']);
+
+    // b takes it over; c still believes a owns it, so a forwards the next one
+    a.release(crate);
+    void b.requestOwnership(b.get(crate.id)!);
+    sim.run(400);
+    expect(b.get(crate.id)!.mine).toBe(true);
+    ran.length = 0;
+    const onC = c.get(crate.id)!;
+    onC.owner = 'a';
+    c.command(Paint, { crate: crate.id, color: 9 });
+    sim.run(400);
+    expect(b.get(crate.id)!.state.color).toBe(9);
+    expect(ran).toEqual(['b crate from c']);
+  });
+
+  it('refuses a command whose target field is not a reference', () => {
+    expect(() => defineCommand('bad', { target: t.uint(8) })).toThrow(/t.ref/);
+  });
+
+  it('lets only one of two peers win a lock, and releases it after', async () => {
+    const sim = new Sim();
+    const a = sim.add('a', base);
+    const b = sim.add('b', base);
+    const c = sim.add('c', base);
+    for (const w of [a, b, c]) w.setFocus(0, 0);
+    const crate = a.spawn(Crate, { x: 10, y: 10 });
+    sim.run(600);
+    const results: (string | undefined)[] = [];
+    for (const w of [b, c]) {
+      void w
+        .withLock(w.get(crate.id)!, (e) => {
+          if (e.state.color !== 0) return undefined; // someone got there first
+          e.state.color = w === b ? 1 : 2;
+          return w.selfId;
+        })
+        .then((r) => results.push(r));
+    }
+    for (let i = 0; i < 20; i++) {
+      sim.run(50);
+      await Promise.resolve();
+    }
+    expect(results).toHaveLength(2);
+    expect(results.filter(Boolean)).toHaveLength(1);
+    const winner = results.find(Boolean) === 'b' ? b : c;
+    const held = winner.get(crate.id)!;
+    expect(held.mine).toBe(true);
+    expect(held.held).toBe(false);
+    sim.run(600);
+    expect(a.get(crate.id)!.state.color).toBe(winner === b ? 1 : 2);
+  });
+
+  it('keeps a lock held that was held before', async () => {
+    const sim = new Sim();
+    const a = sim.add('a', base);
+    const crate = a.spawn(Crate, { x: 0, y: 0 }, { held: true });
+    const r = a.withLock(crate, () => 'ok');
+    sim.run(50);
+    expect(await r).toBe('ok');
+    expect(crate.held).toBe(true);
+  });
+
+  it('converges on one singleton when peers make one at once, and it outlives its maker', () => {
+    const sim = new Sim();
+    const worlds = ['a', 'b', 'c'].map((id) => sim.add(id, base));
+    for (const w of worlds) w.setFocus(0, 0);
+    // no waiting: every peer makes its own straight away
+    const keepers = worlds.map((w) => new Singleton(w, Match, { init: () => ({ x: 5, y: 5 }), waitMs: 0, jitterMs: 0 }));
+    sim.run(3000, (now) => keepers.forEach((k) => k.update(now)));
+    const ids = keepers.map((k) => k.entity?.id);
+    expect(new Set(ids).size).toBe(1);
+    for (const w of worlds) expect(w.all(Match).size).toBe(1);
+
+    const owner = worlds.find((w) => keepers[worlds.indexOf(w)].entity!.mine)!;
+    const i = worlds.indexOf(owner);
+    sim.remove(owner);
+    keepers.splice(i, 1);
+    sim.run(5000, (now) => keepers.forEach((k) => k.update(now)));
+    expect(keepers.map((k) => k.entity?.id)).toEqual([ids[0], ids[0]]);
+    expect(keepers.filter((k) => k.entity!.mine)).toHaveLength(1);
+  });
+
+  it('tracks the entities of one type, including ones already known', () => {
+    const sim = new Sim();
+    const a = sim.add('a', base);
+    const early = a.spawn(Crate, { x: 0, y: 0 });
+    a.spawn(Avatar, { x: 0, y: 0 });
+    const seen: string[] = [];
+    const stop = a.track(Crate, { added: (e) => seen.push(`+${e.id === early.id ? 'early' : 'late'}`), removed: (_e, why) => seen.push(`-${why}`) });
+    const late = a.spawn(Crate, { x: 1, y: 1 });
+    a.despawn(early);
+    stop();
+    a.despawn(late);
+    expect(seen).toEqual(['+early', '+late', '-despawned']);
   });
 });

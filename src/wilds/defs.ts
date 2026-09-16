@@ -1,4 +1,4 @@
-import { defineAction, defineEntity, t } from '@engine/index';
+import { defineAction, defineCommand, defineEntity, t } from '@engine/index';
 import { BODY_FIELDS } from '../crossplay/avatar';
 
 /**
@@ -94,7 +94,7 @@ export const Item = defineEntity({
 });
 
 // ---------------------------------------------------------------------------
-// Actions
+// Actions: commands, carried out by their target's owner, and events, shown by whoever's near
 // ---------------------------------------------------------------------------
 
 /** An arrow leaves a bow. Everyone nearby flies it for show; only the shooter's peer decides what it hits. */
@@ -108,8 +108,8 @@ export const Loose = defineAction('loose', {
   shooter: t.ref(),
 });
 
-/** Sent to the owner of the victim, who applies it. */
-export const Damage = defineAction('damage', {
+/** The victim's owner applies it. */
+export const Damage = defineCommand('damage', {
   target: t.ref(),
   amount: t.uint(8),
   attacker: t.ref(), // survivor or animal (0 = the world: hunger, cold)
@@ -118,13 +118,13 @@ export const Damage = defineAction('damage', {
 });
 
 /** A victim's owner tells the attacker's owner they brought down an animal. */
-export const Hunted = defineAction('hunted', { attacker: t.ref(), kind: t.uint(8) });
+export const Hunted = defineCommand('hunted', { attacker: t.ref(), kind: t.uint(8) }, { target: 'attacker' });
 
-/** Sent to a carcass's owner: carve off a portion of meat, which drops beside it. */
-export const Butcher = defineAction('butcher', { animal: t.ref() });
+/** Carve a portion of meat off a carcass, which drops beside it. */
+export const Butcher = defineCommand('butcher', { animal: t.ref() }, { target: 'animal' });
 
-/** Sent to a fire's owner: keep it burning `seconds` longer. */
-export const Fuel = defineAction('fuel', { fire: t.ref(), seconds: t.uint(16) });
+/** Keep a fire burning `seconds` longer. */
+export const Fuel = defineCommand('fuel', { fire: t.ref(), seconds: t.uint(16) }, { target: 'fire' });
 
 /** An axe bit into something: chips fly and it thunks. Cosmetic. */
 export const Chop = defineAction('chop', { x: t.fixed(0.05), y: t.fixed(0.05), z: t.fixed(0.05), wood: t.bool() });
