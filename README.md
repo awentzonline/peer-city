@@ -185,6 +185,27 @@ Implementing `Transport` (join room → peer join/leave, send, receive) is all i
 expose `media` (add/remove a `MediaStream` for one peer, receive theirs), which is what proximity voice rides on;
 `TrysteroTransport` has it, and transports without it simply have no voice.
 
+#### Keeping discovery alive
+
+Signalling is the fragile part of a serverless game, and it fails in a way that looks like nothing is wrong: your
+existing peers keep playing over WebRTC while the room quietly stops accepting anyone new. `TrysteroTransport`
+handles the two ways that happens over a long session.
+
+- **Relays die permanently.** Trystero retires a Nostr relay for the life of the page once its socket has backed
+  off past a minute or it rejects an event, and stops announcing on it. Sessions burn relays down one by one —
+  a laptop sleeping closes every socket at once without firing `offline`, which can take out several in a
+  handful of retries. When *no* relay socket is open for 30s, the transport rebuilds every room onto a **wider**
+  slice of the same relay pool. Growing rather than rotating matters: the pool is ordered deterministically from
+  the `appId`, so every peer keeps sharing the head of the list and they can still find each other. The rebuild
+  drops peer connections (Trystero only re-reads its relay list when no room is left), which the mesh treats as
+  ordinary churn — briefly peerless beats permanently undiscoverable. `transport.relayStatus` reports open
+  relays, rebuild count, and whether the pool is exhausted; `?debug` shows it on the last line.
+- **Announce traffic gets you rate-limited.** Every room announces itself on every relay, so room count is the
+  thing that gets a peer thrown off the relays it needs. Handles from `join()` are independent and fan out over
+  *one* underlying Trystero room, so two subsystems following the same zones — the world mesh and proximity
+  voice — share rooms instead of doubling them. (`joinRoom` returns the same room object for a repeated roomId
+  and its callbacks are single slots, so without this they would silently clobber each other.)
+
 ---
 
 ## Peer City (the demo)
@@ -332,9 +353,9 @@ the game's sounds, so in a headset someone behind you sounds behind you.
 - **Nobody far away receives your audio at all.** Your microphone is added to a peer's connection when they come
   into earshot and taken off it when they leave, rather than being sent to everyone and turned down. Out of range
   means the audio never arrives.
-- **It rides on the connections the engine already has.** Voice opens one room per zone room the world is in
-  (`world.zoneKeys()`), and Trystero shares one `RTCPeerConnection` per peer across rooms, so the tracks go over
-  connections that exist for game state. The peer graph doesn't widen, and the zone hysteresis that stops entity
+- **It rides on the connections the engine already has.** Voice follows the world's zone rooms
+  (`world.zoneKeys()`) and shares them: same namespace, same `TransportRoom`, so the tracks go over connections
+  that exist for game state and no extra signalling traffic is spent finding the same peers twice. The peer graph doesn't widen, and the zone hysteresis that stops entity
   churn stops voice churn too. The send window is wider than earshot (1.0–1.9×) because renegotiating a stream
   isn't instant, so walking in and out of range doesn't rattle the connection.
 - **The microphone starts off** and nothing asks the browser for it until you turn it on; turning it off stops the
@@ -772,4 +793,7 @@ Numbers come from a simulation, not real browsers, and the engine is not tuned y
 - **Discovery is local:** you only meet players in zones you enter. The demo spawns everyone
   downtown so they find each other.
 - **No persistence:** the world exists where players are; unobserved areas unload.
+- **Discovery depends on public relays.** Nothing here runs a server, so peer discovery leans on free Nostr
+  relays that rate-limit, go down and change. The transport widens its relay set when they all fail, but once
+  the pool is spent only a reload helps — `?debug` says so in as many words.
 - Some networks need a TURN server (`TrysteroTransport({ turnConfig })`).

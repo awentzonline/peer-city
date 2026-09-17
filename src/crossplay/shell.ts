@@ -85,10 +85,12 @@ export class Shell {
     const { world, sfx, launch } = opts;
     this.world = world;
     this.stage = new Stage(opts.container ?? document.getElementById('game')!);
-    // Voice follows the world's zone rooms, so it reaches the neighbourhood without widening the peer graph.
+    // Voice shares the world's own zone rooms rather than parallel ones: same peers either way, and
+    // every extra room is another signalling announce on every relay, which is what gets a peer
+    // rate-limited off the relays it needs to find anyone.
     this.voice = new Voice({
       transport: world.transport,
-      prefix: `${world.worldId}/voice/`,
+      prefix: `${world.worldId}/`,
       audio: sfx,
       zones: () => world.zoneKeys(),
       speakers: opts.speakers ?? bodySpeakers(world, opts.players),

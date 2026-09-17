@@ -1,4 +1,5 @@
 import type { NetWorld } from '../net/world';
+import type { RelayStatus } from '../transport/trystero';
 
 /** Drop-in DOM overlay showing replication health. Toggle with `visible`. */
 export class NetDebugPanel {
@@ -48,7 +49,17 @@ export class NetDebugPanel {
       `up ${kb(s.bytesOutPerSec)} KB/s  down ${kb(s.bytesInPerSec)} KB/s`,
       `handoffs ${s.handoffs}  claims ${s.claims}  conflicts ${s.conflicts}`,
       f ? `focus ${f.x.toFixed(0)},${f.y.toFixed(0)}  r=${f.radius}` : 'focus -',
-    ].join('\n');
+      this.relays(),
+    ].filter((l) => l !== '').join('\n');
+  }
+
+  /** Discovery health, where the transport tracks it: no open relay means no new peer can find us. */
+  private relays(): string {
+    const status = (this.world.transport as { relayStatus?: RelayStatus }).relayStatus;
+    if (!status) return '';
+    const grown = status.recoveries > 0 ? `  rebuilt ${status.recoveries}×` : '';
+    if (status.exhausted && status.open === 0) return `relays 0/${status.total} — DISCOVERY DEAD, reload${grown}`;
+    return `relays ${status.open}/${status.total} open${grown}`;
   }
 
   dispose(): void {
