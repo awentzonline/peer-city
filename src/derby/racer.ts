@@ -21,6 +21,7 @@ import {
   type Dir,
   type PartKind,
 } from './parts';
+import { quatOf, writeQuat } from '../crossplay/rigid';
 import { FUEL_SECONDS, NO_CONTROLS, headingOf, rotate, uprightness, yawQuat, type BodyPose, type Controls, type Quat, type RacerBody } from './physics';
 import { raceTime } from './race';
 
@@ -54,15 +55,7 @@ export function designOf(racer: RacerEntity, useRender = true): Decoded {
   return d;
 }
 
-/** A racer's rotation, from its replicated fields. */
-export function quatOf(s: { qx: number; qy: number; qz: number; qw: number }, out: Quat = { x: 0, y: 0, z: 0, w: 1 }): Quat {
-  const len = Math.hypot(s.qx, s.qy, s.qz, s.qw) || 1;
-  out.x = s.qx / len;
-  out.y = s.qy / len;
-  out.z = s.qz / len;
-  out.w = s.qw / len;
-  return out;
-}
+export { quatOf } from '../crossplay/rigid';
 
 /** Where a point in racer space is in the world. */
 export function racerToWorld(racer: RacerEntity, p: Vec3, out: Vec3 = { x: 0, y: 0, z: 0 }): Vec3 {
@@ -230,12 +223,7 @@ export class RacerSim {
     s.x = pose.x;
     s.y = pose.y;
     s.z = pose.z;
-    // keep the quaternion's sign steady, so interpolating between samples never goes the long way round
-    const flip = pose.q.x * s.qx + pose.q.y * s.qy + pose.q.z * s.qz + pose.q.w * s.qw < 0 ? -1 : 1;
-    s.qx = pose.q.x * flip;
-    s.qy = pose.q.y * flip;
-    s.qz = pose.q.z * flip;
-    s.qw = pose.q.w * flip;
+    writeQuat(s, pose.q);
     s.speed = body.isDynamic ? body.forwardSpeed() : 0;
 
     if (s.mode !== RacerMode.Racing && s.mode !== RacerMode.Finished) return;

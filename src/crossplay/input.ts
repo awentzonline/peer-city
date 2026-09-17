@@ -14,7 +14,7 @@ export class DesktopInput {
       if (e.target instanceof HTMLInputElement) return;
       if (!e.repeat) this.edges.add(e.code);
       this.held.add(e.code);
-      if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
+      if (e.code === 'Space' || e.code === 'Tab' || e.code.startsWith('Arrow')) e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.held.delete(e.code));
     window.addEventListener('blur', () => {

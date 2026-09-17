@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Peer Golf</title>
+    <link rel="stylesheet" href="/src/golf/style.css" />
+    <link rel="stylesheet" href="/src/crossplay/settings.css" />
+    <link rel="stylesheet" href="/src/crossplay/touch.css" />
+  </head>
+  <body>
+    <div id="game"></div>
+
+    <div id="hud" hidden>
+      <div id="crosshair"></div>
+      <div id="phase"></div>
+      <div id="standings"></div>
+      <div id="ball-panel">
+        <div id="hole-info"></div>
+        <div id="ball-info"></div>
+        <div id="clubs"></div>
+      </div>
+      <canvas id="minimap" width="180" height="180"></canvas>
+      <div id="meter" hidden>
+        <div class="track"><div id="meter-fill"></div></div>
+        <div id="carry"></div>
+      </div>
+      <div id="drive" hidden></div>
+      <div id="card" hidden></div>
+      <div id="feed"></div>
+      <div id="banner"></div>
+      <div id="hint"></div>
+      <div id="help"></div>
+      <button id="vr-enter" hidden>ENTER VR</button>
+      <div id="lock" hidden>
+        <div>CLICK TO PLAY</div>
+        <small>Esc releases the mouse</small>
+      </div>
+    </div>
+
+    <div id="lobby">
+      <div class="panel">
+        <h1>PEER GOLF</h1>
+        <p class="tag">Battle golf. Everyone plays the same hole at once, anyone can club anyone, and there are never enough carts. No server: everyone's browser is the game.</p>
+        <label>Name <input id="name" maxlength="16" autocomplete="off" /></label>
+        <label
+          >Network
+          <select id="net">
+            <option value="online">Online (WebRTC via Trystero / Nostr)</option>
+            <option value="local">Local tabs (BroadcastChannel)</option>
+          </select>
+        </label>
+        <label>Club <input id="room" maxlength="24" autocomplete="off" /></label>
+        <div class="buttons">
+          <button id="play">PLAY</button>
+          <button id="play-vr" disabled>PLAY IN VR</button>
+        </div>
+        <p class="small" id="vr-note">Checking for a VR headset…</p>
+        <details class="small">
+          <summary>How to play</summary>
+          Six holes, played in a loop by everyone at once. Your ball waits on the tee of whichever hole is on. Once anyone holes out, the
+          rest have 75 seconds to finish; a hole you don't finish scores at least a triple bogey. Lowest score over the round wins.
+          <ul>
+            <li><b>Walk up to your ball</b> (or press <b>F</b> near it) to stand over it. Aim with the mouse or <b>A D</b>, hold the
+              button to draw the club back, and let go to swing. The meter falls back if you hold on too long.</li>
+            <li><b>1-4</b> pick the driver, iron, wedge or putter. Standing over the ball picks one for the shot.</li>
+            <li><b>Click</b> anywhere else to swing your club at whoever's in front of you: they're knocked flat for a couple of
+              seconds. A fast ball does the same.</li>
+            <li><b>E</b> gets you into a free cart: <b>W S</b> drive, <b>A D</b> steer, <b>Space</b> brakes. Carts knock people over
+              too, and crash hard enough to throw you out.</li>
+            <li>Water and out of bounds cost a stroke, and you play again from where you were. <b>Tab</b> shows the scorecard.</li>
+          </ul>
+          <b>VR:</b> your clubs hang at your hips. Squeeze a grip by one to take it, walk up to your ball and swing through it
+          for real. <b>A</b> gets in and out of carts; seated, the right trigger goes, the left reverses, and the left stick steers.
+        </details>
+        <details class="small">
+          <summary>Touch controls</summary>
+          Your <b>left thumb</b> walks and your <b>right thumb</b> looks. <b>SWING</b> (or a tap) clubs whoever's in front of you. By your
+          ball, tap <b>PLAY BALL</b>. Then put a finger on the right of the screen and <b>pull it down</b> to draw the club back (further
+          is harder) and <b>let go</b> to swing; slide it sideways instead to aim. In a cart, your left thumb is the pedals and the wheel.
+          Turn your phone sideways.
+        </details>
+        <p class="small">Open more tabs or share the URL to add players. <a href="./">All games →</a></p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/golf/main.ts"></script>
+  </body>
+</html>

@@ -1,5 +1,5 @@
-import RAPIER from '@dimforge/rapier3d-compat';
 import { clamp, type Vec3 } from '../crossplay/math';
+import { FixedStep, GRAVITY, RAPIER, collisionGroups as groups, rotate, yawQuat, type BodyPose, type Quat } from '../crossplay/rigid';
 import { Course, GARAGE, LENGTH, TOP } from './course';
 import { CELL, DIRS, Dir, PARTS, PartKind, WHEEL_DROP, intact, type Design } from './parts';
 
@@ -13,22 +13,12 @@ import { CELL, DIRS, Dir, PARTS, PartKind, WHEEL_DROP, intact, type Design } fro
  * World axes (z up). A racer's body is in racer space: +X forward, +Y left, +Z up, from the middle of the seat.
  */
 
-export { RAPIER };
-
-/** Load the WASM. Must finish before a `Physics` is made. */
-export function initPhysics(): Promise<void> {
-  return RAPIER.init();
-}
-
-export const GRAVITY = 9.81;
-const STEP = 1 / 60;
-const MAX_STEPS = 8;
+export { GRAVITY, RAPIER, headingOf, initPhysics, rotate, uprightness, yawQuat, type BodyPose, type Quat } from '../crossplay/rigid';
 
 /** Who collides with whom: the course with everything, racers with each other, debris only with the course and debris. */
 const WORLD = 1;
 const RACERS = 2;
 const DEBRIS = 4;
-const groups = (member: number, filter: number) => (member << 16) | filter;
 
 export const DRIVER_MASS = 70;
 /** Seconds of rocket fuel a race. */
@@ -42,20 +32,6 @@ const PUSH_TOP_SPEED = 6;
 const DRAG = 0.35;
 const DEBRIS_SECONDS = 9;
 
-export interface Quat {
-  x: number;
-  y: number;
-  z: number;
-  w: number;
-}
-
-export interface BodyPose {
-  x: number;
-  y: number;
-  z: number;
-  q: Quat;
-}
-
 /** What the driver wants the racer to do. */
 export interface Controls {
   /** -1..1, + left. */
@@ -66,32 +42,6 @@ export interface Controls {
 }
 
 export const NO_CONTROLS: Controls = { steer: 0, brake: false, push: false, boost: false };
-
-export function rotate(q: Quat, v: Vec3, out: Vec3 = { x: 0, y: 0, z: 0 }): Vec3 {
-  // v' = v + 2w(q × v) + 2q × (q × v)
-  const tx = 2 * (q.y * v.z - q.z * v.y);
-  const ty = 2 * (q.z * v.x - q.x * v.z);
-  const tz = 2 * (q.x * v.y - q.y * v.x);
-  out.x = v.x + q.w * tx + (q.y * tz - q.z * ty);
-  out.y = v.y + q.w * ty + (q.z * tx - q.x * tz);
-  out.z = v.z + q.w * tz + (q.x * ty - q.y * tx);
-  return out;
-}
-
-export function yawQuat(heading: number): Quat {
-  return { x: 0, y: 0, z: Math.sin(heading / 2), w: Math.cos(heading / 2) };
-}
-
-/** The heading a racer's nose points, flattened onto the ground. */
-export function headingOf(q: Quat): number {
-  const f = rotate(q, { x: 1, y: 0, z: 0 }, tmpA);
-  return Math.atan2(f.y, f.x);
-}
-
-/** How upright a racer is: 1 upright, 0 on its side, -1 upside down. */
-export function uprightness(q: Quat): number {
-  return rotate(q, { x: 0, y: 0, z: 1 }, tmpA).z;
-}
 
 const tmpA: Vec3 = { x: 0, y: 0, z: 0 };
 const tmpB: Vec3 = { x: 0, y: 0, z: 0 };
@@ -415,13 +365,16 @@ export class Physics {
   readonly debris: Debris[] = [];
   private readonly events: RAPIER.EventQueue;
   private readonly ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: -1 });
-  private left = 0;
+  private readonly clock = new FixedStep(1 / 60, 8);
+
   /** Seconds simulated. */
-  time = 0;
+  get time(): number {
+    return this.clock.time;
+  }
 
   constructor(readonly course: Course) {
     this.world = new RAPIER.World({ x: 0, y: 0, z: -GRAVITY });
-    this.world.timestep = STEP;
+    this.world.timestep = this.clock.step;
     this.events = new RAPIER.EventQueue(true);
     const ground = (c: RAPIER.ColliderDesc) => this.world.createCollider(c.setCollisionGroups(groups(WORLD, WORLD | RACERS | DEBRIS)).setFriction(0.7));
 
@@ -475,12 +428,9 @@ export class Physics {
 
   /** Run the world forward `dt` seconds in fixed steps. Long gaps (a background tab) are cut short. */
   step(dt: number): void {
-    this.left = Math.min(this.left + dt, STEP * MAX_STEPS);
-    while (this.left >= STEP) {
-      this.left -= STEP;
-      for (const r of this.racers) r.beforeStep(STEP);
+    this.clock.run(dt, (step) => {
+      for (const r of this.racers) r.beforeStep(step);
       this.world.step(this.events);
-      this.time += STEP;
       this.events.drainContactForceEvents((e) => {
         for (const r of this.racers) {
           if (!r.isDynamic) continue;
@@ -488,7 +438,7 @@ export class Physics {
           if (r.owns(e.collider2())) r.impact(e.collider2());
         }
       });
-    }
+    });
     for (let i = this.debris.length - 1; i >= 0; i--) {
       const d = this.debris[i];
       if (d.until > this.time) continue;

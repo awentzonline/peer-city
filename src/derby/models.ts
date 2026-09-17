@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { SOLID, box, buildHuman, cached, merge, nameTag, paint, type HumanRig } from '../crossplay/models';
 import { CELL, DIRS, Dir, PARTS, PartKind, WHEEL_DROP, type Design } from './parts';
-import type { Quat } from './physics';
 
 /**
  * Peer Derby's models. Racers are built from their designs: every part but the wheels merged into one mesh,
@@ -26,9 +25,7 @@ export function humanFor(skin: number): HumanRig {
   });
 }
 
-export function sceneQuat(q: Quat, out: THREE.Quaternion): THREE.Quaternion {
-  return out.set(-q.x, -q.z, -q.y, q.w);
-}
+export { sceneQuat } from '../crossplay/rigid';
 
 /** A direction in racer space, as a scene vector. */
 function sceneDir(d: Dir): THREE.Vector3 {

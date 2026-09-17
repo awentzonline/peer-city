@@ -322,6 +322,37 @@ What was new:
   every frame, not only a tap, so DRAW paints wherever the finger is on the wall. Looking round needs DRAW turned off:
   a phone has one surface for both.
 
+## Lessons from a fifth game
+
+Peer Golf (`src/golf/`, `/golf.html`, 2026-09-16) is battle golf: everyone plays the same hole at once, clubs each other
+and fights over a few carts. It's the second game with rigid bodies and the first with vehicles shared by everyone.
+
+What carried over unchanged: `Avatar`, tools and holsters (clubs hang on the hips), `Seat` and frontends, `Stage`, voice
+and settings, `HeadsetHud`, the minimap, touch controls, particles, `Singleton` for the match.
+
+What was new, or moved:
+
+- **Rigid-body helpers moved to `crossplay/rigid.ts`** from Peer Derby: loading Rapier, quaternions in world axes and in
+  the scene, replicated rotations, collision groups and fixed steps. Both games now use them.
+- **Not everything physical belongs in the physics engine.** A golf ball is small, fast and all about the ground it lands
+  on, so its owner simulates it on its own (`ball.ts`) and only carts are Rapier bodies. The same test applies to anything
+  whose behaviour is mostly "what kind of surface is this".
+- **Entities that change hands because a player asked.** Until now ownership moved when an owner left. Carts move to
+  whoever gets in (`requestOwnership`, with a transfer policy that refuses a cart someone's driving), and the rules wait
+  a frame or two for the handover rather than acting on a promise.
+- **A device can measure a use itself.** The crosshair's swing meter lives in the rules, but a touch player pulls a finger
+  back, so `GolfIntent.power` carries the device's own measure when it has one. Other games with charged uses (a bow, a
+  throw) could use the same shape.
+- **A screen camera that changes with what you're doing** (`golf/camera.ts`): eyes, behind the ball, following the ball,
+  chasing the cart, over yourself knocked down, with `showSelf` answered from the camera. If a third game needs one, the
+  easing and the mode switch could move to `crossplay/`.
+- **Tab** is now kept from the browser by `DesktopInput`, for holding a scorecard open.
+
+Open questions:
+
+- The tracked swing's power (each club's `smash`) is a guess that hasn't been tried in a real headset.
+- Whether one cart for every two golfers is the right shortage, and whether players between holes want something to do.
+
 ## Later: mobile
 
 - Detection is done (`isTouchDevice()`), and the lobby's PLAY starts the touch frontend on a phone. A

@@ -527,6 +527,53 @@ Source: `src/walls/`. Tests: `tests/walls.test.ts` paints with every brush, send
 pixels match, hands walls to late arrivals mid-painting, restores saved walls, merges two groups' walls, and paints
 through the crosshair, a tracked hand and off the rack.
 
+## Peer Golf (battle golf)
+
+`/golf.html` is a sixth game on the engine: six holes over rolling ground, played by everyone at once. Anyone can club
+anyone, a fast ball knocks people over, and there are never enough golf carts.
+
+```bash
+npm run dev    # http://localhost:5173/golf.html
+```
+
+**The match.** Everyone's ball waits on the tee of whichever hole is on. When anyone holes out, the rest have 75 seconds
+(a hole never runs past seven minutes). A hole you don't finish scores at least a triple bogey, and a ball is picked up at
+five over par. Between holes the scorecard comes up, the next tee is a short walk away, and after the sixth the round's
+results show and a new round starts. Water and out of bounds cost a stroke and you play again from where you were.
+
+**Battle.** Swing your club at someone (or run them over, or hit them with a fast ball) and they're knocked flat for a
+couple of seconds, out of any cart, and can't be knocked down again straight after getting up. Carts wait at the barn by
+the clubhouse, about one for every two golfers (six at most); whoever gets in first has it until they get out, and carts
+crash hard enough to throw you out.
+
+| | Desktop | VR | Touch |
+| --- | --- | --- | --- |
+| Play your ball | walk up to it (or **F** near it); aim with the mouse or **A D**, hold the button to draw back and let go to swing; **1-4** clubs | take a club off your hip, walk up to your ball and swing through it for real | walk up (or **PLAY BALL**); pull a finger down the right of the screen to draw back and let go to swing, slide sideways to aim |
+| Club someone | click | swing into them | **SWING**, or a tap |
+| Carts | **E** in and out; **W S** drive, **A D** steer, **Space** brake, **C** camera | **A** in and out; right trigger goes, left reverses, left stick steers, **B** brakes | **CART** / **GET OUT**; left thumb drives, **BRAKE**, **CAM** |
+| Scorecard | hold **Tab** | on the watch | **CARD** |
+
+How it uses the engine, and what it found:
+
+- **The ball isn't in the physics world.** Each golfer's owner flies and rolls their own ball in 1/240 s steps over the
+  height grid, with drag, backspin lift, and bounce and roll by what it lands on (`ball.ts`). A Rapier world (shared with
+  Peer Derby through `crossplay/rigid.ts`) only runs the carts.
+- **Shared vehicles change hands on request.** A cart is migratable: getting in asks its owner for it
+  (`requestOwnership`), and the transfer policy only hands over a cart nobody's driving. The new owner simulates it from
+  where it was seen, at the speed it was going.
+- **One migratable `Match`** says which hole is on and when it's over. Each golfer tees up, scores and picks up their own
+  ball from what they see of it, so there's no "next hole" message to lose.
+- **Knocks go to the victim's owner** as a `Knock` command, the only peer that writes that golfer.
+- **One tool, three ways to swing it.** A crosshair's club runs a swing meter in the rules; a touch frontend measures the
+  pull itself and passes the power in the intent (`GolfIntent.power`); a tracked club hits the ball at the speed and in the
+  direction the head is really moving.
+- **A screen's camera follows what you're doing** (`camera.ts`): your eyes walking about, behind the ball down the line
+  you're aiming along, chasing the ball after a shot, behind the cart, or over yourself lying flat.
+
+Source: `src/golf/`. Tests: `tests/golf.test.ts` checks the seeded course, ball flight, putting and lipping out, water
+penalties and scoring, plays a hole with two bot golfers to the next tee, swings a tracked club through a ball, knocks a
+golfer flat, and passes a cart from one golfer to another.
+
 ---
 
 ## Scaling results
