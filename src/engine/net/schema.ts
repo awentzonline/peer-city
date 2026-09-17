@@ -198,6 +198,23 @@ export const t = {
 export type Shape = Record<string, FieldType<any>>;
 export type Infer<S extends Shape> = { [K in keyof S]: S[K] extends FieldType<infer T> ? T : never };
 
+/**
+ * Most fields a schema can have. A field mask is a plain number (sent as a varuint), so it stays exact up to 2^53; bit
+ * operations only reach 32 bits, so fields past the 31st are tested and set arithmetically (`hasField`, `fieldBit`).
+ */
+export const MAX_FIELDS = 52;
+
+/** Whether field `i` is in a mask. */
+export function hasField(mask: number, i: number): boolean {
+  // bitwise operators take the low 32 bits of any integer below 2^53, so the low fields test the fast way
+  return i < 31 ? (mask & (1 << i)) !== 0 : Math.floor(mask / 2 ** i) % 2 === 1;
+}
+
+/** Field `i`'s bit, to add to a mask that doesn't have it yet. */
+export function fieldBit(i: number): number {
+  return i < 31 ? 1 << i : 2 ** i;
+}
+
 /** Compiled field layout shared by entities and actions. */
 export class FieldLayout<S extends Shape = Shape> {
   readonly keys: (keyof S & string)[];
@@ -207,8 +224,8 @@ export class FieldLayout<S extends Shape = Shape> {
   constructor(readonly shape: S) {
     this.keys = Object.keys(shape) as (keyof S & string)[];
     this.types = this.keys.map((k) => shape[k]);
-    if (this.keys.length > 30) throw new Error('A schema can have at most 30 fields');
-    this.allMask = (1 << this.keys.length) - 1;
+    if (this.keys.length > MAX_FIELDS) throw new Error(`A schema can have at most ${MAX_FIELDS} fields`);
+    this.allMask = 2 ** this.keys.length - 1;
   }
 
   defaults(): Infer<S> {
@@ -223,13 +240,13 @@ export class FieldLayout<S extends Shape = Shape> {
   }
 
   writeMasked(w: ByteWriter, q: Quantized[], mask: number): void {
-    for (let i = 0; i < this.types.length; i++) if (mask & (1 << i)) this.types[i].write(w, q[i]);
+    for (let i = 0; i < this.types.length; i++) if (hasField(mask, i)) this.types[i].write(w, q[i]);
   }
 
   /** Reads masked fields and assigns their dequantized values onto `target`. */
   readMaskedInto(r: ByteReader, mask: number, target: Record<string, unknown> | null): void {
     for (let i = 0; i < this.types.length; i++) {
-      if (!(mask & (1 << i))) continue;
+      if (!hasField(mask, i)) continue;
       const q = this.types[i].read(r);
       if (target) target[this.keys[i]] = this.types[i].dequantize(q);
     }

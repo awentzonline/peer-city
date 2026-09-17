@@ -24,6 +24,7 @@ export default defineConfig({
         golf: fileURLToPath(new URL('./golf.html', import.meta.url)),
         haunt: fileURLToPath(new URL('./haunt.html', import.meta.url)),
         shinobi: fileURLToPath(new URL('./shinobi.html', import.meta.url)),
+        starship: fileURLToPath(new URL('./starship.html', import.meta.url)),
       },
     },
   },

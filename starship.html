@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Peer Starship</title>
+    <link rel="stylesheet" href="/src/starship/style.css" />
+    <link rel="stylesheet" href="/src/crossplay/settings.css" />
+    <link rel="stylesheet" href="/src/crossplay/touch.css" />
+  </head>
+  <body>
+    <div id="game"></div>
+
+    <div id="hud" hidden>
+      <div id="hurt"></div>
+      <div id="crosshair"></div>
+      <div id="phase"></div>
+      <div id="shipstat">
+        <div class="hull"><span>HULL</span><b><i></i></b></div>
+        <div class="shields"><span>SHIELDS</span><b><i></i></b></div>
+        <div id="alert">RED ALERT</div>
+      </div>
+      <div id="roster"></div>
+      <div id="vitals" class="crew-only">
+        <div class="hp"><span>HEALTH</span><b><i></i></b></div>
+        <div id="place"></div>
+        <div id="carry"></div>
+        <div id="tools"></div>
+      </div>
+      <div id="screen-mode" class="viewer-only"></div>
+      <div id="screens" class="viewer-only" hidden></div>
+      <div id="feed"></div>
+      <div id="banner"></div>
+      <div id="hint"></div>
+      <div id="help"></div>
+      <button id="vr-enter" hidden>ENTER VR</button>
+      <div id="lock" hidden>
+        <div>CLICK TO PLAY</div>
+        <small>Esc releases the mouse</small>
+      </div>
+    </div>
+
+    <div id="lobby">
+      <div class="panel">
+        <h1>PEER STARSHIP</h1>
+        <p class="tag">
+          Crew the Wayfarer together. Find three relics on the sector's worlds and bring them home to the starbase, while raiders hunt
+          you. Phones run the bridge stations, a big screen is the viewscreen, and crew walk the decks. No server: everyone's browser is
+          the ship.
+        </p>
+        <div class="roles">
+          <label class="role">
+            <input type="radio" name="role" value="station" />
+            <b>BRIDGE STATION</b>
+            <span>Your phone becomes a console: helm, tactical, science or engineering. Switch between them if the bridge is short-handed.</span>
+          </label>
+          <label class="role">
+            <input type="radio" name="role" value="crew" />
+            <b>CREW</b>
+            <span>Walk the decks on desktop or in VR. Put out fires, fix the damage, load torpedoes, and beam down on away missions.</span>
+          </label>
+          <label class="role">
+            <input type="radio" name="role" value="viewer" />
+            <b>VIEWSCREEN</b>
+            <span>Put this on the TV or a laptop at the front of the room. It shows what's on screen for the whole bridge.</span>
+          </label>
+        </div>
+        <label>Name <input id="name" maxlength="16" autocomplete="off" /></label>
+        <label
+          >Network
+          <select id="net">
+            <option value="online">Online (WebRTC via Trystero / Nostr)</option>
+            <option value="local">Local tabs (BroadcastChannel)</option>
+          </select>
+        </label>
+        <label>Ship <input id="room" maxlength="24" autocomplete="off" /></label>
+        <div class="buttons">
+          <button id="play">PLAY</button>
+          <button id="play-vr" disabled>PLAY IN VR</button>
+        </div>
+        <p class="small" id="vr-note">Checking for a VR headset…</p>
+        <details class="small station-help">
+          <summary>How to run a station</summary>
+          The tabs along the top switch stations, and show who's at each. Everyone sees the hull, the shields and red alert.
+          <ul>
+            <li><b>Helm</b> flies the ship: drag the impulse bar, drag round the compass or hold PORT and STBD. Tap the map for a
+              waypoint, then AUTOPILOT or WARP to it. ORBIT a planet so the transporter can reach it; DOCK at the starbase to repair
+              and rearm (and to cast off at the start).</li>
+            <li><b>Tactical</b> fights: tap a raider on the radar to target it, fire PHASERS when it's in the orange arc and they've
+              charged, and TORPEDOES from loaded tubes. Raise SHIELDS in a fight, but the transporter won't work through them.</li>
+            <li><b>Science</b> scans planets for relics and raiders for their shield harmonics (tactical does half again the damage),
+              works the TRANSPORTER (beam crew on the pad down, and the away team back up with the relic), and chooses what's ON
+              SCREEN.</li>
+            <li><b>Engineering</b> shares out eight pips of power: more to engines flies faster, to weapons charges them quicker, to
+              shields makes them stronger, to sensors reaches further and locks on faster. Tap a damaged room to send the damage
+              control team.</li>
+          </ul>
+        </details>
+        <details class="small crew-help">
+          <summary>How to crew the ship</summary>
+          Hits on the hull break things: sparking conduits and fires in the rooms of the systems they hurt, which work worse until
+          they're mended.
+          <ul>
+            <li><b>Fix</b> sparks with the spanner and put fires out with the extinguisher, from close up.</li>
+            <li><b>Load torpedoes</b>: take one from the rack in the torpedo room and carry it to an empty tube. Faster than the
+              autoloader.</li>
+            <li><b>Away missions</b>: stand on the transporter pad while the ship orbits a relic world. On the surface, shoot the
+              drones with your phaser, take the relic from its plinth, and have science beam you up.</li>
+            <li><b>Run a station</b> from a console on the bridge (desktop and phone).</li>
+            <li><b>Desktop:</b> WASD, mouse, <b>Click</b> use the tool, <b>1 2 3</b> phaser, spanner, extinguisher, <b>E</b> take, load,
+              pick up, sit. <b>VR:</b> phaser on your right hip, spanner on your left, extinguisher on your chest; <b>A</b> takes and
+              loads. <b>Touch:</b> thumbs walk and look, <b>USE</b> and <b>ACT</b>.</li>
+          </ul>
+        </details>
+        <details class="small viewer-help">
+          <summary>About the viewscreen</summary>
+          Open this page on a big screen the bridge can see. It shows forward, aft, tactical, the target, or over the away team's
+          shoulders: science chooses, or press <b>1-5</b> here. In a headset you ride on the hull.
+        </details>
+        <p class="small">Open more tabs or share the URL to add crew. One phone can run the whole bridge by switching tabs. <a href="./">All games →</a></p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/starship/main.ts"></script>
+  </body>
+</html>

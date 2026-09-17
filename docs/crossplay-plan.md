@@ -467,6 +467,39 @@ Open questions:
 - Ideas that fit the structure without framework changes: carrying bodies into bushes, smoke bombs, guard dogs, a
   poltergeist-style role for taken shinobi (a guard's eyes for the captain?), and captain voice lines to nearby guards.
 
+## Lessons from an eighth game
+
+Peer Starship (`src/starship/`, `/starship.html`, 2026-09-17) is a bridge crew game. The owner asked for a "ship's viewer"
+role, touch "station interfaces" so a phone becomes a station (with switching between stations when the crew is small),
+and in-between roles for VR and desktop, including away missions.
+
+What carried over unchanged: `Avatar`, tools and holsters (phaser, spanner, extinguisher), `Seat`, `Shell` and frontends,
+`HeadsetHud`, touch controls, particles, `Singleton` for the ship.
+
+What was new, or changed:
+
+- **A role with no world view at all.** A station is a DOM panel (`stations.ts`) and draws nothing in 3D, so a phone at a
+  station skips rendering. Frontends say what they draw each frame (`view.ts`'s `Drawn`: space, a deck through a camera, or
+  nothing), and `Stage.render` (new) lets the game draw its own passes instead of one scene through the rig's camera.
+- **Two scenes, two unit systems.** Space (u, ~100 m each) and the decks (meters) are separate three.js scenes over one
+  replicated world. The bridge's viewscreen is a render target of the space scene; a crew member sees it on the wall, and
+  the viewscreen role draws the same camera full screen. The away sites sit far apart on the deck grid, and only the area the
+  camera is in is drawn (every deck view sits in a holder toggled by area).
+- **The same panel for three kinds of player.** A phone at a station, a desktop at a station and a crew member sitting at a
+  bridge console all use `StationPanel`, which only reads replicated state and gives `ConsoleAct`s. The officer role and the
+  crew role both turn those into `Console` commands to the ship's owner.
+- **Wide entities.** The ship has 46 replicated fields; schemas were capped at 30 because masks used 32-bit bit operations.
+  Masks are plain numbers now (up to 52 fields), tested and set arithmetically past the 31st, with the same wire format.
+- **Ownership settling in tests.** Rules tests that write the ship's state directly wait for the singleton's owner to settle
+  (a rebalance can hand it over a few seconds in), or the write is lost with the handoff.
+
+Open questions:
+
+- Balance is guessed: raider waves, weapon damage, drone lethality, power effects and repair times. A real crew will say.
+- VR crew can't use bridge consoles yet (the panel is DOM); a painted, touchable panel like `VrSettings` would do it.
+- Checked in the browser pane one role per tab (viewer, each station on desktop and phone sizes, desktop crew aboard and on
+  a planet, `?xrsim` crew, touch crew), with stand-ins spawned from the console. Not tried with several real devices at once.
+
 ## Later: mobile
 
 - Detection is done (`isTouchDevice()`), and the lobby's PLAY starts the touch frontend on a phone. The lobby can also

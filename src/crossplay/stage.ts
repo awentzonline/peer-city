@@ -24,6 +24,11 @@ export class Stage {
   readonly scene = new THREE.Scene();
   readonly rig: Rig;
   readonly input: DesktopInput;
+  /**
+   * Draws a frame instead of rendering `scene` through the rig's camera, for a game that wants more than one scene or
+   * pass (a screen in the world showing another place, say). It runs in the animation loop, so in a headset too.
+   */
+  render: ((renderer: THREE.WebGLRenderer) => void) | null = null;
   private last = performance.now();
 
   static async vrSupported(): Promise<boolean> {
@@ -79,7 +84,8 @@ export class Stage {
     // setAnimationLoop (not requestAnimationFrame) so the loop keeps running on the headset's clock.
     this.renderer.setAnimationLoop(() => {
       tick(50, true);
-      this.renderer.render(this.scene, this.rig.camera);
+      if (this.render) this.render(this.renderer);
+      else this.renderer.render(this.scene, this.rig.camera);
     });
   }
 

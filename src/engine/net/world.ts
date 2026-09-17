@@ -2,7 +2,7 @@ import { ByteReader, ByteWriter } from './codec';
 import { NetEntity } from './entity';
 import { fnv1a, rendezvous } from './hash';
 import { PeerMesh } from './mesh';
-import type { ActionDef, CommandDef, EntityDef, Infer, Quantized, Shape } from './schema';
+import { fieldBit, type ActionDef, type CommandDef, type EntityDef, type Infer, type Quantized, type Shape } from './schema';
 import { SpatialHash } from '../spatial/SpatialHash';
 import type { Transport } from '../transport/types';
 
@@ -887,7 +887,7 @@ export class NetWorld {
     if (!full) {
       mask = 0;
       const last = rec.last!;
-      for (let i = 0; i < q.length; i++) if (last[i] !== q[i]) mask |= 1 << i;
+      for (let i = 0; i < q.length; i++) if (last[i] !== q[i]) mask += fieldBit(i);
       const interval = dn < 0.4 ? 1 : dn < 0.75 ? 2 : 4;
       if (mask === 0) {
         // An empty update right after movement tells receivers the entity came to rest,

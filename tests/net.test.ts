@@ -115,6 +115,30 @@ describe('replication', () => {
     expect(reason).toBe('destroyed');
   });
 
+  it('replicates entities with more fields than bitwise masks reach, only sending the ones that change', () => {
+    const fields: Record<string, ReturnType<typeof t.uint>> = {};
+    for (let i = 0; i < 50; i++) fields[`f${i}`] = t.uint(16);
+    const Wide = defineEntity({ name: 'wide', fields: { x: t.fixed(1), y: t.fixed(1), ...fields } });
+    const opts = { worldId: 'wide', entities: [Wide], interestRadius: 800, zoneSize: 2048 };
+    const sim = new Sim();
+    const a = sim.add('a', opts);
+    const b = sim.add('b', opts);
+    a.setFocus(100, 100);
+    b.setFocus(100, 100);
+    const e = a.spawn(Wide, { x: 100, y: 100, f0: 1, f31: 2, f49: 3 } as never);
+    sim.run(600);
+    const remote = find(b, e.id)!;
+    expect([remote.state.f0, remote.state.f31, remote.state.f49]).toEqual([1, 2, 3]);
+    const before = a.stats.bytesOutPerSec;
+    (e.state as Record<string, number>).f33 = 700;
+    (e.state as Record<string, number>).f49 = 9;
+    (e.state as Record<string, number>).f2 = 5;
+    sim.run(300);
+    expect([remote.state.f2, remote.state.f33, remote.state.f48, remote.state.f49]).toEqual([5, 700, 0, 9]);
+    expect(before).toBeGreaterThanOrEqual(0);
+    expect(() => defineEntity({ name: 'too-wide', fields: { x: t.fixed(1), y: t.fixed(1), ...fields, ...Object.fromEntries(Array.from({ length: 5 }, (_, i) => [`g${i}`, t.uint(8)])) } })).toThrow(/at most 52/);
+  });
+
   it('only sends entities inside the receiver interest radius, and removes them on exit', () => {
     const sim = new Sim();
     const a = sim.add('a', base);

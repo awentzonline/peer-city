@@ -1,0 +1,1232 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #03060d;
+  font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+  color: #e8ecf4;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+}
+
+#game canvas {
+  display: block;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* each role's bits only show for that role (<body data-role>, set by the lobby and the game) */
+body:not([data-role='crew']) .crew-only,
+body:not([data-role='viewer']) .viewer-only,
+body:not([data-role='station']) .station-help,
+body:not([data-role='crew']) .crew-help,
+body:not([data-role='viewer']) .viewer-help {
+  display: none !important;
+}
+
+/* ---------------- HUD: the viewscreen's and the crew's ---------------- */
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  text-shadow: 1px 1px 2px #000;
+}
+
+/* a station's panel is the whole page: only the banner shows over it */
+body[data-role='station'] #hud > :not(#banner):not(#vr-enter) {
+  display: none !important;
+}
+
+#crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: rgba(232, 236, 244, 0.7);
+  box-shadow: 0 0 2px #000;
+}
+
+#crosshair.hit {
+  background: #ffd35a;
+  transform: scale(2);
+}
+
+#hurt {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 35%, rgba(170, 20, 0, 0.7));
+}
+
+#hurt.show {
+  animation: hurt 0.7s ease-out;
+}
+
+@keyframes hurt {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+#phase {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 18px;
+  border-radius: 999px;
+  background: rgba(4, 10, 22, 0.6);
+  border: 1px solid rgba(106, 208, 255, 0.3);
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: #bfe6ff;
+  white-space: nowrap;
+}
+
+#shipstat {
+  position: absolute;
+  top: 56px;
+  left: 18px;
+  width: 230px;
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+#shipstat > div,
+#vitals .hp {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+#shipstat b,
+#vitals .hp b {
+  display: block;
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+#shipstat i,
+#vitals .hp i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: #7ae08a;
+  transition: width 0.2s;
+}
+
+#shipstat .shields i {
+  background: #6ab8ff;
+}
+
+#shipstat .shields i.down {
+  background: #4a5a70;
+}
+
+#alert {
+  display: none !important;
+}
+
+#alert.on {
+  display: block !important;
+  grid-template-columns: none;
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: rgba(200, 30, 20, 0.8);
+  color: #fff;
+  font-weight: bold;
+  letter-spacing: 3px;
+  text-align: center;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+#roster {
+  position: absolute;
+  top: 56px;
+  right: 18px;
+  width: 250px;
+  font-size: 13px;
+}
+
+#roster div {
+  display: grid;
+  grid-template-columns: 10px auto 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 8px;
+  margin-bottom: 3px;
+  border-radius: 4px;
+  background: rgba(4, 10, 22, 0.55);
+}
+
+#roster i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+#roster span {
+  font-size: 11px;
+  color: #a8b8d0;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#vitals {
+  position: absolute;
+  left: 18px;
+  bottom: 40px;
+  width: 300px;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+
+#place {
+  font-size: 16px;
+  letter-spacing: 1px;
+  color: #bfe6ff;
+}
+
+#carry {
+  color: #ffd35a;
+}
+
+#tools {
+  display: flex;
+  gap: 6px;
+}
+
+#tools span {
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(4, 10, 22, 0.6);
+  border: 1px solid rgba(232, 236, 244, 0.2);
+  color: #a8b0c0;
+}
+
+#tools span.on {
+  color: #fff;
+  border-color: #9ad8ff;
+}
+
+#tools small {
+  margin-right: 4px;
+  color: #6a7890;
+}
+
+#screen-mode {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  font-size: 22px;
+  letter-spacing: 4px;
+  color: rgba(191, 230, 255, 0.85);
+}
+
+#screens {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  display: flex;
+  gap: 6px;
+  pointer-events: auto;
+  opacity: 0.25;
+  transition: opacity 0.2s;
+}
+
+#screens:hover {
+  opacity: 1;
+}
+
+#screens button {
+  padding: 6px 10px;
+  border: 1px solid rgba(106, 208, 255, 0.4);
+  border-radius: 4px;
+  background: rgba(4, 10, 22, 0.7);
+  color: #bfe6ff;
+  font: 12px 'Trebuchet MS', sans-serif;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+
+#screens button.on {
+  border-color: #fff;
+  color: #fff;
+}
+
+#screens small {
+  margin-right: 5px;
+  color: #6a7890;
+}
+
+#feed {
+  position: absolute;
+  right: 18px;
+  bottom: 70px;
+  max-width: 460px;
+  text-align: right;
+  font-size: 14px;
+}
+
+#feed div {
+  margin-top: 4px;
+  animation: fadeout 6s forwards;
+}
+
+@keyframes fadeout {
+  0%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+#banner {
+  position: absolute;
+  top: 26%;
+  width: 100%;
+  text-align: center;
+  font-size: 64px;
+  font-weight: bold;
+  letter-spacing: 10px;
+  opacity: 0;
+  transition: opacity 0.4s;
+  text-shadow: 3px 3px 8px #000;
+}
+
+#banner.show {
+  opacity: 1;
+}
+
+body[data-role='station'] #banner {
+  top: 40%;
+  font-size: 36px;
+  letter-spacing: 4px;
+  z-index: 40;
+}
+
+#hint {
+  position: absolute;
+  top: 62%;
+  width: 100%;
+  text-align: center;
+  font-size: 17px;
+}
+
+body[data-role='viewer'] #hint {
+  display: none;
+}
+
+#help {
+  position: absolute;
+  bottom: 12px;
+  left: 18px;
+  right: 18px;
+  font-size: 12px;
+  color: rgba(232, 236, 244, 0.55);
+}
+
+body[data-role='viewer'] #help {
+  display: none;
+}
+
+#lock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.45);
+  font-size: 30px;
+  letter-spacing: 4px;
+}
+
+#lock small {
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
+#vr-enter {
+  position: absolute;
+  left: 18px;
+  top: 14px;
+  pointer-events: auto;
+  padding: 8px 14px;
+  font: bold 14px/1 'Trebuchet MS', sans-serif;
+  letter-spacing: 2px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(90deg, #1f4a7a, #3a2a7a);
+}
+
+/* ---------------- a bridge station ---------------- */
+.bridge-ui {
+  --station: #5ad0ff;
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: calc(6px + env(safe-area-inset-top, 0px)) calc(8px + env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) calc(8px + env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(40, 80, 140, 0.25), transparent 50%),
+    linear-gradient(#050a14, #02050b);
+  color: #e8ecf4;
+  font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+  touch-action: none;
+  overflow: hidden;
+}
+
+/* a crew member's console, over the bridge: a little see-through at the edges */
+.bridge-ui.seated {
+  inset: 4%;
+  border-radius: 14px;
+  border: 1px solid var(--station);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+  background: rgba(3, 8, 16, 0.94);
+}
+
+.bridge-ui.jolt {
+  animation: jolt 0.35s;
+}
+
+@keyframes jolt {
+  20% {
+    transform: translate(6px, -4px);
+  }
+  40% {
+    transform: translate(-5px, 3px);
+  }
+  60% {
+    transform: translate(3px, 2px);
+  }
+  80% {
+    transform: translate(-2px, -1px);
+  }
+}
+
+.bridge-top {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  flex: 1 1 360px;
+}
+
+.tab {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 4px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 3px solid var(--station);
+  border-radius: 8px 8px 3px 3px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #a8b8d0;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.tab b {
+  display: block;
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
+.tab small {
+  display: block;
+  font-size: 10px;
+  color: #7a88a0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab .short {
+  display: none;
+}
+
+@media (max-width: 560px) {
+  .tab .long {
+    display: none;
+  }
+
+  .tab .short {
+    display: inline;
+  }
+}
+
+.tab.on {
+  background: color-mix(in srgb, var(--station) 22%, transparent);
+  color: #fff;
+  border-color: var(--station);
+}
+
+.console-name {
+  flex: 1;
+  font-size: 20px;
+  font-weight: bold;
+  letter-spacing: 4px;
+  align-self: center;
+}
+
+.status {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: 0 1 auto;
+}
+
+.stat {
+  display: grid;
+  gap: 2px;
+  width: 90px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #a8b8d0;
+}
+
+.meter {
+  height: 9px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.meter.thin {
+  height: 4px;
+}
+
+.meter i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--station);
+}
+
+.bridge-ui .alert {
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.bridge-ui .alert.on {
+  color: #fff;
+  background: #c01e14;
+  border-color: #ff5a4a;
+  animation: blink 1s infinite;
+}
+
+.phase {
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: #9ad8ff;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bridge-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 8px;
+}
+
+.scope-box {
+  position: relative;
+  min-height: 0;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--station) 45%, transparent);
+  background: radial-gradient(circle, rgba(20, 40, 70, 0.5), rgba(2, 6, 14, 0.9));
+  overflow: hidden;
+}
+
+.scope {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+
+.controls {
+  min-height: 0;
+  overflow-y: auto;
+  touch-action: pan-y;
+}
+
+.feed-line {
+  min-height: 16px;
+  font-size: 12px;
+  color: #c8d8ec;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.feed-line.fresh {
+  animation: fresh 1.5s;
+}
+
+@keyframes fresh {
+  from {
+    color: #fff;
+    text-shadow: 0 0 8px var(--station);
+  }
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.grow {
+  flex: 1;
+}
+
+.row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.card b {
+  font-size: 14px;
+  letter-spacing: 2px;
+}
+
+.card.scanned {
+  border-color: rgba(255, 211, 90, 0.6);
+}
+
+.small {
+  font-size: 11px;
+  color: #a8b8d0;
+}
+
+.center {
+  text-align: center;
+}
+
+.labelled {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #a8b8d0;
+}
+
+.readout {
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #c8d8ec;
+  text-align: center;
+}
+
+/* buttons */
+.sb {
+  position: relative;
+  min-height: 42px;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--station) 55%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--station) 14%, #07101c);
+  color: #fff;
+  font: bold 13px 'Trebuchet MS', sans-serif;
+  letter-spacing: 1px;
+  cursor: pointer;
+  touch-action: manipulation;
+  overflow: hidden;
+}
+
+.sb:active:not(:disabled) {
+  transform: scale(0.97);
+  background: color-mix(in srgb, var(--station) 40%, #07101c);
+}
+
+.sb:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.sb.on {
+  background: color-mix(in srgb, var(--station) 55%, #07101c);
+  border-color: #fff;
+}
+
+.sb.big {
+  min-height: 64px;
+  font-size: 17px;
+  letter-spacing: 3px;
+}
+
+.sb.danger {
+  --station: #ff5a4a;
+}
+
+.sb.go {
+  --station: #7ae08a;
+  animation: blink 1.4s infinite;
+}
+
+/* a button that fills as it charges */
+.sb.fire::before,
+.sb.warp::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  width: var(--charge, 0%);
+  background: #ffb84a;
+}
+
+.sb.shields.on {
+  --station: #6ab8ff;
+}
+
+.sb.small-btn {
+  min-height: 34px;
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
+.chip {
+  min-height: 34px;
+  padding: 4px 10px;
+}
+
+.chip.leave {
+  --station: #ffd35a;
+}
+
+/* helm */
+.helm {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 10px;
+  height: 100%;
+}
+
+.throttle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  min-height: 220px;
+}
+
+.throttle .label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #a8b8d0;
+}
+
+.throttle .track {
+  position: relative;
+  flex: 1;
+  width: 64px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(90, 208, 255, 0.4);
+  touch-action: none;
+  cursor: ns-resize;
+}
+
+.throttle .track i {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  border-radius: 8px;
+  background: linear-gradient(#5ad0ff, #2a7ab8);
+}
+
+.throttle .track i.reverse {
+  background: linear-gradient(#ffb84a, #b8702a);
+}
+
+.throttle .track u {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.throttle .track b {
+  position: absolute;
+  left: -6px;
+  right: -6px;
+  height: 28px;
+  border-radius: 8px;
+  background: #e8ecf4;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+
+.steer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.steer .dial {
+  width: min(180px, 34vh);
+  height: min(180px, 34vh);
+  touch-action: none;
+  cursor: grab;
+}
+
+.steer .row {
+  width: 100%;
+}
+
+.steer .row .sb {
+  flex: 1;
+}
+
+.nav {
+  font-size: 11px;
+}
+
+/* tactical */
+.tubes {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #a8b8d0;
+}
+
+.tubes i {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #3a1a1a;
+  border: 2px solid #ff5a4a;
+}
+
+.tubes i.loaded {
+  background: #5aff7a;
+  border-color: #b8ffc8;
+  box-shadow: 0 0 8px #5aff7a;
+}
+
+/* science */
+.screens .sb {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 2px;
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+/* engineering */
+.power {
+  font-size: 14px;
+  letter-spacing: 2px;
+}
+
+.system {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.system .row b {
+  flex: 1;
+  font-size: 13px;
+  letter-spacing: 2px;
+}
+
+.system small {
+  font-size: 12px;
+  color: #c8d8ec;
+}
+
+.pips {
+  display: grid;
+  grid-template-columns: 0.7fr repeat(4, 1fr);
+  gap: 5px;
+}
+
+.pip {
+  min-height: 34px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.pip.lit {
+  background: linear-gradient(#ffd35a, #d89a2a);
+  border-color: #ffe8a0;
+}
+
+.pip.lit.over {
+  background: linear-gradient(#ff9a4a, #d8602a);
+}
+
+.pip.off {
+  color: #a8b8d0;
+}
+
+/* a phone held upright: the scope on top, the controls under it */
+@media (orientation: portrait) {
+  .bridge-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(150px, 32%) 1fr;
+  }
+
+  .tabs {
+    flex-basis: 100%;
+  }
+
+  .status {
+    flex: 1;
+    justify-content: space-between;
+  }
+
+  .two {
+    grid-template-columns: 1fr;
+  }
+
+  #lobby .roles {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-height: 460px) {
+  .tab small,
+  .feed-line,
+  .phase {
+    display: none;
+  }
+
+  .sb.big {
+    min-height: 48px;
+  }
+
+  .sb {
+    min-height: 36px;
+  }
+
+  .throttle {
+    min-height: 0;
+  }
+
+  .steer .dial {
+    width: 110px;
+    height: 110px;
+  }
+
+  .helm .grid2 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ---------------- Lobby ---------------- */
+#lobby {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 80% 15%, rgba(255, 220, 160, 0.12), transparent 25%),
+    radial-gradient(circle at 15% 85%, rgba(60, 100, 200, 0.28), transparent 55%),
+    #02040a;
+  padding: 16px;
+  overflow: auto;
+}
+
+#lobby .panel {
+  width: min(640px, 100%);
+  max-height: 100%;
+  box-sizing: border-box;
+  overflow: auto;
+  background: rgba(6, 12, 24, 0.8);
+  border: 1px solid rgba(106, 208, 255, 0.25);
+  border-radius: 10px;
+  padding: 24px 26px;
+}
+
+#lobby h1 {
+  margin: 0;
+  font-size: 44px;
+  letter-spacing: 8px;
+  color: #bfe6ff;
+  text-shadow:
+    0 0 20px rgba(106, 208, 255, 0.5),
+    3px 3px 0 #000;
+}
+
+#lobby .tag {
+  margin: 6px 0 16px;
+  color: #a8b8d0;
+  line-height: 1.45;
+}
+
+#lobby .roles {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+#lobby label.role {
+  position: relative;
+  margin: 0;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(106, 208, 255, 0.25);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+#lobby label.role input {
+  position: absolute;
+  opacity: 0;
+}
+
+#lobby label.role b {
+  display: block;
+  font-size: 15px;
+  letter-spacing: 2px;
+  color: #bfe6ff;
+}
+
+#lobby label.role span {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #98a8c0;
+}
+
+#lobby label.role:has(input:checked) {
+  border-color: #6ad0ff;
+  background: rgba(106, 208, 255, 0.12);
+  box-shadow: 0 0 14px rgba(106, 208, 255, 0.2);
+}
+
+#lobby label {
+  display: block;
+  margin: 10px 0;
+  font-size: 12px;
+  color: #98a8c0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+#lobby input,
+#lobby select {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 9px 10px;
+  font-size: 16px;
+  font-family: inherit;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e8ecf4;
+}
+
+#lobby select option {
+  color: #000;
+}
+
+#lobby .buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+#lobby button {
+  flex: 1;
+  padding: 12px;
+  font-size: 18px;
+  font-family: inherit;
+  font-weight: bold;
+  letter-spacing: 4px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #02101c;
+  background: linear-gradient(90deg, #9ae4ff, #5ab0e8);
+}
+
+#lobby #play-vr {
+  color: #fff;
+  background: linear-gradient(90deg, #2a3a8a, #3a2a6a);
+}
+
+#lobby button:disabled {
+  cursor: default;
+  filter: grayscale(1) brightness(0.55);
+}
+
+#lobby .small {
+  font-size: 12px;
+  color: #98a8c0;
+  margin: 10px 0 0;
+}
+
+#lobby details summary {
+  cursor: pointer;
+  color: #bfe6ff;
+}
+
+#lobby ul {
+  padding-left: 18px;
+}
+
+#lobby li {
+  margin: 4px 0;
+}
+
+#lobby a {
+  color: #bfe6ff;
+}
+
+/* ---------------- crew, played with fingers ---------------- */
+body.touch[data-role='crew'] #help,
+body.touch[data-role='crew'] #tools,
+body.touch[data-role='crew'] #roster {
+  display: none;
+}
+
+body.touch #phase {
+  top: 6px;
+  padding: 3px 10px;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+body.touch #shipstat {
+  top: 34px;
+  left: calc(10px + env(safe-area-inset-left, 0px));
+  width: 160px;
+  font-size: 10px;
+}
+
+body.touch #vitals {
+  top: 100px;
+  bottom: auto;
+  left: calc(10px + env(safe-area-inset-left, 0px));
+  width: 170px;
+  font-size: 11px;
+}
+
+body.touch #feed {
+  left: calc(12px + env(safe-area-inset-left, 0px));
+  right: auto;
+  bottom: 50%;
+  max-width: 44%;
+  text-align: left;
+  font-size: 11px;
+}
+
+body.touch #hint {
+  top: auto;
+  bottom: 86px;
+  left: 50%;
+  width: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+}
+
+body.touch #banner {
+  font-size: 36px;
+  letter-spacing: 4px;
+}
+
+body.touch[data-role='crew'] .touch-chips {
+  left: auto;
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  top: 34px;
+}

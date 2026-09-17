@@ -697,6 +697,28 @@ moving the lord, and a night won by killing the lord and escaping over the wall.
 
 ---
 
+## Peer Starship (a bridge crew: stations, a viewscreen, and crew on the decks)
+
+`/starship.html`, `src/starship/`. Crew the Wayfarer together: scan the sector's planets for three relics, bring them
+home to the starbase, and survive the raiders. Three roles, picked in the lobby:
+
+- **Bridge station** (phones first, or any screen): the phone becomes a console. Tabs switch between **helm** (impulse,
+  compass, waypoint, autopilot, warp, orbit, dock), **tactical** (heading-up radar, target, phasers, torpedoes, shields),
+  **science** (scan planets and raiders, the transporter, what's on screen) and **engineering** (eight pips of power,
+  system health, the damage control team). One phone can run the whole bridge; each tab shows who's at it.
+- **Viewscreen** (a TV or laptop at the front of the room): space as science puts it on screen (forward, aft, tactical,
+  target) or over the away team's shoulders. In a headset you ride on the hull.
+- **Crew** (desktop, VR, touch): walk the ship's decks. Hull hits start fires and break conduits in the rooms of the systems
+  they hurt; fix them with the spanner and extinguisher. Carry torpedoes from the rack to the tubes. Stand on the
+  transporter pad while the ship orbits a relic world, fight the drones with a hand phaser, and bring the relic back. At a
+  bridge console (desktop and phone) you can sit and run that station.
+
+Stations never write the ship: they send `Console` commands to its owner, so a phone, a desktop crew member at a console
+and a test all give orders the same way. The rules are headless (`tests/starship.test.ts`). The world is one zone and one
+authority cell, so one peer runs the ship and every NPC. Space and the decks are separate three.js scenes; the bridge's
+viewscreen is a render target of the space scene (`Stage.render`, new, lets a game draw more than one pass). `?station=science`
+picks a station. Schemas can now have up to 52 fields (the ship has 46).
+
 ## Scaling results
 
 `scripts/loadsim.ts` runs many `NetWorld`s in one process over a simulated network (45ms latency
