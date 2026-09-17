@@ -12,6 +12,8 @@ export interface Launch<T = undefined> {
   netLabel: string;
   /** Play with fingers: the touch frontend rather than keys and mouse. Only for games with one. */
   touch: boolean;
+  /** Which role the player picked, for a game whose page offers a choice (`LobbyOptions.roles`), or ''. */
+  role: string;
   /** Emulate a headset on desktop (`?xrsim`). */
   sim: boolean;
   /** The page's query parameters, for a game's own switches. */
@@ -35,6 +37,12 @@ export interface LobbyOptions<T> {
   touch?: boolean;
   /** On a phone, also ask to turn the screen sideways, where the browser allows it. */
   landscape?: boolean;
+  /**
+   * The roles a player can pick between, by the `value` of the page's `input[name="role"]` radio buttons, first the
+   * default. The choice is remembered, `?role=` picks one, and `<body data-role>` follows it so the page can show
+   * what each role does.
+   */
+  roles?: string[];
   /** Shown when a headset's detected, e.g. how much room to clear. */
   headsetNote: string;
   /** Shown when there's no headset. Defaults to how to get one. */
@@ -67,6 +75,16 @@ export function openLobby<T = undefined>(opts: LobbyOptions<T>): Promise<Launch<
   if (touch) document.body.classList.add('touch');
 
   nameInput.value = params.get('name') ?? storage('get', opts.nameKey) ?? `${opts.namePrefix}${Math.floor(Math.random() * 900 + 100)}`;
+  const roleKey = `${opts.nameKey}:role`;
+  const roleInputs = [...document.querySelectorAll<HTMLInputElement>('input[name="role"]')];
+  const roles = opts.roles ?? [];
+  const pick = (role: string | null): string => (role && roles.includes(role) ? role : (roles[0] ?? ''));
+  const showRole = (role: string) => {
+    document.body.dataset.role = role;
+    for (const input of roleInputs) input.checked = input.value === role;
+  };
+  showRole(pick(params.get('role') ?? storage('get', roleKey)));
+  for (const input of roleInputs) input.addEventListener('change', () => input.checked && showRole(input.value));
   netSelect.value = params.get('net') === 'local' ? 'local' : 'online';
   roomInput.value = params.get('shard') ?? opts.shard;
 
@@ -92,15 +110,18 @@ export function openLobby<T = undefined>(opts: LobbyOptions<T>): Promise<Launch<
       const mode: NetMode = netSelect.value === 'local' ? 'local' : 'online';
       const shard = roomInput.value.trim().replace(/[^\w-]/g, '').slice(0, 24) || opts.shard;
       storage('set', opts.nameKey, playerName);
+      const role = pick(document.body.dataset.role ?? null);
+      if (roles.length) storage('set', roleKey, role);
 
       const url = new URL(location.href);
       url.searchParams.set('net', mode);
       url.searchParams.set('shard', shard);
+      if (roles.length) url.searchParams.set('role', role);
       url.searchParams.delete('name');
       url.searchParams.delete('autostart');
       history.replaceState(null, '', url);
 
-      const launch: Launch<undefined> = { playerName, mode, shard, netLabel: `${mode}/${shard}`, touch, sim: params.has('xrsim'), params, session, loaded: undefined };
+      const launch: Launch<undefined> = { playerName, mode, shard, netLabel: `${mode}/${shard}`, touch, role, sim: params.has('xrsim'), params, session, loaded: undefined };
       playButton.disabled = vrButton.disabled = true;
       playButton.textContent = 'LOADING…';
       Promise.resolve()

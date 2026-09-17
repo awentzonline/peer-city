@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Peer Haunt</title>
+    <link rel="stylesheet" href="/src/haunt/style.css" />
+    <link rel="stylesheet" href="/src/crossplay/settings.css" />
+    <link rel="stylesheet" href="/src/crossplay/touch.css" />
+  </head>
+  <body>
+    <div id="game"></div>
+
+    <div id="hud" hidden>
+      <div id="hurt"></div>
+      <div id="crosshair"></div>
+      <div id="phase"></div>
+      <div id="party"></div>
+      <div id="vitals" class="survivor-only">
+        <div id="hearts"></div>
+        <div class="battery"><div id="battery-fill"></div></div>
+        <div id="carry"></div>
+      </div>
+      <div id="dread" class="haunt-only">
+        <div class="track"><div id="dread-fill"></div></div>
+        <b id="dread-value"></b><small>dread</small>
+      </div>
+      <div id="army" class="haunt-only"></div>
+      <div id="powers" class="haunt-only"></div>
+      <div id="select-box" hidden></div>
+      <div id="feed"></div>
+      <div id="banner"></div>
+      <div id="hint"></div>
+      <div id="help"></div>
+      <button id="vr-enter" hidden>ENTER VR</button>
+      <div id="lock" hidden>
+        <div>CLICK TO PLAY</div>
+        <small>Esc releases the mouse</small>
+      </div>
+    </div>
+
+    <div id="lobby">
+      <div class="panel">
+        <h1>PEER HAUNT</h1>
+        <p class="tag">A night in a haunted manor. Survivors search the house by flashlight for the keys to the gate. The Haunt watches from above, and sends things after them. No server: everyone's browser is the house.</p>
+        <div class="roles">
+          <label class="role">
+            <input type="radio" name="role" value="survivor" />
+            <b>SURVIVOR</b>
+            <span>First person, in the dark, with a flashlight. Find the keys and get out.</span>
+          </label>
+          <label class="role">
+            <input type="radio" name="role" value="haunt" />
+            <b>THE HAUNT</b>
+            <span>Look down on the house with its roof off. Summon monsters where nobody's looking.</span>
+          </label>
+        </div>
+        <label>Name <input id="name" maxlength="16" autocomplete="off" /></label>
+        <label
+          >Network
+          <select id="net">
+            <option value="online">Online (WebRTC via Trystero / Nostr)</option>
+            <option value="local">Local tabs (BroadcastChannel)</option>
+          </select>
+        </label>
+        <label>Manor <input id="room" maxlength="24" autocomplete="off" /></label>
+        <div class="buttons">
+          <button id="play">PLAY</button>
+          <button id="play-vr" disabled>PLAY IN VR</button>
+        </div>
+        <p class="small" id="vr-note">Checking for a VR headset…</p>
+        <details class="small survivor-help">
+          <summary>How to survive</summary>
+          When the hunt begins, four keys are hidden in the house. Put three in the pedestal by the gate and it opens: walk out
+          before the night's over. Keys go in your pocket as you walk over them, and into the pedestal as you walk up to it.
+          <ul>
+            <li><b>Your flashlight</b> is your only weapon. Its beam burns shades away, sends crawlers running and slows brutes. But
+              it runs down, and while it's on (or while you carry a key) everything in the house can see you, the Haunt too.</li>
+            <li><b>Three hits</b> and you're down. Crawl to the others: hold <b>E</b> over someone who's down to help them up
+              before they bleed out.</li>
+            <li>Shine your light on the <b>presence</b> you'll sometimes glimpse in the dark, and the Haunt recoils.</li>
+            <li><b>WASD</b> walk, <b>Shift</b> run, <b>Ctrl</b> creep, <b>Click</b> or <b>F</b> flashlight, <b>Hold E</b> help someone up.</li>
+          </ul>
+          <b>VR:</b> the flashlight's clipped to your chest: take it with a grip and pull the trigger. Hold <b>A</b> to help someone
+          up. <b>Touch:</b> left thumb walks, right looks, <b>LIGHT</b> switches the flashlight, <b>HELP UP</b> appears by the downed.
+        </details>
+        <details class="small haunt-help">
+          <summary>How to haunt</summary>
+          Dread builds through the night, faster with more survivors inside. Spend it on your powers, but only where no survivor
+          is close by or can see, and never by the pedestal. You only see survivors who give themselves away: with a light on, a key
+          in hand, down on the floor, in sight of one of your monsters, or near a whisper.
+          <ul>
+            <li><b>Shade</b> (20): drifts after anyone it sees; burns fast. <b>Crawler</b> (30): quick, and runs from light.
+              <b>Brute</b> (90): slow, hard to burn, and hits twice as hard. <b>Whisper</b> (8): survivors near it give themselves away.</li>
+            <li><b>Desktop:</b> <b>1-4</b> or a card, then click. Click or drag round monsters to pick them out; <b>right-click</b>
+              sends them (onto a survivor you can see to go after them). <b>WASD</b> / right-drag moves, wheel zooms, <b>Q E</b> turn.</li>
+            <li><b>Touch:</b> drag, pinch and twist the house. Tap a card, then tap. Tap monsters to pick them out, hold to gather
+              those nearby, then tap where to send them.</li>
+            <li><b>VR:</b> you loom over the house. Point your right hand: <b>A</b> picks a power, the trigger uses it or picks
+              out a monster, the grip sends them. Left stick walks, right stick turns and rises.</li>
+          </ul>
+          A flashlight on your presence (where you point) drives you back and costs you dread.
+        </details>
+        <p class="small">Open more tabs or share the URL to add players. With nobody playing the Haunt, the house haunts itself. <a href="./">All games →</a></p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/haunt/main.ts"></script>
+  </body>
+</html>

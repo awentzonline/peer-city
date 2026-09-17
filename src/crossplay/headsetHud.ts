@@ -79,14 +79,16 @@ export class HeadsetHud {
       any = true;
     }
     if (hint) {
-      ctx.font = 'bold 40px Trebuchet MS, sans-serif';
-      const w = ctx.measureText(hint).width + 60;
+      // long hints shrink to fit the strip rather than run off its ends
+      const size = Math.max(24, Math.min(40, Math.floor(40 * (940 / Math.max(1, measure(ctx, hint, 40))))));
+      ctx.font = `bold ${size}px Trebuchet MS, sans-serif`;
+      const w = Math.min(1010, ctx.measureText(hint).width + 60);
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
       ctx.beginPath();
       ctx.roundRect(512 - w / 2, 300, w, 70, 20);
       ctx.fill();
       ctx.fillStyle = '#fff';
-      ctx.fillText(hint, 512, 336);
+      ctx.fillText(hint, 512, 336, 980);
       any = true;
     }
     ctx.font = '32px Trebuchet MS, sans-serif';
@@ -96,12 +98,18 @@ export class HeadsetHud {
       .forEach((line, i) => {
         ctx.lineWidth = 6;
         ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-        ctx.strokeText(line.text, 512, 420 + i * 44);
+        ctx.strokeText(line.text, 512, 420 + i * 44, 1000);
         ctx.fillStyle = '#fff';
-        ctx.fillText(line.text, 512, 420 + i * 44);
+        ctx.fillText(line.text, 512, 420 + i * 44, 1000);
         any = true;
       });
     this.stripHasContent = any;
     tex.needsUpdate = true;
   }
+}
+
+/** How wide a line of text is in bold Trebuchet at `size` pixels. */
+function measure(ctx: CanvasRenderingContext2D, text: string, size: number): number {
+  ctx.font = `bold ${size}px Trebuchet MS, sans-serif`;
+  return ctx.measureText(text).width;
 }

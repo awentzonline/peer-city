@@ -22,6 +22,7 @@ export default defineConfig({
         derby: fileURLToPath(new URL('./derby.html', import.meta.url)),
         walls: fileURLToPath(new URL('./walls.html', import.meta.url)),
         golf: fileURLToPath(new URL('./golf.html', import.meta.url)),
+        haunt: fileURLToPath(new URL('./haunt.html', import.meta.url)),
       },
     },
   },

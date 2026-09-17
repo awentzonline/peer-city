@@ -1,0 +1,722 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #04050b;
+  font-family: Georgia, 'Times New Roman', serif;
+  color: #e8e2d4;
+  user-select: none;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+}
+
+#game canvas {
+  display: block;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* each role's HUD only shows for that role (<body data-role>, set by the lobby and the game) */
+body[data-role='haunt'] .survivor-only,
+body[data-role='survivor'] .haunt-only,
+body[data-role='haunt'] .survivor-help,
+body[data-role='survivor'] .haunt-help {
+  display: none !important;
+}
+
+/* ---------------- HUD ---------------- */
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  text-shadow: 1px 1px 2px #000;
+}
+
+#crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: rgba(232, 226, 212, 0.55);
+  box-shadow: 0 0 2px #000;
+}
+
+#hurt {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 35%, rgba(150, 0, 0, 0.7));
+}
+
+#hurt.show {
+  animation: hurt 0.7s ease-out;
+}
+
+@keyframes hurt {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+#phase {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 18px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(232, 217, 176, 0.25);
+  font-size: 15px;
+  letter-spacing: 3px;
+  color: #e8d9b0;
+  white-space: nowrap;
+}
+
+#party {
+  position: absolute;
+  top: 60px;
+  left: 18px;
+  width: 240px;
+  font-size: 14px;
+}
+
+#party div {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 8px;
+  margin-bottom: 3px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+#party div.me b {
+  color: #ffd35a;
+}
+
+#party div.unseen {
+  opacity: 0.55;
+}
+
+#party i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+#party span {
+  font-size: 12px;
+  font-style: italic;
+  color: #b8b0a0;
+}
+
+/* a survivor's health, battery and key, bottom left */
+#vitals {
+  position: absolute;
+  left: 18px;
+  bottom: 44px;
+  width: 220px;
+}
+
+#hearts {
+  font-size: 30px;
+  color: #d8402f;
+  letter-spacing: 2px;
+}
+
+#hearts i {
+  font-style: normal;
+  color: rgba(216, 64, 47, 0.2);
+}
+
+.battery {
+  position: relative;
+  height: 12px;
+  margin-top: 4px;
+  border: 2px solid rgba(232, 226, 212, 0.6);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.battery::after {
+  content: '';
+  position: absolute;
+  right: -6px;
+  top: 2px;
+  width: 3px;
+  height: 4px;
+  background: rgba(232, 226, 212, 0.6);
+}
+
+#battery-fill {
+  height: 100%;
+  width: 100%;
+  background: #f5e6a8;
+}
+
+#battery-fill.low {
+  background: #e0703a;
+}
+
+#carry {
+  margin-top: 8px;
+  font-size: 15px;
+  color: #ffd35a;
+}
+
+/* the Haunt's dread, powers and monsters, bottom middle */
+#dread {
+  position: absolute;
+  left: 50%;
+  bottom: 126px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(460px, 70vw);
+}
+
+#dread .track {
+  flex: 1;
+  height: 14px;
+  border-radius: 7px;
+  border: 1px solid rgba(199, 155, 255, 0.5);
+  background: rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+#dread-fill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #4a1f7a, #b46bff);
+  transition: width 0.2s;
+}
+
+#dread b {
+  font-size: 22px;
+  color: #d8b8ff;
+  min-width: 36px;
+  text-align: right;
+}
+
+#dread small {
+  color: #a898c0;
+}
+
+#army {
+  position: absolute;
+  right: 18px;
+  top: 60px;
+  font-size: 14px;
+  color: #d8b8ff;
+}
+
+#powers {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+}
+
+#powers .card {
+  pointer-events: auto;
+  touch-action: none;
+  position: relative;
+  width: 118px;
+  height: 100px;
+  padding: 8px 8px 6px;
+  border-radius: 8px;
+  border: 2px solid rgba(199, 155, 255, 0.35);
+  background: linear-gradient(180deg, rgba(40, 20, 60, 0.9), rgba(12, 6, 20, 0.92));
+  color: #e8e2d4;
+  font-family: Georgia, serif;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#powers .card small {
+  position: absolute;
+  right: 8px;
+  top: 6px;
+  font-size: 11px;
+  color: #8f7fa8;
+}
+
+#powers .card b {
+  font-size: 16px;
+  letter-spacing: 1px;
+}
+
+#powers .card em {
+  font-style: normal;
+  font-size: 13px;
+  color: #d8b8ff;
+}
+
+#powers .card span {
+  font-size: 10px;
+  line-height: 1.25;
+  color: #b8b0c8;
+}
+
+#powers .card.armed {
+  border-color: #d8b8ff;
+  box-shadow: 0 0 18px rgba(180, 107, 255, 0.6);
+  transform: translateY(-6px);
+}
+
+#powers .card.short {
+  filter: grayscale(0.8) brightness(0.6);
+}
+
+#select-box {
+  position: fixed;
+  border: 1px solid #d8b8ff;
+  background: rgba(180, 107, 255, 0.12);
+}
+
+#feed {
+  position: absolute;
+  right: 18px;
+  bottom: 160px;
+  max-width: 420px;
+  text-align: right;
+  font-size: 14px;
+}
+
+#feed div {
+  margin-top: 4px;
+  animation: fadeout 6s forwards;
+}
+
+@keyframes fadeout {
+  0%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+#banner {
+  position: absolute;
+  top: 28%;
+  width: 100%;
+  text-align: center;
+  font-size: 72px;
+  letter-spacing: 8px;
+  opacity: 0;
+  transition: opacity 0.4s;
+  text-shadow: 3px 3px 6px #000;
+}
+
+#banner.show {
+  opacity: 1;
+}
+
+#hint {
+  position: absolute;
+  top: 60%;
+  width: 100%;
+  text-align: center;
+  font-size: 17px;
+  font-style: italic;
+}
+
+body[data-role='haunt'] #hint {
+  top: auto;
+  bottom: 158px;
+}
+
+body[data-role='haunt'] #feed {
+  bottom: auto;
+  top: 84px;
+}
+
+#help {
+  position: absolute;
+  bottom: 12px;
+  left: 18px;
+  right: 18px;
+  font-size: 12px;
+  color: rgba(232, 226, 212, 0.6);
+}
+
+body[data-role='haunt'] #help {
+  bottom: auto;
+  top: 48px;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+#lock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.45);
+  font-size: 30px;
+  letter-spacing: 4px;
+}
+
+#lock small {
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
+#vr-enter {
+  position: absolute;
+  left: 18px;
+  top: 14px;
+  pointer-events: auto;
+  padding: 8px 14px;
+  font: bold 14px/1 Georgia, serif;
+  letter-spacing: 2px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(90deg, #4a1f7a, #1f3a7a);
+}
+
+/* the touch Haunt's map: everything under the HUD's cards */
+.haunt-map {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  touch-action: none;
+}
+
+body .haunt-chips {
+  position: fixed;
+  z-index: 15;
+  left: calc(12px + env(safe-area-inset-left, 0px));
+  top: auto;
+  bottom: calc(126px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ---------------- Lobby ---------------- */
+#lobby {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 75% 10%, rgba(200, 210, 255, 0.12), transparent 30%),
+    radial-gradient(circle at 20% 90%, rgba(120, 40, 160, 0.25), transparent 55%),
+    #04050b;
+  padding: 16px;
+  overflow: auto;
+}
+
+#lobby .panel {
+  width: min(520px, 100%);
+  max-height: 100%;
+  box-sizing: border-box;
+  overflow: auto;
+  background: rgba(10, 8, 16, 0.75);
+  border: 1px solid rgba(232, 217, 176, 0.2);
+  border-radius: 6px;
+  padding: 26px 28px;
+}
+
+#lobby h1 {
+  margin: 0;
+  font-size: 50px;
+  font-weight: normal;
+  letter-spacing: 8px;
+  color: #e8d9b0;
+  text-shadow:
+    0 0 18px rgba(180, 107, 255, 0.5),
+    3px 3px 0 #000;
+}
+
+#lobby .tag {
+  margin: 6px 0 16px;
+  color: #b8b0a0;
+  line-height: 1.45;
+}
+
+#lobby .roles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+#lobby label.role {
+  position: relative;
+  margin: 0;
+  padding: 12px;
+  border-radius: 5px;
+  border: 1px solid rgba(232, 217, 176, 0.25);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+#lobby label.role input {
+  position: absolute;
+  opacity: 0;
+}
+
+#lobby label.role b {
+  display: block;
+  font-size: 17px;
+  letter-spacing: 3px;
+  color: #e8d9b0;
+}
+
+#lobby label.role span {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #a8a090;
+}
+
+#lobby label.role:has(input:checked) {
+  border-color: #e8d9b0;
+  background: rgba(232, 217, 176, 0.1);
+  box-shadow: 0 0 14px rgba(232, 217, 176, 0.15);
+}
+
+#lobby label.role:has(input[value='haunt']:checked) {
+  border-color: #c79bff;
+  background: rgba(180, 107, 255, 0.12);
+}
+
+#lobby label {
+  display: block;
+  margin: 10px 0;
+  font-size: 12px;
+  color: #a8a090;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+#lobby input,
+#lobby select {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 9px 10px;
+  font-size: 16px;
+  font-family: Georgia, serif;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e8e2d4;
+}
+
+#lobby select option {
+  color: #000;
+}
+
+#lobby .buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+#lobby button {
+  flex: 1;
+  padding: 12px;
+  font-size: 19px;
+  font-family: Georgia, serif;
+  letter-spacing: 4px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #1a1410;
+  background: linear-gradient(90deg, #e8d9b0, #c9a86a);
+}
+
+body[data-role='haunt'] #lobby #play {
+  color: #fff;
+  background: linear-gradient(90deg, #6a2fa8, #b46bff);
+}
+
+#lobby #play-vr {
+  color: #fff;
+  background: linear-gradient(90deg, #1f3a7a, #4a1f7a);
+}
+
+#lobby button:disabled {
+  cursor: default;
+  filter: grayscale(1) brightness(0.55);
+}
+
+#lobby button:not(:disabled):hover {
+  filter: brightness(1.1);
+}
+
+#lobby .small {
+  font-size: 12px;
+  color: #a8a090;
+  margin: 10px 0 0;
+}
+
+#lobby details summary {
+  cursor: pointer;
+  color: #e8d9b0;
+}
+
+#lobby ul {
+  padding-left: 18px;
+}
+
+#lobby li {
+  margin: 4px 0;
+}
+
+#lobby a {
+  color: #e8d9b0;
+}
+
+/* ---------------- played with fingers ---------------- */
+body.touch #help {
+  display: none;
+}
+
+body.touch #phase {
+  top: 8px;
+  padding: 3px 10px;
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+body.touch #party {
+  top: 40px;
+  left: calc(10px + env(safe-area-inset-left, 0px));
+  width: 170px;
+  font-size: 11px;
+}
+
+body.touch #party div {
+  padding: 2px 6px;
+}
+
+body.touch #vitals {
+  left: 50%;
+  bottom: 8px;
+  width: 170px;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+body.touch #hearts {
+  font-size: 22px;
+}
+
+body.touch #carry {
+  font-size: 12px;
+}
+
+body.touch #feed {
+  left: calc(12px + env(safe-area-inset-left, 0px));
+  right: auto;
+  bottom: 48%;
+  max-width: 44%;
+  text-align: left;
+  font-size: 11px;
+}
+
+body.touch #hint {
+  top: auto;
+  bottom: 86px;
+  left: 50%;
+  width: 46%;
+  transform: translateX(-50%);
+  font-size: 12px;
+}
+
+body.touch #banner {
+  font-size: 40px;
+  letter-spacing: 4px;
+}
+
+body.touch[data-role='survivor'] .touch-chips {
+  left: auto;
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  top: 40px;
+}
+
+body.touch[data-role='haunt'] #powers {
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  gap: 6px;
+}
+
+body.touch[data-role='haunt'] #powers .card {
+  width: 86px;
+  height: 64px;
+  padding: 5px 6px;
+}
+
+body.touch[data-role='haunt'] #powers .card span,
+body.touch[data-role='haunt'] #powers .card small {
+  display: none;
+}
+
+body.touch[data-role='haunt'] #dread {
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  width: min(360px, 60vw);
+}
+
+body.touch[data-role='haunt'] #hint {
+  bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+  width: 70%;
+}
+
+body.touch[data-role='haunt'] #army {
+  top: 40px;
+  right: calc(10px + env(safe-area-inset-right, 0px));
+  font-size: 11px;
+}
+
+body.touch[data-role='haunt'] .haunt-chips {
+  top: auto;
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (orientation: portrait) {
+  body.touch #hint {
+    bottom: 130px;
+    width: 80%;
+  }
+
+  #lobby .roles {
+    grid-template-columns: 1fr;
+  }
+}

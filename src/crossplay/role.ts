@@ -26,6 +26,11 @@ export interface Role<Intent, F extends Frontend<Intent> = Frontend<Intent>> {
 
 export interface Frontend<Intent> {
   readonly platform: Platform;
+  /**
+   * A desktop frontend that points at things with a free mouse pointer (an overseer), rather than capturing the mouse
+   * to look around. Default false.
+   */
+  readonly cursor?: boolean;
   /** Read the device. Runs every simulation step, including throttled ones in a background tab. */
   read(dt: number): Intent;
   /** Show the result once the world has been simulated. Rendered frames only. */

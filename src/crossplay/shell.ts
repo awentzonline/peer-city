@@ -8,7 +8,7 @@ import { Seat, type Frontend, type Role } from './role';
 import { Settings } from './settings';
 import { SettingsMenu } from './settingsMenu';
 import { Stage, errorText } from './stage';
-import { Voice, bodySpeakers } from './voice';
+import { Voice, bodySpeakers, type Speaker } from './voice';
 import { SimulatedXr } from './xrsim';
 
 /** What a touch frontend can't reach with keys, so it calls back through chips on the screen. */
@@ -33,11 +33,16 @@ export interface ShellOptions {
   launch: Pick<Launch<unknown>, 'netLabel' | 'touch' | 'sim' | 'session' | 'params'>;
   /** The entity each player is (with `BODY_FIELDS` and a `name`), whose voices can be heard from where they stand. */
   players: EntityDef<any>;
+  /** Where voices come from instead, for a game with players who aren't all bodies (an overseer speaking through a presence). */
+  speakers?: () => Iterable<Speaker>;
   /** Tell the local player something, e.g. that the microphone's on. */
   announce(text: string): void;
   /** Who can hear you, in those messages: "players near you can hear you". Default 'players'. */
   company?: string;
-  /** Show or hide the page's "click to play" prompt and crosshair: only the mouse is captured, and a headset has no crosshair. */
+  /**
+   * Show or hide the page's "click to play" prompt and crosshair: only the mouse is captured, and a headset has no
+   * crosshair. `locked` is true while the mouse needs no capturing: it's captured, or the frontend uses a free pointer.
+   */
   showLock(locked: boolean, platform: Platform): void;
   /** Whether V is the microphone key right now (Peer City's car camera takes it). Default always. */
   talkKey?: () => boolean;
@@ -83,7 +88,7 @@ export class Shell {
       prefix: `${world.worldId}/voice/`,
       audio: sfx,
       zones: () => world.zoneKeys(),
-      speakers: bodySpeakers(world, opts.players),
+      speakers: opts.speakers ?? bodySpeakers(world, opts.players),
     });
     this.settings = new Settings({ voice: this.voice, sfx });
     this.menu = new SettingsMenu(this.settings, this.stage.input);
@@ -118,8 +123,14 @@ export class Shell {
     return seat;
   }
 
-  /** A frontend for how the page is being played right now. */
+  /** A frontend for how the page is being played right now, with the mouse captured or free as it wants. */
   private frontend(): Frontend<unknown> {
+    const frontend = this.build();
+    this.stage.input.setCapture(!frontend.cursor);
+    return frontend;
+  }
+
+  private build(): Frontend<unknown> {
     const { stage, frontends } = this;
     if (stage.presenting) return frontends!.vr(new WebXrPoses(stage.renderer.xr));
     if (this.opts.launch.sim) return frontends!.vr(new SimulatedXr(stage.input));
@@ -190,8 +201,9 @@ export class Shell {
     else announce(on ? `Microphone on: ${company} near you can hear you` : 'Microphone off');
   }
 
+  /** A free pointer never needs capturing, so as far as the prompt's concerned it's as good as locked. */
   private showLock(): void {
-    this.opts.showLock(this.stage.input.locked, this.platform);
+    this.opts.showLock(this.stage.input.ready, this.platform);
   }
 
   dispose(): void {

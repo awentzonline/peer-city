@@ -128,6 +128,9 @@ touch wants any of the fairness levers (it currently aims with no help at all).
 
 ## Adding a role (e.g. an overseer on touch)
 
+Peer Haunt built one (see "Lessons from a sixth game"): `src/haunt/haunt.ts` is the role, `hauntDesktop.ts`,
+`hauntTouch.ts` and `hauntVr.ts` its frontends. The steps it took:
+
 1. An intent: plain data such as a pan and zoom, a selection, and "spawn this kind of NPC here".
 2. A `Role` for its rules. It owns `world.setFocus` (the area it's looking at) and can spawn and own NPCs
    with the engine as it is. It has no `Player`, so decide how others see it (e.g. a replicated overseer
@@ -353,10 +356,73 @@ Open questions:
 - The tracked swing's power (each club's `smash`) is a guess that hasn't been tried in a real headset.
 - Whether one cart for every two golfers is the right shortage, and whether players between holes want something to do.
 
+## Lessons from a sixth game
+
+Peer Haunt (`src/haunt/`, `/haunt.html`, 2026-09-16) is asymmetric horror: survivors (avatars) search a manor at night by
+flashlight for the keys to the gate, while the Haunt, an overseer with no body, looks down on the house and sends monsters
+after them. It's the first game where players in one world take different roles, which this plan set out as the goal of
+extreme crossplay from the start.
+
+What carried over unchanged: `Avatar`, tools and holsters (the flashlight clips to your chest), `Seat` and frontends,
+`Stage`, voice and settings, `HeadsetHud`, touch controls, particles, `Singleton` for the night.
+
+What was new, or changed:
+
+- **Roles in the lobby.** `LobbyOptions.roles` reads the page's `input[name="role"]` radio buttons into `Launch.role`
+  (remembered, `?role=` picks one, `<body data-role>` follows it for CSS). `Game` seats one role or the other; `Seat` and
+  `Shell.seat` needed nothing new, because each is already generic over its role.
+- **An overseer role isn't an avatar.** `HauntIntent` is device-neutral: a focus (what it's looking at, which drives
+  `world.setFocus`), a pointer on the ground, how near counts as "on something" (a fingertip covers more ground than a mouse),
+  and a few acts there: primary (use the armed power, else pick out a monster, else send the picked-out ones), secondary,
+  arm a power, gather, select by ids, select all. Every platform does those differently and the rules never know which.
+- **A free pointer.** `DesktopInput.setCapture(false)` leaves the mouse free, with `pointer` and `downAt(button)` for where
+  it is and where a drag began, and clicks go through without asking for pointer lock. A `Frontend` that says `cursor: true`
+  gets that from the shell, which also stops showing it the click-to-play prompt.
+- **An overhead camera and map gestures** in `crossplay/`: `OverheadView` (pan, zoom and turn holding the ground under the
+  pointer; screen to ground and back, headless, tested) and `MapGestures` (drag, pinch, twist, tap, long press). Both are
+  game-neutral, for the next game with a map-like role.
+- **VR overseer: a giant.** Rather than a miniature table, the play space is lifted 20 m over the house. Nothing had to
+  change in `Rig`: the root's height is the frontend's, and a laser from the right hand finds the ground.
+- **Voices from a presence.** `ShellOptions.speakers` lets a game say where voices come from, so the Haunt's voice plays
+  from where it's pointing, and its listener sits where it's looking.
+- **Headset hints fit the strip.** `HeadsetHud` shrinks a long hint rather than cutting it off.
+
+Answers to the questions this section's predecessors left open, as built:
+
+- **How an overseer appears to players:** as a *presence* where it points, a knot of darkness with two dim eyes, for a
+  few seconds after it last acts. Survivors can fight it: a flashlight on the presence drives it back, costs it dread and
+  stops it acting for a moment. Its voice comes from there too.
+- **What limits what it can spawn:** dread, which builds through the night faster with more survivors inside and is
+  shared by everyone playing the Haunt; a cap on monsters for the number of survivors; and *where*: inside the grounds,
+  away from the pedestal, never within 7 m of a survivor or anywhere one can see. And it only sees survivors who give
+  themselves away (a light on, a key in hand, downed, seen by a monster, or near a whisper), which also limits where it
+  spends.
+
+Patterns worth reusing:
+
+- **Held NPCs for a commander.** Monsters are spawned `held` by the Haunt's peer, so orders go straight to the peer that
+  runs them and never chase a handoff; if the Haunt leaves, they migrate like any NPC and become the house's.
+- **Hidden information as a view.** What the Haunt sees is worked out on its peer from replicated state
+  (`sightings.ts`). Without a server there's no withholding it from a determined cheat, and the game says so.
+- **A grid world for indoor play.** Seeded BSP rooms with a doorway in every split, loops, and furniture only where the
+  floor stays connected; circle collision, line of sight and shared BFS distance fields on the same grid. Cheap enough
+  that monsters re-path several times a second.
+- **Darkness is a fixed light budget.** Four spotlights are shared out among the nearest flashlight beams every frame (a
+  fixed count, so shaders never recompile), fog does the rest, and the overseer's peer lights the same scene brightly with
+  ceilings hidden and walls cut to a dollhouse height.
+
+Open questions:
+
+- In the built-in browser pane two tabs each with a WebGL context lost them both, so the two roles were checked one tab at
+  a time (with a stand-in survivor spawned from the console). Worth a real two-browser session, and a real phone and headset.
+- Balance is guessed: dread rates, monster costs and speeds, battery drain, and the monster cap. Playtesting will say.
+- Dead survivors only spectate. They could come back as something for the Haunt (a poltergeist role), which the role
+  structure would take without changes.
+
 ## Later: mobile
 
-- Detection is done (`isTouchDevice()`), and the lobby's PLAY starts the touch frontend on a phone. A
-  lobby that also lets a phone pick a different *role* is still to come.
+- Detection is done (`isTouchDevice()`), and the lobby's PLAY starts the touch frontend on a phone. The lobby can also
+  offer a choice of role (`LobbyOptions.roles`), which Peer Haunt uses.
 - Performance budget on a mid-range phone, untouched so far. Likely levers: `renderer.setPixelRatio` cap,
   fog distance, NPC and car counts in `Spawner`, fewer building window meshes, the engine's
   `interestRadius`. Nothing here has been measured on real hardware yet.
@@ -369,7 +435,6 @@ line of sight, fire rate) in the victim owner's `Damage` handler in `combat.ts`.
 
 ## Open questions for the project owner
 
-- How should an overseer appear to players in the street, and what limits what it can spawn?
 - Should desktop movement ease up to speed like VR (currently walk, plus Shift to run)?
 
 ## Checklist for new features

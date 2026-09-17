@@ -319,6 +319,7 @@ any one game. It came out of building a second game (Peer Wilds) on what Peer Ci
 | `settings.ts`, `settingsMenu.ts`, `settingsPanel.ts` | the in-game settings menu: one set of rows, drawn as a DOM overlay on desktop and as a panel you poke in a headset |
 | `hud.ts`, `headsetHud.ts`, `minimap.ts` | `HudBase`: the message feed, banner, hint, crosshair and lock prompt every game's HUD extends, as state a headset can paint (`version`) and on the page. `HeadsetHud`: a watch on the left wrist whose face the game draws, and a strip before your eyes with the banner, hint and messages. A round heading-up minimap for either |
 | `desktopControls.ts`, `vrControls.ts`, `intent.ts`' `stillIntent` | reading a device into an avatar's intent the same way in every game: mouse look and WASD; snap turning, tracked head and hands, and the play space following hilly ground; clearing an intent while a menu has the device |
+| `overhead.ts`, `mapGestures.ts` | for a role that looks down on the world rather than walking in it: `OverheadView`, a camera over the ground that pans, zooms and turns holding the ground under the pointer or a finger, and maps screen points to the ground and back; `MapGestures`, the drag, pinch, twist, tap and long-press of a map app, with no DOM in it |
 | `spawning.ts` | populating the world without a server: `spawnShare` (how much of the spawning near a point is this peer's) and `seenByOthers` (don't spawn in front of anyone) |
 | `particles.ts`, `audio.ts`, `panel.ts`, `assets.ts`, `textures.ts`, `math.ts` | GPU particles, spatial synthesized sound, canvas panels for headset HUDs, GLB loading |
 
@@ -573,6 +574,65 @@ How it uses the engine, and what it found:
 Source: `src/golf/`. Tests: `tests/golf.test.ts` checks the seeded course, ball flight, putting and lipping out, water
 penalties and scoring, plays a hole with two bot golfers to the next tee, swings a tracked club through a ball, knocks a
 golfer flat, and passes a cart from one golfer to another.
+
+---
+
+## Peer Haunt (asymmetric horror: survivors against the Haunt)
+
+`/haunt.html` is a seventh game on the engine, and the first where players on one world take **different roles**. A
+manor at night: survivors search it by flashlight for the keys to the gate, while the Haunt looks down on the house
+with its roof off and sends monsters after them.
+
+```bash
+npm run dev    # http://localhost:5173/haunt.html (?role=haunt to go straight in as the Haunt)
+```
+
+**The night.** Survivors gather in the yard while a clock runs down, then four keys are hidden in the house. Three in
+the pedestal by the gate open it; walk out before ten minutes are up. Three hits put a survivor down, crawling and
+bleeding out for 45 seconds unless someone holds a button over them for three. The night ends once nobody's left inside,
+and the next starts with everyone back at the gate.
+
+**The flashlight** is a survivor's only weapon, and a giveaway. Its beam burns shades away, sends crawlers running and
+slows brutes, and its battery runs down while it's on. But a light (or a key glowing in hand) is what monsters notice
+from across a room, and what the Haunt sees.
+
+**The Haunt** has no body. Dread builds through the night (faster with more survivors inside) and pays for its powers:
+a shade (20), a crawler (30), a brute (90), or a whisper (8) that gives away the survivors near it. Monsters can only be
+summoned inside the grounds, away from the pedestal, and where no survivor is close or can see. **The Haunt only sees
+survivors who give themselves away**: a light on, a key in hand, down on the floor, seen by one of its monsters, or near a
+whisper. Where it points, survivors glimpse a presence; a flashlight on that drives it back and costs it dread. With
+nobody playing the Haunt, the house sends monsters of its own.
+
+| | Desktop | Touch | VR |
+| --- | --- | --- | --- |
+| Survivor | **WASD**, mouse look; **Click**/**F** flashlight; **Ctrl** creep; hold **E** to help someone up | left thumb walks, right looks; **LIGHT**, **CREEP**, hold **HELP UP** | walk your room or the left stick; the flashlight's on your chest (grip to take it, trigger to switch it); hold **A** to help |
+| Haunt | a free pointer, as in a strategy game: **1-4** or a card, then click; click or drag a box to pick out monsters, **right-click** to send them; **WASD**/right-drag, wheel, **Q E** move the view | drag, pinch and twist the house; tap a card then tap; tap monsters, hold to gather, tap to send | a giant over the house: point the right hand; **A** picks a power, trigger uses it or picks out a monster, grip sends; left stick walks, right stick turns and rises |
+
+How it uses the engine, and what it found:
+
+- **Roles, not just platforms.** The lobby offers a role (`LobbyOptions.roles`, `Launch.role`) and `Game` seats either a
+  `SurvivorRole` (an `Avatar`) or a `HauntRole`, which isn't one: its intent is a focus, a pointer on the ground and a
+  handful of acts there (`HauntIntent`), and each platform's frontend turns its device into those.
+- **A free pointer.** `DesktopInput` can leave the mouse uncaptured (`setCapture(false)`), and a frontend that says
+  `cursor: true` gets that from the shell. The overhead camera and map gestures are in `crossplay/` for the next game
+  with an overseer.
+- **The Haunt's monsters stay with it** (spawned `held`), so its orders reach the peer running them straight away; if it
+  leaves they migrate like any NPC and become the house's. Orders and flashlight burns are commands to a monster's owner.
+- **Hidden information without a server.** What the Haunt sees is worked out on its peer from replicated state
+  (`sightings.ts`): it's a view, not a secret, and a cheat with developer tools could see more.
+- **A grid world.** The manor is a seeded one-meter grid (`manor.ts`): rooms split by BSP with a doorway in every split,
+  extra doorways for loops, furniture wherever it leaves the floor connected. Collision, line of sight and monster
+  pathfinding (shared distance fields) all run on it, and nothing about the house is sent.
+- **Darkness is lighting.** Survivors get dense fog and a fixed pool of four spotlights handed to the nearest beams (a
+  fixed count, so shaders never recompile); the Haunt's peer lights the same scene brightly with the ceilings hidden.
+- **The Haunt's voice comes from its presence** (`ShellOptions.speakers`), so survivors hear it whisper from where it
+  lingers, and it hears whoever is near where it looks.
+
+Source: `src/haunt/`. Tests: `tests/haunt.test.ts` checks the seeded manor is connected and every hiding place can be
+walked to, the gate, sight lines, the overhead camera and map gestures, the night's phases, summoning only out of sight
+and with enough dread, a Haunt sending a brute after a survivor it can see (who's downed, then helped up), a flashlight
+burning a shade away, finding keys, filling the pedestal and escaping, the house haunting itself, and a glare driving
+the Haunt back.
 
 ---
 
