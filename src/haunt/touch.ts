@@ -8,7 +8,7 @@ import { FIRE, TOUCH_TUNING } from '../crossplay/touch';
 import { TouchControls, type TouchButtonSpec } from '../crossplay/touchControls';
 import type { HauntContext, SurvivorEntity, Vec3 } from './context';
 import { Survivor, SurvivorMode } from './defs';
-import { Spectator, diedNews, downedNews, escapedNews, firstPerson, heartbeat, hurtFlash, lightSound } from './desktop';
+import { Spectator, diedNews, downedNews, escapedNews, firstPerson, heartbeat, hurtFlash, lightSound, snuffedNews } from './desktop';
 import type { SurvivorKeys } from './hud';
 import { idleSurvivorIntent, type SurvivorIntent } from './intent';
 import { HELP_REACH, type SurvivorFrontend, type SurvivorRole } from './survivor';
@@ -146,6 +146,11 @@ export class TouchSurvivor implements SurvivorFrontend {
   lit(_on: boolean, flat: boolean): void {
     lightSound(this.ctx, flat);
     navigator.vibrate?.(8);
+  }
+
+  snuffed(): void {
+    snuffedNews(this.ctx);
+    navigator.vibrate?.([40, 40, 40]);
   }
 
   downed(): void {

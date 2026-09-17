@@ -298,7 +298,7 @@ export function presenceModel(): { root: THREE.Group; mist: THREE.Sprite[]; eyes
 export function beamGeometry(length: number, halfAngle: number): THREE.BufferGeometry {
   return cached(`beam:${length}:${halfAngle}`, () => {
     const r = Math.tan(halfAngle) * length;
-    const g = new THREE.ConeGeometry(r, length, 20, 1, true).rotateX(-Math.PI / 2).translate(0, 0, -length / 2);
+    const g = new THREE.ConeGeometry(r, length, 20, 1, true).rotateX(Math.PI / 2).translate(0, 0, -length / 2);
     // bright at the lens, gone by the far end
     const pos = g.getAttribute('position');
     const colors = new Float32Array(pos.count * 3);

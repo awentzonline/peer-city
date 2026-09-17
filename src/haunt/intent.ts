@@ -15,7 +15,7 @@ export const enum Power {
   Shade = 0,
   Crawler = 1,
   Brute = 2,
-  /** A whisper somewhere in the house: survivors near it give themselves away. */
+  /** A whisper somewhere in the house: the Haunt's monsters come to it, and the lights near it go out. */
   Whisper = 3,
 }
 

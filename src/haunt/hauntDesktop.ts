@@ -5,7 +5,7 @@ import { Platform } from '../crossplay/platform';
 import type { Rig } from '../crossplay/rig';
 import type { HauntContext } from './context';
 import { MonsterKind } from './defs';
-import { POWERS, type HauntFrontend, type HauntRole } from './haunt';
+import { POWERS, WHISPER_RADIUS, type HauntFrontend, type HauntRole } from './haunt';
 import type { HauntKeys } from './hud';
 import { Power, idleHauntIntent, stillHaunt, type HauntIntent } from './intent';
 import { FENCE_MAX, FENCE_MIN, START } from './manor';
@@ -181,7 +181,7 @@ export function listenAt(ctx: HauntContext, x: number, y: number, heading: numbe
 }
 
 export function hauntUsed(ctx: HauntContext, power: Power): void {
-  if (power === Power.Whisper) ctx.hud.message('You whisper. Survivors near it give themselves away.');
+  if (power === Power.Whisper) ctx.hud.message('You whisper, and your monsters come.');
 }
 
 export function hauntGlared(ctx: HauntContext, rig: Rig, by: string): void {
@@ -221,7 +221,7 @@ export class HauntMarker {
       }
       const short = armed !== null && POWERS[armed].cost > role.dread;
       const color = armed === null ? 0xd8d0f0 : armed === Power.Whisper ? 0x8fb0ff : this.ok && !short ? 0xb46bff : 0xff4a3a;
-      const size = armed === Power.Whisper ? 12 : (armed === null ? 0.8 : 1) * scale;
+      const size = armed === Power.Whisper ? WHISPER_RADIUS : (armed === null ? 0.8 : 1) * scale;
       this.ring.material.color.setHex(color);
       this.ring.position.set(pointer.x, 0.08, pointer.y);
       this.ring.scale.setScalar(size);

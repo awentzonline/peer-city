@@ -11,7 +11,7 @@ export const BEAM_HALF_ANGLE = 0.24;
 
 /**
  * A survivor's flashlight: the only thing that fights back. Pull the trigger to switch it on or off. On, it lights the
- * way, burns whatever's in its beam, and gives away where you are. The battery runs down while it's on and slowly
+ * way, burns whatever's in its beam, and draws monsters to you. The battery runs down while it's on and slowly
  * comes back while it's off.
  */
 export class Flashlight extends Tool<SurvivorRole> {

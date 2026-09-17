@@ -382,10 +382,3 @@ export function order(ctx: HauntContext, m: MonsterEntity, attack: SurvivorEntit
   s.ty = at.y;
   l.chaseUntil = 0;
 }
-
-/** Whether a survivor's eyes can see a monster: in range, and nothing in the way. For the Haunt's view of who's where. */
-export function monsterSees(manor: Manor, m: MonsterEntity, sv: SurvivorEntity): boolean {
-  const spec = MONSTERS[m.render.kind];
-  const d = Math.hypot(sv.x - m.x, sv.y - m.y);
-  return d < noticeRange(spec, sv) * 1.2 && manor.sees(m.x, m.y, sv.x, sv.y);
-}

@@ -35,8 +35,6 @@ export interface PartyLine {
   status: string;
   color: string;
   me: boolean;
-  /** For the Haunt: whether it can see where they are. */
-  seen: boolean;
 }
 
 /** What changed about the night since last frame, for a frontend to make a fuss about. */
@@ -141,7 +139,7 @@ export class Hud extends HudBase {
     const carrying = !!s.key;
     this.set('carrying', carrying, () => (this.carryEl.textContent = carrying ? '🗝 You have a key' : ''));
     this.hideCursor(s.mode === SurvivorMode.Dead);
-    this.showParty(ctx, null);
+    this.showParty(ctx);
     this.setHint(survivorHint(ctx, sim, keys));
     if (this.helpEl.innerHTML !== keys.bar) this.helpEl.innerHTML = keys.bar;
   }
@@ -171,7 +169,7 @@ export class Hud extends HudBase {
       }
     }
     this.hideCursor(true);
-    this.showParty(ctx, role);
+    this.showParty(ctx);
     this.setHint(refusal || hauntHint(ctx, role, keys));
     if (this.helpEl.innerHTML !== keys.bar) this.helpEl.innerHTML = keys.bar;
   }
@@ -195,27 +193,27 @@ export class Hud extends HudBase {
     });
   }
 
-  /** Who's in the house, and how they're doing. The Haunt sees whether it knows where each is. */
-  private showParty(ctx: HauntContext, role: HauntRole | null): void {
+  /** Who's in the house, and how they're doing. */
+  private showParty(ctx: HauntContext): void {
     const round = ctx.round()?.state;
     const lines: PartyLine[] = [];
     for (const sv of ctx.world.all(Survivor) as ReadonlySet<SurvivorEntity>) {
       const s = sv.render;
       if (round && s.round && s.round !== round.round) continue;
-      lines.push({ name: s.name, status: statusOf(s), color: cssColor(survivorColor(s.skin)), me: sv === ctx.me, seen: !role || ctx.sightings.shows(sv) });
+      lines.push({ name: s.name, status: statusOf(s), color: cssColor(survivorColor(s.skin)), me: sv === ctx.me });
     }
-    const key = lines.map((l) => `${l.name}${l.status}${l.seen}`).join('|');
+    const key = lines.map((l) => `${l.name}${l.status}`).join('|');
     if (key === this.partyDrawn) return;
     this.partyDrawn = key;
     this.party = lines;
     this.partyEl.textContent = '';
     for (const l of lines) {
       const row = document.createElement('div');
-      row.className = `${l.me ? 'me' : ''}${l.seen ? '' : ' unseen'}`;
+      row.className = l.me ? 'me' : '';
       row.innerHTML = '<i></i><b></b><span></span>';
       (row.children[0] as HTMLElement).style.background = l.color;
       row.children[1].textContent = l.name;
-      row.children[2].textContent = role && !l.seen && l.status === 'in the house' ? 'hiding' : l.status;
+      row.children[2].textContent = l.status;
       this.partyEl.appendChild(row);
     }
     this.version++;
@@ -265,7 +263,7 @@ function hauntHint(ctx: HauntContext, role: HauntRole, keys: HauntKeys): string 
   if (!round || round.phase === Phase.Waiting) return 'Survivors gather at the gate. When the night begins, summon where none of them can see';
   if (round.phase !== Phase.Hunt) return '';
   if (role.armed !== null) return `${keys.place} (${POWERS[role.armed].name}, ${POWERS[role.armed].cost} dread)`;
-  if (role.selected.size) return `${keys.send} to send them, or after a survivor you can see`;
+  if (role.selected.size) return `${keys.send} to send them, or after a survivor`;
   if (role.mine().length) return `${keys.pick}, or pick a power`;
   return 'Pick a power, then summon it somewhere no survivor can see';
 }

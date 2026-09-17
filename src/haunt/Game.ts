@@ -20,7 +20,6 @@ import { GATE, Paths, type Manor } from './manor';
 import { RoundKeeper } from './round';
 import { Scenery } from './scenery';
 import type { Sfx } from './sfx';
-import { Sightings } from './sightings';
 import { SurvivorRole, type SurvivorFrontend } from './survivor';
 import { TouchSurvivor } from './touch';
 import { registerViews } from './views';
@@ -74,7 +73,6 @@ export class Game {
       hud,
       settings: shell.settings,
       fx: new Effects(scene),
-      sightings: new Sightings(),
       me: null,
       haunt: null,
       round: () => keeper?.round ?? null,
@@ -96,7 +94,7 @@ export class Game {
         touch: (chips) => new TouchHaunt(ctx, haunt, rig, chips, scene),
       });
       hud.message(`Welcome, ${launch.playerName}. Tonight, you are the house.`);
-      hud.message('Summon where no survivor can see. You only see survivors who give themselves away.');
+      hud.message('Summon where no survivor can see.');
     } else {
       const survivor = (this.survivor = new SurvivorRole(ctx));
       registerActions(ctx, { survivor });

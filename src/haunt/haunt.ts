@@ -32,7 +32,7 @@ export const POWERS: Record<Power, PowerSpec> = {
   [Power.Shade]: { name: 'Shade', cost: MONSTERS[MonsterKind.Shade].cost, blurb: 'Drifts after anyone it sees. Burns fast in light.' },
   [Power.Crawler]: { name: 'Crawler', cost: MONSTERS[MonsterKind.Crawler].cost, blurb: 'Quick and weak. Runs from light, then comes back.' },
   [Power.Brute]: { name: 'Brute', cost: MONSTERS[MonsterKind.Brute].cost, blurb: 'Slow and hard to burn. Hits twice as hard.' },
-  [Power.Whisper]: { name: 'Whisper', cost: 8, blurb: 'Unsettles survivors near it: you see where they are.' },
+  [Power.Whisper]: { name: 'Whisper', cost: 25, blurb: 'Draws your monsters to it, and puts out the lights there.' },
 };
 
 export const POWER_ORDER: readonly Power[] = [Power.Shade, Power.Crawler, Power.Brute, Power.Whisper];
@@ -43,9 +43,11 @@ export const MAX_DREAD = 200;
 /** Dread a second, and more for each survivor inside. Shared between everyone playing the Haunt. */
 const DREAD_RATE = 1.6;
 const DREAD_PER_SURVIVOR = 0.9;
-/** How far a whisper carries, and how long it gives survivors away, ms. */
-export const WHISPER_RADIUS = 12;
-export const WHISPER_MS = 5000;
+/** How far a whisper puts out lights, and for how long, ms. */
+export const WHISPER_RADIUS = 10;
+export const WHISPER_DARK_MS = 4000;
+/** How far off the Haunt's monsters hear a whisper and come: further than it can summon them near a survivor. */
+export const WHISPER_DRAW = 16;
 /** Gathering picks out monsters this near the pointer. */
 export const GATHER_RADIUS = 9;
 /** A glare: dread lost, and how long the presence is gone and nothing can be summoned, ms. */
@@ -59,7 +61,7 @@ const NO_BODY: HauntBody = { platform: Platform.Desktop, used() {}, refused() {}
 /**
  * The player as the Haunt: no body, just attention. It watches the house from above, summons monsters where nobody's
  * looking with the dread that builds through the night, picks them out and sends them after survivors, and whispers
- * to give them away. It only sees survivors who show themselves (`ctx.sightings`). Where it points, survivors feel a
+ * to spring an ambush: its monsters come to a whisper, and the lights near it go out. Where it points, survivors feel a
  * presence, and a flashlight on that drives it back.
  */
 export class HauntRole implements Role<HauntIntent, HauntFrontend> {
@@ -238,21 +240,33 @@ export class HauntRole implements Role<HauntIntent, HauntFrontend> {
     this.body.used(power, m.state.x, m.state.y);
   }
 
-  /** A whisper: heard near it, and every survivor it reaches gives themselves away. */
+  /**
+   * A whisper springs an ambush. Every one of this Haunt's monsters that hears it comes: after the nearest survivor near
+   * it, or to the spot if there's nobody there. Survivors near it lose their light for a moment (see actions.ts).
+   * Monsters have to be summoned out of sight, so this is how ones waiting round a corner close in without being burned
+   * on the way.
+   */
   private whisper(x: number, y: number): void {
     const { ctx } = this;
     ctx.world.send(Noise, { kind: Sound.Whisper, x, y, z: 1.5, a: 0 }, { to: 'all' });
-    revealNear(ctx, x, y);
+    const victims: SurvivorEntity[] = [];
+    for (const sv of ctx.world.query(x, y, WHISPER_RADIUS, Survivor) as Iterable<SurvivorEntity>) if (sv.render.mode === SurvivorMode.Alive) victims.push(sv);
+    for (const m of this.mine()) {
+      if (Math.hypot(m.x - x, m.y - y) > WHISPER_DRAW) continue;
+      let victim: SurvivorEntity | null = null;
+      for (const sv of victims) if (!victim || Math.hypot(sv.x - m.x, sv.y - m.y) < Math.hypot(victim.x - m.x, victim.y - m.y)) victim = sv;
+      ctx.world.command(Order, { target: m.id, kind: victim ? OrderKind.Attack : OrderKind.Move, x: victim?.x ?? x, y: victim?.y ?? y, victim: victim?.id ?? 0 });
+    }
   }
 
-  /** Send the picked-out monsters to (x, y), or after the survivor there if the Haunt can see one. */
+  /** Send the picked-out monsters to (x, y), or after the survivor there if there is one. */
   private order(x: number, y: number, reach: number): void {
     const { ctx } = this;
     if (!this.selected.size) return;
     let victim: SurvivorEntity | null = null;
     let best = Math.max(reach, 1.5);
     for (const sv of ctx.world.all(Survivor) as ReadonlySet<SurvivorEntity>) {
-      if (sv.render.mode !== SurvivorMode.Alive || !ctx.sightings.shows(sv)) continue;
+      if (sv.render.mode !== SurvivorMode.Alive) continue;
       const d = Math.hypot(sv.x - x, sv.y - y);
       if (d < best) {
         best = d;
@@ -276,9 +290,4 @@ export class HauntRole implements Role<HauntIntent, HauntFrontend> {
     ctx.world.send(Feed, { text: `${name} drove the Haunt back with their light` }, { to: 'all' });
     this.body.glared(name);
   }
-}
-
-/** A whisper at (x, y) gives away every survivor it reaches, to this peer's Haunt. */
-export function revealNear(ctx: HauntContext, x: number, y: number): void {
-  for (const sv of ctx.world.query(x, y, WHISPER_RADIUS, Survivor)) ctx.sightings.reveal(sv.id, WHISPER_MS, ctx.now);
 }

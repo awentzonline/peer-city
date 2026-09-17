@@ -15,5 +15,4 @@ export function stepRules(ctx: HauntContext, keeper: RoundKeeper, dt: number, no
   ctx.manor.gateOpen = !!round && round.phase !== Phase.Waiting && round.placed >= round.needed;
   updateOwnedKeys(ctx);
   updateOwnedMonsters(ctx, dt);
-  ctx.sightings.update(ctx);
 }

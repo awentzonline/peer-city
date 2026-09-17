@@ -8,7 +8,7 @@ import type { Tool, UseEffect } from '../crossplay/tool';
 import { SnapTurn, deadzone, readHand, readHead } from '../crossplay/vrControls';
 import type { HauntContext, Vec3 } from './context';
 import { SurvivorMode } from './defs';
-import { diedNews, escapedNews, heartbeat, lightSound } from './desktop';
+import { diedNews, escapedNews, heartbeat, lightSound, snuffedNews } from './desktop';
 import { idleSurvivorIntent, type SurvivorIntent } from './intent';
 import type { SurvivorFrontend, SurvivorRole } from './survivor';
 import { Wrist } from './wrist';
@@ -119,6 +119,11 @@ export class VrSurvivor implements SurvivorFrontend {
   lit(on: boolean, flat: boolean): void {
     lightSound(this.ctx, flat);
     for (const hand of [this.rig.left, this.rig.right]) hand.pulse(on ? 0.3 : 0.15, 25);
+  }
+
+  snuffed(): void {
+    snuffedNews(this.ctx);
+    for (const hand of [this.rig.left, this.rig.right]) hand.pulse(0.4, 60);
   }
 
   downed(): void {

@@ -1,6 +1,6 @@
 import type { HauntContext } from './context';
 import { Burn, Feed, Glare, Haunt, Hurt, Key, Monster, Noise, Order, OrderKind, Revive, Sound, Survivor, SurvivorMode } from './defs';
-import { WHISPER_RADIUS, revealNear, type HauntRole } from './haunt';
+import { WHISPER_DARK_MS, WHISPER_RADIUS, type HauntRole } from './haunt';
 import { MONSTERS, burn, order } from './monsters';
 import type { SurvivorRole } from './survivor';
 
@@ -13,8 +13,8 @@ export interface LocalRoles {
 /**
  * Wires Peer Haunt's actions. A change to an entity is made by its owner, the only peer that writes it: a hurt or a
  * helping hand by the survivor's, light and orders by the monster's, a glare by the Haunt's. Noises are seen and heard
- * by everyone; a whisper also gives away the survivors near it to any Haunt that hears it. A key is only handed to
- * someone who asks while it's lying loose.
+ * by everyone, and a whisper puts out the lights near it. A key is only
+ * handed to someone who asks while it's lying loose.
  */
 export function registerActions(ctx: HauntContext, roles: LocalRoles): void {
   const { world } = ctx;
@@ -54,9 +54,8 @@ export function registerActions(ctx: HauntContext, roles: LocalRoles): void {
       case Sound.Whisper: {
         ctx.sfx.play('whisper', at);
         ctx.fx.whisper(p.x, p.y);
-        if (ctx.haunt) revealNear(ctx, p.x, p.y);
         const me = ctx.me?.state;
-        if (me && me.mode === SurvivorMode.Alive && Math.hypot(me.x - p.x, me.y - p.y) < WHISPER_RADIUS) ctx.hud.message('Something whispers close by. It knows where you are.');
+        if (me && me.mode === SurvivorMode.Alive && Math.hypot(me.x - p.x, me.y - p.y) < WHISPER_RADIUS) roles.survivor?.snuff(WHISPER_DARK_MS);
         break;
       }
       case Sound.Pickup:

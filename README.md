@@ -594,13 +594,14 @@ and the next starts with everyone back at the gate.
 
 **The flashlight** is a survivor's only weapon, and a giveaway. Its beam burns shades away, sends crawlers running and
 slows brutes, and its battery runs down while it's on. But a light (or a key glowing in hand) is what monsters notice
-from across a room, and what the Haunt sees.
+from across a room.
 
 **The Haunt** has no body. Dread builds through the night (faster with more survivors inside) and pays for its powers:
-a shade (20), a crawler (30), a brute (90), or a whisper (8) that gives away the survivors near it. Monsters can only be
-summoned inside the grounds, away from the pedestal, and where no survivor is close or can see. **The Haunt only sees
-survivors who give themselves away**: a light on, a key in hand, down on the floor, seen by one of its monsters, or near a
-whisper. Where it points, survivors glimpse a presence; a flashlight on that drives it back and costs it dread. With
+a shade (20), a crawler (30), a brute (90), or a whisper (25). Monsters can only be summoned inside the
+grounds, away from the pedestal, and where no survivor is close or can see, and a light burns them on the way in; **a
+whisper springs an ambush**: the Haunt's monsters that hear it (16 m) come, after the nearest survivor near it if there
+is one, and lights within 10 m die for 4 seconds. Where it points, survivors glimpse a presence; a flashlight on that
+drives it back and costs it dread. With
 nobody playing the Haunt, the house sends monsters of its own.
 
 | | Desktop | Touch | VR |
@@ -618,8 +619,6 @@ How it uses the engine, and what it found:
   with an overseer.
 - **The Haunt's monsters stay with it** (spawned `held`), so its orders reach the peer running them straight away; if it
   leaves they migrate like any NPC and become the house's. Orders and flashlight burns are commands to a monster's owner.
-- **Hidden information without a server.** What the Haunt sees is worked out on its peer from replicated state
-  (`sightings.ts`): it's a view, not a secret, and a cheat with developer tools could see more.
 - **A grid world.** The manor is a seeded one-meter grid (`manor.ts`): rooms split by BSP with a doorway in every split,
   extra doorways for loops, furniture wherever it leaves the floor connected. Collision, line of sight and monster
   pathfinding (shared distance fields) all run on it, and nothing about the house is sent.

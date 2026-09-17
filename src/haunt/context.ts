@@ -4,7 +4,6 @@ import type { Haunt, Key, Monster, Round, Survivor } from './defs';
 import type { Effects } from './effects';
 import type { Hud } from './hud';
 import type { Manor, Paths } from './manor';
-import type { Sightings } from './sightings';
 import type { Sfx } from './sfx';
 
 export { TAU, angleDiff, clamp, direction } from '../crossplay/math';
@@ -25,8 +24,6 @@ export interface HauntContext {
   hud: Hud;
   settings: Settings;
   fx: Effects;
-  /** Which survivors this peer's Haunt knows the whereabouts of. */
-  sightings: Sightings;
   /** The local player's survivor, if they're playing one. */
   me: SurvivorEntity | null;
   /** The local player's haunt, if they're playing the Haunt. */

@@ -109,10 +109,6 @@ body[data-role='survivor'] .haunt-help {
   color: #ffd35a;
 }
 
-#party div.unseen {
-  opacity: 0.55;
-}
-
 #party i {
   width: 10px;
   height: 10px;

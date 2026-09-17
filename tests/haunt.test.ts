@@ -5,14 +5,13 @@ import { OverheadView } from '../src/crossplay/overhead';
 import { Platform } from '../src/crossplay/platform';
 import { registerActions } from '../src/haunt/actions';
 import type { HauntContext, KeyEntity } from '../src/haunt/context';
-import { ACTIONS, ENTITIES, Key, Monster, MonsterKind, MonsterMode, Phase, Result, Survivor, SurvivorMode } from '../src/haunt/defs';
+import { ACTIONS, ENTITIES, Key, Monster, MonsterKind, MonsterMode, Phase, Result, SurvivorMode } from '../src/haunt/defs';
 import { stepRules } from '../src/haunt/frame';
-import { HauntRole, POWERS, type HauntBody } from '../src/haunt/haunt';
+import { HauntRole, POWERS, WHISPER_DARK_MS, WHISPER_DRAW, type HauntBody } from '../src/haunt/haunt';
 import { Power, idleHauntIntent, idleSurvivorIntent, stillHaunt, type HauntIntent, type SurvivorIntent } from '../src/haunt/intent';
 import { FENCE_MIN, GATE, Manor, PEDESTAL, Paths, SIZE, START, Tile } from '../src/haunt/manor';
 import { MONSTERS, summon, summonRefusal } from '../src/haunt/monsters';
 import { HUNT_SECONDS, KEYS_HIDDEN, RoundKeeper, WAIT_SECONDS } from '../src/haunt/round';
-import { Sightings } from '../src/haunt/sightings';
 import { BLEED_SECONDS, MAX_HP, SurvivorRole, type SurvivorBody } from '../src/haunt/survivor';
 import { Sim } from './harness';
 
@@ -34,7 +33,11 @@ class TestSurvivorBody implements SurvivorBody {
   }
   used(): void {}
   died(): void {}
+  snuffs = 0;
   lit(): void {}
+  snuffed(): void {
+    this.snuffs++;
+  }
   downed(): void {
     this.downs++;
   }
@@ -93,7 +96,6 @@ function peer(net: Sim, id: string, role: 'survivor' | 'haunt', name = id): Peer
     hud: { ...stub(), message: (text: string) => messages.push(text) } as never,
     settings: { open: false } as never,
     fx: stub() as never,
-    sightings: new Sightings(),
     me: null,
     haunt: null,
     round: () => keeper.round,
@@ -361,14 +363,8 @@ describe('A night at the manor', () => {
     const all = [a, b, h];
     startHunt(net, all);
 
-    // the Haunt only sees a survivor once they show themselves
     run(net, all, 400);
     const sa = a.ctx.me!;
-    expect(h.ctx.sightings.shows(h.world.getAs(Survivor, sa.id)!)).toBe(false);
-    sa.state.light = true;
-    run(net, all, 400);
-    expect(h.ctx.sightings.shows(h.world.getAs(Survivor, sa.id)!)).toBe(true);
-    sa.state.light = false;
 
     const m = summon(h.ctx, MonsterKind.Brute, sa.state.x + 6, sa.state.y + 6, h.ctx.haunt!.id, h.keeper.round!.state.round);
     h.hintent!.selectAll = true;
@@ -401,6 +397,71 @@ describe('A night at the manor', () => {
     expect(sa.state.mode).toBe(SurvivorMode.Alive);
     expect(a.sbody!.ups).toBe(1);
     expect(sa.state.hp).toBeLessThan(MAX_HP);
+  });
+
+  it("springs an ambush with a whisper: the Haunt's monsters come, and the lights near it go out", () => {
+    const net = new Sim();
+    const a = peer(net, 'a', 'survivor');
+    const h = peer(net, 'h', 'haunt');
+    const all = [a, h];
+    startHunt(net, all);
+    const sa = a.ctx.me!;
+    const round = h.keeper.round!.state.round;
+
+    // one lying in wait nearby, unnoticed in the dark, and one far across the house
+    const near = summon(h.ctx, MonsterKind.Crawler, sa.state.x + 12, sa.state.y, h.ctx.haunt!.id, round);
+    const far = summon(h.ctx, MonsterKind.Shade, sa.state.x + WHISPER_DRAW + 10, sa.state.y, h.ctx.haunt!.id, round);
+    run(net, all, 100);
+    expect(near.state.mode).toBe(MonsterMode.Idle);
+
+    // the survivor's light goes on just as the Haunt whispers
+    a.sintent!.trigger = true;
+    run(net, all, 20);
+    a.sintent!.trigger = false;
+    expect(sa.state.light).toBe(true);
+    h.haunt!.dread = POWERS[Power.Whisper].cost;
+    h.hintent!.arm = Power.Whisper;
+    h.hintent!.pointer = { x: sa.state.x, y: sa.state.y };
+    h.hintent!.primary = true;
+    run(net, all, 200);
+    expect(h.hbody!.uses).toContain(Power.Whisper);
+    expect(h.haunt!.dread).toBeLessThan(1);
+    expect(near.state.mode).toBe(MonsterMode.Hunt);
+    expect(near.state.target).toBe(sa.id);
+    expect(far.state.mode).not.toBe(MonsterMode.Hunt);
+
+    // the light's out, and won't come back on for a moment
+    expect(sa.state.light).toBe(false);
+    expect(a.sbody!.snuffs).toBe(1);
+    a.sintent!.trigger = true;
+    run(net, all, 50);
+    a.sintent!.trigger = false;
+    run(net, all, 100);
+    expect(sa.state.light).toBe(false);
+    run(net, all, WHISPER_DARK_MS);
+    a.sintent!.trigger = true;
+    run(net, all, 50);
+    a.sintent!.trigger = false;
+    run(net, all, 100);
+    expect(sa.state.light).toBe(true);
+  });
+
+  it("draws the Haunt's monsters to a whisper with nobody near it", () => {
+    const net = new Sim();
+    const a = peer(net, 'a', 'survivor');
+    const h = peer(net, 'h', 'haunt');
+    const all = [a, h];
+    startHunt(net, all);
+    const spot = manor.keySpots.find((k) => !summonRefusal(h.ctx, k.x, k.y))!;
+    const m = summon(h.ctx, MonsterKind.Shade, spot.x, spot.y, h.ctx.haunt!.id, h.keeper.round!.state.round);
+    h.haunt!.dread = POWERS[Power.Whisper].cost;
+    h.hintent!.arm = Power.Whisper;
+    h.hintent!.pointer = { x: spot.x + 6, y: spot.y };
+    h.hintent!.primary = true;
+    run(net, all, 200);
+    expect(m.state.mode).toBe(MonsterMode.Move);
+    expect(Math.hypot(m.state.tx - (spot.x + 6), m.state.ty - spot.y)).toBeLessThan(2);
+    expect(a.sbody!.snuffs).toBe(0);
   });
 
   it('burns a shade away in a flashlight beam', () => {

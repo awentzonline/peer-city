@@ -13,6 +13,8 @@ import { MONSTERS } from './monsters';
 export interface SurvivorBody extends AvatarBody {
   /** The flashlight went on or off (`flat`: it wouldn't, or went out, for want of battery). */
   lit(on: boolean, flat: boolean): void;
+  /** A whisper put the flashlight out, or it won't come back on yet. */
+  snuffed(): void;
   downed(): void;
   helpedUp(): void;
   escaped(): void;
@@ -32,6 +34,7 @@ const NO_BODY: SurvivorBody = {
   used() {},
   died() {},
   lit() {},
+  snuffed() {},
   downed() {},
   helpedUp() {},
   escaped() {},
@@ -54,6 +57,11 @@ export const HELP_REACH = 1.8;
 export const KEY_REACH = 1.3;
 export const PEDESTAL_REACH = 2.8;
 /** After a hit, a moment when nothing else can hurt you, ms. */
+/**
+ * Survivors move at this share of the usual avatar speeds (crossplay/avatar.ts): a walk of 2.3 m/s, a run of 4 and a
+ * creep of 1. A run just outpaces a shade (3.3) and a brute (2.7), and a crawler (5.6) still catches you.
+ */
+const PACE = 0.55;
 const HURT_GRACE_MS = 700;
 /** How often burning and glaring are sent, ms. */
 const BURN_MS = 200;
@@ -74,6 +82,8 @@ export class SurvivorRole extends Avatar<SurvivorIntent, SurvivorBody, Flashligh
   battery = 100;
   private bleed = 0;
   private hurtUntil = 0;
+  /** A whisper put the light out: it won't come back on till then. */
+  private darkUntil = 0;
   private helpedAt = -1e9;
   private helper = 0;
   private nextHelp = 0;
@@ -143,7 +153,7 @@ export class SurvivorRole extends Avatar<SurvivorIntent, SurvivorBody, Flashligh
         this.useTools(dt, intent);
         break;
       default:
-        this.stroll(dt, intent, 1);
+        this.stroll(dt, intent, PACE);
         this.useTools(dt, intent);
         this.keys();
         this.help(intent);
@@ -175,10 +185,10 @@ export class SurvivorRole extends Avatar<SurvivorIntent, SurvivorBody, Flashligh
     intent.run = intent.jump = false;
     if (helped) intent.strafe = intent.forward = 0;
     if (intent.head) {
-      this.stroll(dt, intent, 0.15);
+      this.stroll(dt, intent, 0.15 * PACE);
     } else {
       intent.crouch = true;
-      this.stroll(dt, intent, 0.5);
+      this.stroll(dt, intent, 0.5 * PACE);
       s.head = 0.55;
     }
     if (helped) {
@@ -253,6 +263,10 @@ export class SurvivorRole extends Avatar<SurvivorIntent, SurvivorBody, Flashligh
       this.lightOff(false);
       return;
     }
+    if (this.now < this.darkUntil) {
+      this.body.snuffed();
+      return;
+    }
     if (this.battery < LOW_BATTERY) {
       this.body.lit(false, true);
       return;
@@ -260,6 +274,14 @@ export class SurvivorRole extends Avatar<SurvivorIntent, SurvivorBody, Flashligh
     s.light = true;
     this.lightHand = use;
     this.body.lit(true, false);
+  }
+
+  /** A whisper nearby: the light goes out and won't come back on for `ms`. */
+  snuff(ms: number): void {
+    this.darkUntil = this.now + ms;
+    const s = this.me?.state;
+    if (s?.light) this.lightOff(false);
+    this.body.snuffed();
   }
 
   /** The flashlight left a hand. */

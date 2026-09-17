@@ -107,6 +107,10 @@ export class DesktopSurvivor implements SurvivorFrontend {
     lightSound(this.ctx, flat);
   }
 
+  snuffed(): void {
+    snuffedNews(this.ctx);
+  }
+
   downed(): void {
     downedNews(this.ctx, this.rig);
   }
@@ -163,6 +167,11 @@ export function hurtFlash(ctx: HauntContext, rig: Rig): void {
 export function lightSound(ctx: HauntContext, flat: boolean): void {
   ctx.sfx.play(flat ? 'flat' : 'click');
   if (flat) ctx.hud.message('The flashlight is flat. Let the battery rest a moment.');
+}
+
+export function snuffedNews(ctx: HauntContext): void {
+  ctx.sfx.play('flat');
+  ctx.hud.message('Something whispers close by, and your light dies.');
 }
 
 export function downedNews(ctx: HauntContext, rig: Rig): void {

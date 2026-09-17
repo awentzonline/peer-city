@@ -64,7 +64,7 @@ export class Wrist {
       const y = 230 + i * 36;
       c.fillStyle = l.color;
       c.fillRect(26, y - 20, 16, 22);
-      c.fillStyle = l.me ? '#ffd35a' : l.seen ? '#e8e8e8' : '#8a8a8a';
+      c.fillStyle = l.me ? '#ffd35a' : '#e8e8e8';
       c.font = '24px Georgia, serif';
       c.fillText(`${l.name}  ·  ${l.status}`, 52, y, 430);
     });

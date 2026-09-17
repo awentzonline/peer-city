@@ -88,10 +88,8 @@ export function registerViews(
       const r = view.rig;
       const isMe = e === ctx.me;
       view.t += dt;
-      // the Haunt only sees who's given themselves away
-      const hidden = !!haunt && !ctx.sightings.shows(e);
-      r.root.visible = !hidden && (!isMe || local.showSelf());
-      view.marker.visible = !!haunt && !hidden && s.mode === SurvivorMode.Alive;
+      r.root.visible = !isMe || local.showSelf();
+      view.marker.visible = !!haunt && s.mode === SurvivorMode.Alive;
       if (view.marker.visible) {
         view.marker.position.set(e.x, 0.06, e.y);
         view.marker.scale.setScalar(zoomScale(e.x, e.y));
@@ -118,7 +116,7 @@ export function registerViews(
           r.body.position.y = 0;
           poseBody(view, s, e.x, e.y, dt, TOOLS);
       }
-      showBeam(view, e, isMe, hidden);
+      showBeam(view, e, isMe);
     },
     destroy: (view) => {
       scene.remove(view.rig.root, view.beam, view.marker);
@@ -130,7 +128,7 @@ export function registerViews(
   });
 
   /** A lit flashlight's beam, from the tip of whichever hand holds it, and a request for a real light. */
-  function showBeam(view: SurvivorView, e: SurvivorEntity, isMe: boolean, hidden: boolean): void {
+  function showBeam(view: SurvivorView, e: SurvivorEntity, isMe: boolean): void {
     const s = e.render;
     const side = s.tool === FLASHLIGHT.id ? 0 : s.ltool === FLASHLIGHT.id ? 1 : -1;
     if (!s.light || side < 0 || s.mode === SurvivorMode.Dead) {
@@ -143,7 +141,7 @@ export function registerViews(
     const from = new THREE.Vector3(e.x + hx, s.z + hz, e.y + hy).add(tip.copy(flashTip).applyQuaternion(q));
     const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(q);
     if (s.mode === SurvivorMode.Downed) group.visible = false;
-    view.beam.visible = !hidden && (!isMe || local.showOwnBeam());
+    view.beam.visible = !isMe || local.showOwnBeam();
     view.beam.position.copy(from);
     view.beam.quaternion.copy(q);
     rig.camera.getWorldPosition(camPos);

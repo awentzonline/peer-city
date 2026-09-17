@@ -394,16 +394,15 @@ Answers to the questions this section's predecessors left open, as built:
   stops it acting for a moment. Its voice comes from there too.
 - **What limits what it can spawn:** dread, which builds through the night faster with more survivors inside and is
   shared by everyone playing the Haunt; a cap on monsters for the number of survivors; and *where*: inside the grounds,
-  away from the pedestal, never within 7 m of a survivor or anywhere one can see. And it only sees survivors who give
-  themselves away (a light on, a key in hand, downed, seen by a monster, or near a whisper), which also limits where it
-  spends.
+  away from the pedestal, never within 7 m of a survivor or anywhere one can see.
 
 Patterns worth reusing:
 
 - **Held NPCs for a commander.** Monsters are spawned `held` by the Haunt's peer, so orders go straight to the peer that
   runs them and never chase a handoff; if the Haunt leaves, they migrate like any NPC and become the house's.
-- **Hidden information as a view.** What the Haunt sees is worked out on its peer from replicated state
-  (`sightings.ts`). Without a server there's no withholding it from a determined cheat, and the game says so.
+- **Hidden information as a view.** Haunt first hid survivors in the dark from the overseer until they gave themselves
+  away, worked out on its peer from replicated state (`src/haunt/sightings.ts` in c999c04, since removed). Without a
+  server that's a view, not a secret. Worth reviving for a stealth game.
 - **A grid world for indoor play.** Seeded BSP rooms with a doorway in every split, loops, and furniture only where the
   floor stays connected; circle collision, line of sight and shared BFS distance fields on the same grid. Cheap enough
   that monsters re-path several times a second.

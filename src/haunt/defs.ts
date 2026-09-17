@@ -205,7 +205,7 @@ export const enum Sound {
   Scream = 6,
 }
 
-/** Something to hear, and see, at a point. Cosmetic, except a whisper, which unsettles survivors near it. */
+/** Something to hear, and see, at a point. Cosmetic, except a whisper, which puts out the lights near it. */
 export const Noise = defineAction('noise', { kind: t.enum<Sound>(), x: t.fixed(0.05), y: t.fixed(0.05), z: t.fixed(0.05), a: t.uint(8) });
 
 export const Feed = defineAction('feed', { text: t.string(80) });
