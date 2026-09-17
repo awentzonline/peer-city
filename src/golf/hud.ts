@@ -22,7 +22,7 @@ export interface StandingLine {
 export interface GolfKeys {
   /** Playing the ball from over it: "Hold click to draw back, let go to swing". */
   swing: string;
-  /** Standing over your ball from nearby: "F". */
+  /** Standing over your ball from nearby: "press F". */
   address: string;
   /** Getting in and out of a cart: "E". */
   cart: string;
@@ -69,6 +69,7 @@ export class Hud extends HudBase {
   private seated = false;
   private nextMap = 0;
   private marks: MapMarks = { dots: [], lines: [] };
+  private meterAt = '';
 
   /** The picture of the course the minimap is drawn over (see scenery.ts). */
   setMap(image: HTMLCanvasElement): void {
@@ -149,7 +150,7 @@ export class Hud extends HudBase {
     const meter = g.addressing ? Math.round(g.charge * 100) / 100 : -1;
     this.set('meter', meter, () => {
       this.meterEl.hidden = meter < 0;
-      this.meterFillEl.style.height = `${Math.max(0, meter) * 100}%`;
+      this.meterFillEl.style.setProperty('--charge', String(Math.max(0, meter)));
     });
     let carryText = '';
     if (g.addressing) {
@@ -206,6 +207,22 @@ export class Hud extends HudBase {
     }
   }
 
+  /**
+   * Pins the swing meter to a spot on screen, in pixels: its track's top at (x, y), running `length` down, for a
+   * finger pulling back beside it. Null puts it back in its corner.
+   */
+  anchorMeter(at: { x: number; y: number; length: number } | null): void {
+    const key = at ? `${Math.round(at.x)},${Math.round(at.y)},${Math.round(at.length)}` : '';
+    if (key === this.meterAt) return;
+    this.meterAt = key;
+    const { style } = this.meterEl;
+    const track = this.meterEl.querySelector<HTMLElement>('.track')!;
+    this.meterEl.classList.toggle('anchored', !!at);
+    style.left = at ? `${at.x}px` : '';
+    style.top = at ? `${at.y}px` : '';
+    track.style.height = at ? `${at.length}px` : '';
+  }
+
   /** Heading-up circular map of the course round (cx, cy). */
   drawMinimap(ctx: CanvasRenderingContext2D, size: number, cx: number, cy: number, heading: number, viewRadius = 130): void {
     if (this.map) drawMinimap(ctx, size, this.map, cx, cy, heading, this.marks.dots, viewRadius, this.marks.lines);
@@ -222,7 +239,7 @@ export class Hud extends HudBase {
     const cart = g.nearestFreeCart();
     if (g.playable) {
       const d = Math.hypot(s.x - g.sim.x, s.y - g.sim.y);
-      if (d < 6 && keys.address) return `${keys.address} to stand over your ball`;
+      if (d < 6 && keys.address) return `Walk up to your ball to play it, or ${keys.address}`;
       if (cart && d > 30) return `${keys.cart} to drive the cart · your ball is ${Math.round(d)} m away`;
       if (d > ADDRESS_RANGE) return `Your ball is ${Math.round(d)} m away: walk up to it to play it`;
       return '';

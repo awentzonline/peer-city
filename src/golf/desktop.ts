@@ -20,7 +20,7 @@ const DRIVE_HELP = '<b>W S</b> drive · <b>A D</b> steer · <b>Space</b> brake �
 
 const KEYS: Omit<GolfKeys, 'help'> = {
   swing: 'Hold click to draw the club back, and let go to swing: the meter falls back if you hold on too long',
-  address: 'F',
+  address: 'press F',
   cart: 'E',
 };
 

@@ -166,13 +166,12 @@ body {
   overflow: hidden;
 }
 
+/* the whole gradient, uncovered as the charge (--charge, 0..1) grows, so red always means hard */
 #meter-fill {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 0;
+  inset: 0;
   background: linear-gradient(to top, #7bd66e, #f5e6a8 70%, #ff7675);
+  clip-path: inset(calc((1 - var(--charge, 0)) * 100%) 0 0 0);
 }
 
 #carry {
@@ -532,6 +531,25 @@ body.touch #meter {
 
 body.touch #meter .track {
   height: 150px;
+}
+
+/* pulled down, so it fills downward, with the distance above it clear of the finger */
+body.touch #meter-fill {
+  background: linear-gradient(to bottom, #7bd66e, #f5e6a8 70%, #ff7675);
+  clip-path: inset(0 0 calc((1 - var(--charge, 0)) * 100%) 0);
+}
+
+body.touch #carry {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 8px;
+}
+
+/* beside a finger pulling back: the track's top where the finger went down */
+body.touch #meter.anchored {
+  right: auto;
+  transform: translateX(-50%);
 }
 
 body.touch #hint {

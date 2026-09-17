@@ -10,10 +10,13 @@ import { idleWallsIntent, type WallsIntent } from './intent';
 import { MARKER_PEN, PAINT_ROLLER, SPRAY_CAN } from './kit';
 import type { Painter, PainterFrontend } from './painter';
 
-/** Paint tools are held lower and further out than a gun, so the wall you're painting isn't behind them. */
+/**
+ * Paint tools are held lower and further out than a gun, so the wall you're painting isn't behind them. The can
+ * already sits low, gripped round its middle for a headset's hand, so it drops less.
+ */
 export function lowerTool(held: DesktopTool): void {
   held.model.position.x += 0.05;
-  held.model.position.y -= 0.08;
+  held.model.position.y -= held.tool === SPRAY_CAN ? 0.025 : 0.08;
 }
 
 const HELP =

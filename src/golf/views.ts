@@ -117,10 +117,10 @@ export function registerViews(ctx: GolfContext, views: EntityViews, scene: THREE
       const y = e.y;
       const z = s.z + 0.01;
       view.mesh.position.set(x, z, y);
-      // bigger from further away, so it can be followed in the air and found on the ground
+      // bigger from further away, so it can be followed in the air and found on the ground: sooner once it's stopped
       rig.camera.getWorldPosition(eye);
       const d = Math.hypot(eye.x - x, eye.y - z, eye.z - y);
-      view.mesh.scale.setScalar(Math.max(1, d / 18));
+      view.mesh.scale.setScalar(Math.max(1, d / 18, s.mode === BallMode.Rest ? Math.min(4.5, d / 4) : 0));
       drawTrail(view, e, clock, visible && s.mode === BallMode.Moving);
     },
     destroy: (view) => {
@@ -186,11 +186,17 @@ export function registerViews(ctx: GolfContext, views: EntityViews, scene: THREE
     new THREE.MeshBasicMaterial({ color: 0xff5a4a, transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending }),
   );
   pinBeacon.frustumCulled = false;
+  // a ring round your ball on the ground, from a few steps off until the column takes over
+  const halo = new THREE.Mesh(
+    new THREE.RingGeometry(0.7, 1, 40).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }),
+  );
+  halo.renderOrder = 2;
   const pinLabel = nameTag(0);
   pinLabel.material.depthTest = false;
   pinLabel.renderOrder = 10;
   let pinLabelled = -1;
-  scene.add(guide, landing, beacon, pinBeacon, pinLabel);
+  scene.add(guide, landing, beacon, halo, pinBeacon, pinLabel);
 
   return {
     update: (dt) => {
@@ -228,8 +234,19 @@ export function registerViews(ctx: GolfContext, views: EntityViews, scene: THREE
 
     // a column of light over your ball when it's waiting a long way off
     const b = ctx.ball?.state;
-    const far = !!me && !!b && b.mode === BallMode.Rest && match?.phase === Phase.Playing && Math.hypot(me.x - ball.x, me.y - ball.y) > 18 && !(ball.flight === Flight.Air);
+    const waiting = !!me && !!b && b.mode === BallMode.Rest && match?.phase === Phase.Playing && !(ball.flight === Flight.Air);
+    const away = me ? Math.hypot(me.x - ball.x, me.y - ball.y) : 0;
+    const far = waiting && away > 18;
     beacon.visible = far;
+    // fades in from 3 m and stays on a little past where the column starts
+    const near = waiting && !golfer.addressing ? Math.min(1, Math.max(0, (away - 3) / 4)) * Math.min(1, Math.max(0, (30 - away) / 6)) : 0;
+    halo.visible = near > 0;
+    if (near > 0) {
+      halo.position.set(ball.x, course.heightAt(ball.x, ball.y) + 0.04, ball.y);
+      halo.scale.setScalar((0.3 + away * 0.06) * (1 + ((clock * 0.8) % 1) * 0.35));
+      halo.material.color.setHex(golferColor(b!.color)).lerp(new THREE.Color(0xffffff), 0.15);
+      halo.material.opacity = near * (0.9 - ((clock * 0.8) % 1) * 0.5);
+    }
     if (far) {
       beacon.position.set(ball.x, ball.z, ball.y);
       beacon.material.color.setHex(golferColor(b!.color));

@@ -89,6 +89,8 @@ export class Golfer extends Avatar<GolfIntent, GolferBody, ClubTool> implements 
   private powerOverride: number | null = null;
   /** Walked away from the ball since leaving it, so walking back stands over it again. */
   private rearmed = true;
+  /** Walked onto the ball with a move still held: that move doesn't step away until it's let go. */
+  private arrivedWalking = false;
   private graceUntil = 0;
   private readonly knock = { x: 0, y: 0 };
   /** A cart asked for and not yet handed over, and until when to wait for it, ms. */
@@ -448,7 +450,8 @@ export class Golfer extends Avatar<GolfIntent, GolferBody, ClubTool> implements 
     const dist = Math.hypot(s.x - sim.x, s.y - sim.y);
     const moving = Math.abs(intent.forward) + Math.abs(intent.strafe) > 0.2 || intent.jump;
     if (this.addressing) {
-      if (!this.playable || ((moving || intent.address) && !this.charging)) {
+      if (!moving) this.arrivedWalking = false;
+      if (!this.playable || (((moving && !this.arrivedWalking) || intent.address) && !this.charging)) {
         this.leaveAddress();
         this.rearmed = false;
         if (!moving) this.walk(dt, intent);
@@ -463,7 +466,10 @@ export class Golfer extends Avatar<GolfIntent, GolferBody, ClubTool> implements 
     if (!this.rearmed && dist > 3) this.rearmed = true;
     this.walk(dt, intent);
     const near = Math.hypot(s.x - sim.x, s.y - sim.y);
-    if (this.playable && ((near < ADDRESS_RANGE && this.rearmed) || (intent.address && near < 6))) this.standOver();
+    if (this.playable && ((near < ADDRESS_RANGE && this.rearmed) || (intent.address && near < 6))) {
+      this.standOver();
+      this.arrivedWalking = moving;
+    }
   }
 
   /** Step up to the ball, aimed at the pin, with the club for the shot. */

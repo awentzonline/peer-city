@@ -16,8 +16,12 @@ import { TOOLS } from './kit';
 const LOOK = 0.0042;
 /** Over the ball, sideways drags aim more finely than they look. */
 const AIM = 0.0018;
-/** A pull this far down the screen, as a fraction of its height, is a full swing. */
+/** A pull this far down the screen, as a fraction of its height, is a full swing... */
 const FULL_PULL = 0.32;
+/** ...or less, when the finger lands low, down to this, so there's always room for one. */
+const SHORT_PULL = 0.16;
+/** The meter sits this far left of the pulling finger, in pixels, where the finger doesn't cover it. */
+const METER_BESIDE = 64;
 
 const BUTTONS: TouchButtonSpec[] = [
   { id: FIRE, label: 'SWING', big: true },
@@ -37,6 +41,8 @@ interface Pull {
   oy: number;
   aiming: boolean;
   power: number;
+  /** Pixels down to a full swing. */
+  full: number;
 }
 
 /**
@@ -138,7 +144,11 @@ export class TouchGolfer implements GolferFrontend {
     const { intent } = this;
     const f = this.controls.input.lookFinger;
     let pull = this.pull;
-    if (f && !pull) pull = this.pull = { ox: f.x, oy: f.y, aiming: false, power: 0 };
+    if (f && !pull) {
+      const h = window.innerHeight;
+      const full = clamp(h - f.y - 28, h * SHORT_PULL, h * FULL_PULL);
+      pull = this.pull = { ox: f.x, oy: f.y, aiming: false, power: 0, full };
+    }
     if (!pull) return;
     if (!f) {
       // let go: swing with whatever it was pulled back to
@@ -153,7 +163,7 @@ export class TouchGolfer implements GolferFrontend {
       intent.turn = dx * AIM;
       return;
     }
-    pull.power = clamp((down - 8) / (window.innerHeight * FULL_PULL), 0, 1);
+    pull.power = clamp((down - 8) / pull.full, 0, 1);
     intent.trigger = true;
     intent.power = pull.power;
   }
@@ -167,9 +177,12 @@ export class TouchGolfer implements GolferFrontend {
     ctx.hud.showGolfer(
       ctx,
       sim,
-      { swing: 'Pull a finger down the right of the screen to draw back, and let go to swing. Slide sideways to aim', address: 'Tap PLAY BALL', cart: 'Tap CART', help: '' },
+      { swing: 'Pull a finger down the right of the screen to draw back, and let go to swing. Slide sideways to aim', address: 'tap PLAY BALL', cart: 'Tap CART', help: '' },
       this.cardOpen,
     );
+    // the meter runs down beside the finger pulling back, so its edge follows the finger
+    const pull = sim.addressing && this.pull && !this.pull.aiming ? this.pull : null;
+    ctx.hud.anchorMeter(pull && { x: pull.ox - METER_BESIDE, y: pull.oy + 8, length: pull.full });
     this.nextMotor = cartSounds(ctx, sim, this.nextMotor);
 
     // the buttons that do something now

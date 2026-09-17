@@ -173,7 +173,9 @@ function canGeometry(): THREE.BufferGeometry {
     paint(new THREE.CylinderGeometry(0.0335, 0.0335, 0.07, 12).translate(0, 0.02, 0), 0xe0282e),
     paint(new THREE.CylinderGeometry(0.028, 0.033, 0.025, 12).translate(0, 0.107, 0), 0xb2bec3),
     paint(new THREE.CylinderGeometry(0.012, 0.012, 0.02, 8).translate(0, 0.128, 0), 0x2d3436),
-    box(0.012, 0.012, 0.018, 0, 0.13, -0.017, 0x2d3436),
+    box(0.018, 0.014, 0.024, 0, 0.13, -0.004, 0x2d3436),
+    // the nozzle pokes out past the can, so it's the model's front face and the spray comes from it
+    box(0.007, 0.007, 0.026, 0, 0.13, -0.029, 0x16161a),
   ]);
 }
 
@@ -197,8 +199,9 @@ function rollerGeometry(): THREE.BufferGeometry {
 export const SPRAY_CAN = new PaintTool(
   {
     name: 'Spray can',
-    model: { build: canGeometry, length: 0.077 },
-    grip: { tip: [0, 0.1, -0.045] },
+    model: { build: canGeometry, length: 0.078 },
+    // the hand round the middle of the can, the nozzle under the index finger
+    grip: { tip: [0, 0.155, -0.054] },
     stash: [{ at: [0.24, -0.62, -0.02], pitch: 0 }],
     color: 0xe0282e,
     issued: 1,

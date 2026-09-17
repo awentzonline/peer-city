@@ -308,10 +308,14 @@ body.touch #status {
   letter-spacing: 1px;
 }
 
-/* the colours are tapped, between the thumbs */
+/* the colours are tapped, between the thumbs: the HUD goes over the touch controls' look zone (z-index 15) so
+   the swatches get the taps, and everything else on it lets them through */
+body.touch #hud {
+  z-index: 16;
+}
+
 body.touch #palette {
   pointer-events: auto;
-  z-index: 21;
   bottom: 10px;
   flex-wrap: wrap;
   justify-content: center;
