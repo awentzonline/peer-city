@@ -104,6 +104,16 @@ export class MatchKeeper {
   }
 }
 
+/**
+ * The hole a golfer should be making for: the one being played, or between holes the next one (the first again
+ * once a round's over). `waiting` says it hasn't started yet, so it's the tee that matters, not the pin.
+ */
+export function targetHole(match: { phase: Phase; hole: number }): { hole: number; waiting: boolean } {
+  if (match.phase === Phase.Playing) return { hole: match.hole, waiting: false };
+  if (match.phase === Phase.HoleOver && match.hole + 1 < HOLES) return { hole: match.hole + 1, waiting: true };
+  return { hole: 0, waiting: true };
+}
+
 /** A ball is picked up after this many strokes on a hole. */
 export function maxStrokes(par: number): number {
   return par + PICK_UP_OVER;

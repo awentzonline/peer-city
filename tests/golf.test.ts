@@ -12,7 +12,7 @@ import { ACTIONS, BallMode, Cart, ENTITIES, Match } from '../src/golf/defs';
 import { stepRules } from '../src/golf/frame';
 import { Golfer, type GolferBody } from '../src/golf/golfer';
 import { idleGolfIntent, type GolfIntent } from '../src/golf/intent';
-import { IRON, meter as meterFor } from '../src/golf/kit';
+import { IRON, METER_FALL, METER_RISE, meter as meterFor } from '../src/golf/kit';
 import { MatchKeeper, maxStrokes, standings, toPar, unfinishedScore } from '../src/golf/match';
 import { Sim } from './harness';
 
@@ -210,9 +210,10 @@ describe('Scoring', () => {
 
   it('meters power up and back down', () => {
     expect(meterFor(0)).toBe(0);
-    expect(meterFor(0.5)).toBeGreaterThan(0.4);
-    expect(meterFor(1.05)).toBeCloseTo(1);
-    expect(meterFor(1.5)).toBeLessThan(0.7);
+    expect(meterFor(METER_RISE / 2)).toBeCloseTo(0.5);
+    expect(meterFor(METER_RISE)).toBeCloseTo(1);
+    expect(meterFor(METER_RISE + METER_FALL / 2)).toBeCloseTo(0.5);
+    expect(meterFor(METER_RISE + METER_FALL)).toBe(0);
   });
 });
 

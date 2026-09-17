@@ -15,8 +15,8 @@ import type { Golfer } from './golfer';
 export type Use = ToolUse<Golfer>;
 
 /** How long the meter takes to fill, then to fall back to nothing, s. */
-export const METER_RISE = 1.05;
-export const METER_FALL = 0.9;
+export const METER_RISE = 1.8;
+export const METER_FALL = 1.2;
 
 /** The swing meter's power `t` seconds after the club started back. */
 export function meter(t: number): number {

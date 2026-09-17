@@ -1,12 +1,12 @@
 import { HudBase } from '../crossplay/hud';
-import { drawMinimap, type MinimapBase, type MinimapDot } from '../crossplay/minimap';
+import { drawMinimap, type MinimapBase, type MinimapDot, type MinimapLine } from '../crossplay/minimap';
 import { Club, Flight, carry } from './ball';
 import type { GolfContext, GolferEntity } from './context';
 import { HALF, HOLES, LIE_NAMES } from './course';
 import { BallMode, Cart, Golfer as GolferDef, Phase } from './defs';
 import { ADDRESS_RANGE, driverOf, type Golfer } from './golfer';
 import { TOOLS } from './kit';
-import { clock, formatToPar, holesPlayed, standings, toPar } from './match';
+import { clock, formatToPar, holesPlayed, standings, targetHole, toPar } from './match';
 import { cssColor, golferColor } from './models';
 
 export interface StandingLine {
@@ -68,7 +68,7 @@ export class Hud extends HudBase {
   private clubsDrawn = '';
   private seated = false;
   private nextMap = 0;
-  private dots: MinimapDot[] = [];
+  private marks: MapMarks = { dots: [], lines: [] };
 
   /** The picture of the course the minimap is drawn over (see scenery.ts). */
   setMap(image: HTMLCanvasElement): void {
@@ -200,7 +200,7 @@ export class Hud extends HudBase {
     if (this.helpEl.innerHTML !== keys.help) this.helpEl.innerHTML = keys.help;
     if (ctx.now >= this.nextMap) {
       this.nextMap = ctx.now + 120;
-      this.dots = mapDots(ctx);
+      this.marks = mapMarks(ctx);
       const heading = g.seated && g.cart ? g.heading : s.yaw;
       this.drawMinimap(this.mctx, this.minimap.width, s.x, s.y, heading);
     }
@@ -208,7 +208,7 @@ export class Hud extends HudBase {
 
   /** Heading-up circular map of the course round (cx, cy). */
   drawMinimap(ctx: CanvasRenderingContext2D, size: number, cx: number, cy: number, heading: number, viewRadius = 130): void {
-    if (this.map) drawMinimap(ctx, size, this.map, cx, cy, heading, this.dots, viewRadius);
+    if (this.map) drawMinimap(ctx, size, this.map, cx, cy, heading, this.marks.dots, viewRadius, this.marks.lines);
   }
 
   private hintFor(ctx: GolfContext, g: Golfer, keys: GolfKeys): string {
@@ -270,16 +270,29 @@ function escapeHtml(text: string): string {
 }
 
 /** What the map shows: everyone else in their colours, carts, the pin, and your ball. */
-export function mapDots(ctx: GolfContext): MinimapDot[] {
+export interface MapMarks {
+  dots: MinimapDot[];
+  lines: MinimapLine[];
+}
+
+/**
+ * What the minimap shows: carts, the other golfers, your ball, and the hole to make for, drawn from tee to pin with
+ * its number, so it's plain which way to go. Between holes it's the next hole, and its tee stands out instead.
+ */
+export function mapMarks(ctx: GolfContext): MapMarks {
   const dots: MinimapDot[] = [];
+  const lines: MinimapLine[] = [];
   const m = ctx.match()?.state;
+  if (m) {
+    const { hole, waiting } = targetHole(m);
+    const h = ctx.course.holes[hole];
+    lines.push({ points: h.line, color: 'rgba(0,0,0,0.35)', width: 7 }, { points: h.line, color: waiting ? 'rgba(255,230,120,0.9)' : 'rgba(255,240,170,0.7)', width: 3.5 });
+    dots.push({ x: h.tee.x, y: h.tee.y, color: '#ffd84a', ring: '#000', size: waiting ? 4.5 : 3, label: waiting ? `Tee ${hole + 1}` : undefined });
+    dots.push({ x: h.pin.x, y: h.pin.y, color: '#ff3b30', ring: '#fff', size: 4, label: waiting ? undefined : String(hole + 1) });
+  }
   for (const cart of ctx.world.all(Cart)) dots.push({ x: cart.x, y: cart.y, color: driverOf(ctx, cart) ? '#dfe6e9' : '#b2bec3', size: 2.6 });
   for (const g of ctx.world.all(GolferDef)) if (g !== ctx.me) dots.push({ x: g.x, y: g.y, color: cssColor(golferColor(g.render.skin)), size: 3.2 });
-  if (m) {
-    const pin = ctx.course.holes[m.hole].pin;
-    dots.push({ x: pin.x, y: pin.y, color: '#ff3b30', size: 3.6 });
-  }
   const b = ctx.ball;
-  if (b && (b.state.mode === BallMode.Rest || b.state.mode === BallMode.Moving)) dots.push({ x: b.x, y: b.y, color: '#ffffff', size: 3.4 });
-  return dots;
+  if (b && (b.state.mode === BallMode.Rest || b.state.mode === BallMode.Moving)) dots.push({ x: b.x, y: b.y, color: '#ffffff', ring: '#000', size: 3.4 });
+  return { dots, lines };
 }

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { EntityViews } from '@engine/index';
 import { bodyView, poseBody, type BodyView } from '../crossplay/avatarView';
-import { disposeLabel, setLabel, type HumanRig } from '../crossplay/models';
+import { disposeLabel, nameTag, setLabel, type HumanRig } from '../crossplay/models';
 import { headingOf, quatOf, sceneQuat } from '../crossplay/rigid';
 import { Platform } from '../crossplay/platform';
 import type { Rig } from '../crossplay/rig';
@@ -9,6 +9,7 @@ import { Club, Flight, carry } from './ball';
 import type { BallEntity, GolfContext } from './context';
 import { Ball, BallMode, Cart, Golfer, Phase } from './defs';
 import { driverOf, type Golfer as GolferRole } from './golfer';
+import { targetHole } from './match';
 import { TOOLS } from './kit';
 import { ballGeometry, buildCart, golferColor, humanFor, poseLying, poseSeated, type CartModel } from './models';
 
@@ -179,7 +180,17 @@ export function registerViews(ctx: GolfContext, views: EntityViews, scene: THREE
     new THREE.CylinderGeometry(0.12, 0.12, 40, 8, 1, true).translate(0, 20, 0),
     new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }),
   );
-  scene.add(guide, landing, beacon);
+  // the hole being played: a column of light over its pin, and its number, until you're close enough to see the flag
+  const pinBeacon = new THREE.Mesh(
+    new THREE.CylinderGeometry(1, 1, 1, 10, 1, true).translate(0, 0.5, 0),
+    new THREE.MeshBasicMaterial({ color: 0xff5a4a, transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending }),
+  );
+  pinBeacon.frustumCulled = false;
+  const pinLabel = nameTag(0);
+  pinLabel.material.depthTest = false;
+  pinLabel.renderOrder = 10;
+  let pinLabelled = -1;
+  scene.add(guide, landing, beacon, pinBeacon, pinLabel);
 
   return {
     update: (dt) => {
@@ -224,6 +235,35 @@ export function registerViews(ctx: GolfContext, views: EntityViews, scene: THREE
       beacon.material.color.setHex(golferColor(b!.color));
       beacon.material.opacity = 0.25 + Math.sin(clock * 3) * 0.1;
     }
+    showPin();
+  }
+
+  function showPin(): void {
+    const match = ctx.match()?.state;
+    const b = ctx.ball?.state;
+    const target = match && targetHole(match);
+    const playing = !!target && !target.waiting && !!b && b.mode !== BallMode.Holed;
+    rig.camera.getWorldPosition(eye);
+    const pin = playing ? course.holes[target.hole].pin : null;
+    const d = pin ? Math.hypot(eye.x - pin.x, eye.z - pin.y) : 0;
+    // fades in from 25 m, where the flag's easy to see
+    const fade = pin ? Math.min(1, Math.max(0, (d - 25) / 35)) : 0;
+    pinBeacon.visible = pinLabel.visible = fade > 0;
+    if (!pin) return;
+    // wider with distance, so it's a few pixels across wherever you are
+    const width = Math.max(0.15, d * 0.004);
+    const height = 45 + d * 0.15;
+    pinBeacon.position.set(pin.x, pin.z, pin.y);
+    pinBeacon.scale.set(width, height, width);
+    pinBeacon.material.opacity = fade * (0.38 + Math.sin(clock * 2.5) * 0.08);
+    if (pinLabelled !== target!.hole) {
+      pinLabelled = target!.hole;
+      setLabel(pinLabel, `Hole ${target!.hole + 1}`);
+    }
+    const k = Math.max(1, d / 9);
+    pinLabel.position.set(pin.x, pin.z + height + 1.5 * k, pin.y);
+    pinLabel.scale.set(3.2 * k, 0.8 * k, 1);
+    pinLabel.material.opacity = fade;
   }
 }
 
