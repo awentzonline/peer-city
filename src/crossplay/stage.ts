@@ -69,8 +69,10 @@ export class Stage {
     };
 
     // Browsers stop animation frames in background tabs. A peer that stops ticking would freeze the NPCs
-    // it owns for everyone nearby, so whenever frames stop coming, keep simulating on a (throttled) timer.
-    window.setInterval(() => {
+    // it owns for everyone nearby, and after a few quiet seconds its own player drops out of their worlds,
+    // so whenever frames stop coming, keep simulating on a timer. The page's own timers get throttled
+    // to once a second in the background, and to once a minute after a while; a worker's don't.
+    onBeat(() => {
       if (performance.now() - this.last >= STALLED_MS) tick(250, false);
     }, 100);
 
@@ -106,4 +108,15 @@ export class Stage {
 
 export function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/** Call `fn` every `ms`, from a worker's timer where the browser allows one (so a background tab isn't throttled), else the page's. */
+function onBeat(fn: () => void, ms: number): void {
+  try {
+    const url = URL.createObjectURL(new Blob([`setInterval(() => postMessage(0), ${ms});`], { type: 'text/javascript' }));
+    // the URL stays: the worker loads it asynchronously
+    new Worker(url).onmessage = fn;
+  } catch {
+    window.setInterval(fn, ms);
+  }
 }
