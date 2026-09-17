@@ -5,7 +5,7 @@ import type { Frontend, Seat } from '../crossplay/role';
 import { Shell } from '../crossplay/shell';
 import { bodySpeakers, type Speaker } from '../crossplay/voice';
 import { registerActions } from './actions';
-import type { HauntContext } from './context';
+import type { HauntContext, Vec3 } from './context';
 import { Haunt as HauntDef, Survivor as SurvivorDef } from './defs';
 import { DesktopSurvivor } from './desktop';
 import { Effects } from './effects';
@@ -57,6 +57,7 @@ export class Game {
       launch,
       players: SurvivorDef,
       speakers: voices(world),
+      mouth: role === 'haunt' ? () => hauntMouth(this.ctx) : undefined,
       company: role === 'haunt' ? 'survivors' : 'players',
       announce: (text) => hud.message(text),
       showLock: (locked, platform) => hud.setLocked(locked, platform),
@@ -167,14 +168,23 @@ export class Game {
   }
 }
 
-/** Voices come from survivors' mouths, and the Haunt's from its presence while it lingers somewhere. */
+/**
+ * Voices come from survivors' mouths, and the Haunt's from its presence while it lingers somewhere. The Haunt hears
+ * wherever it's looking (see `listenAt`), so that's where survivors send their voices to it.
+ */
 function voices(world: NetWorld): () => Iterable<Speaker> {
   const bodies = bodySpeakers(world, SurvivorDef);
   return function* speakers(): Iterable<Speaker> {
     yield* bodies();
     for (const h of world.remote(HauntDef)) {
       const s = h.render;
-      if (s.present) yield { peer: h.owner, name: s.name, at: { x: s.px, y: s.py, z: 1.7 } };
+      yield { peer: h.owner, name: s.name, at: s.present ? { x: s.px, y: s.py, z: 1.7 } : null, ears: { x: h.x, y: h.y, z: 1.7 } };
     }
   };
+}
+
+/** Where this peer's Haunt speaks from: its presence, or where it last was. */
+function hauntMouth(ctx: HauntContext): Vec3 {
+  const s = ctx.haunt?.state;
+  return s ? { x: s.px, y: s.py, z: 1.7 } : ctx.sfx.listenerAt;
 }

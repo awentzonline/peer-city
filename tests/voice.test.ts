@@ -235,6 +235,48 @@ describe('Voice', () => {
     expect(net.rooms.size).toBe(1); // it gave up after the first room, rather than opening one per zone
   });
 
+  it("sends to where an overseer listens, and plays it only while its presence is about", async () => {
+    const { net, audio, voice, them } = setup(5);
+    // looking right at us from on high, but its presence is off across the house
+    const overseer = them as { peer: string; name: string; at: Vec3 | null; ears?: Vec3 };
+    overseer.at = null;
+    overseer.ears = { x: 3, y: 0, z: 1.7 };
+    voice.update();
+    net.arrive('w/voice/0,0', 'you');
+    await voice.setTalking(true);
+    voice.update();
+    expect(net.sent).toMatchObject([{ peer: 'you' }]);
+
+    const theirs = stream('you');
+    net.speak('w/voice/0,0', 'you', theirs);
+    voice.update();
+    expect(audio.playing.get(theirs)!.volume).toBe(0);
+    overseer.at = { x: 4, y: 0, z: 1.7 };
+    voice.update();
+    expect(audio.playing.get(theirs)!.volume).toBe(1);
+
+    // it looks away: stop sending once it's well out of earshot, whatever its presence does
+    overseer.ears = { x: 80, y: 0, z: 1.7 };
+    voice.update();
+    expect(net.removed).toMatchObject([{ peer: 'you' }]);
+  });
+
+  it("doesn't let a voice that won't play stop the frame", () => {
+    const { net, voice } = setup(5);
+    let fails = 0;
+    const audio = (voice as unknown as { opts: { audio: VoiceAudio } }).opts.audio;
+    audio.voice = () => {
+      fails++;
+      throw new Error('MediaStream has no audio track');
+    };
+    voice.update();
+    net.arrive('w/voice/0,0', 'you');
+    net.speak('w/voice/0,0', 'you', stream('you'));
+    expect(() => voice.update()).not.toThrow();
+    voice.update();
+    expect(fails).toBe(1); // not retried every frame
+  });
+
   it('carries no media over a BroadcastChannel-style transport', () => {
     const room = new MemoryNetwork().createTransport('me').join('r');
     expect(room.media).toBeUndefined();

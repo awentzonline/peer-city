@@ -100,14 +100,15 @@ export class SpatialAudio {
   voice(stream: MediaStream, range: number): VoiceSource | null {
     const ctx = this.ctx;
     const out = this.voices;
-    if (!ctx || !out) return null;
+    // A stream whose track has been taken off can't be played (and createMediaStreamSource throws): wait for one.
+    if (!ctx || !out || !stream.getAudioTracks().length) return null;
+    const src = ctx.createMediaStreamSource(stream);
     // Chrome only pulls a remote track once something is playing it, so keep a silent element on the stream.
     const sink = new Audio();
     sink.srcObject = stream;
     sink.muted = true;
     void sink.play().catch(() => {});
 
-    const src = ctx.createMediaStreamSource(stream);
     const gain = ctx.createGain();
     const panner = ctx.createPanner();
     panner.panningModel = 'HRTF';

@@ -2,6 +2,7 @@ import { NetDebugPanel, type EntityDef, type NetWorld } from '@engine/index';
 import type { SpatialAudio } from './audio';
 import type { DesktopInput } from './input';
 import type { Launch } from './lobby';
+import type { Vec3 } from './math';
 import { Platform } from './platform';
 import { WebXrPoses, type XrPoseSource } from './rig';
 import { Seat, type Frontend, type Role } from './role';
@@ -35,6 +36,8 @@ export interface ShellOptions {
   players: EntityDef<any>;
   /** Where voices come from instead, for a game with players who aren't all bodies (an overseer speaking through a presence). */
   speakers?: () => Iterable<Speaker>;
+  /** Where the local player's voice comes from, when it isn't where they listen from (that overseer's presence). */
+  mouth?: () => Vec3;
   /** Tell the local player something, e.g. that the microphone's on. */
   announce(text: string): void;
   /** Who can hear you, in those messages: "players near you can hear you". Default 'players'. */
@@ -89,6 +92,7 @@ export class Shell {
       audio: sfx,
       zones: () => world.zoneKeys(),
       speakers: opts.speakers ?? bodySpeakers(world, opts.players),
+      mouth: opts.mouth,
     });
     this.settings = new Settings({ voice: this.voice, sfx });
     this.menu = new SettingsMenu(this.settings, this.stage.input);

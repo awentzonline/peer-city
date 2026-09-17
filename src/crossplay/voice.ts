@@ -16,7 +16,10 @@ export const SPEAKING = 0.06;
 export interface Speaker {
   peer: string;
   name: string;
-  at: Vec3;
+  /** Where their voice comes from, or null while it can't be heard at all (an overseer with no presence about). */
+  at: Vec3 | null;
+  /** Where they hear from, when it isn't their mouth: an overseer listens where it's looking. */
+  ears?: Vec3;
 }
 
 /** A peer's voice as the settings menu sees it. */
@@ -48,6 +51,8 @@ export interface VoiceOptions {
   zones: () => Iterable<string>;
   /** Everyone who might be heard right now, and where. */
   speakers: () => Iterable<Speaker>;
+  /** Where our own voice comes from, when it isn't where we listen from (`audio.listenerAt`). */
+  mouth?: () => Vec3;
   range?: number;
   /** Ask for the microphone. Overridable in tests. */
   getMic?: () => Promise<MediaStream>;
@@ -64,7 +69,12 @@ interface VoicePeer {
   /** Whether their voice is actually being played: they're sending, and they're inside earshot. */
   heard: boolean;
   at: Vec3 | null;
+  /** From their mouth to our ears, for hearing them. */
   distance: number;
+  /** From our mouth to their ears, for sending to them. */
+  reach: number;
+  /** The browser wouldn't play this stream; wait for its tracks to change before trying again. */
+  unplayable: boolean;
 }
 
 /**
@@ -250,7 +260,7 @@ export class Voice {
     if (id === this.opts.transport.selfId || !this.rooms.has(key)) return;
     let peer = this.peers.get(id);
     if (!peer) {
-      peer = { id, name: '', rooms: new Set(), sendingVia: null, stream: null, source: null, heard: false, at: null, distance: Infinity };
+      peer = { id, name: '', rooms: new Set(), sendingVia: null, stream: null, source: null, heard: false, at: null, distance: Infinity, reach: Infinity, unplayable: false };
       this.peers.set(id, peer);
     }
     peer.rooms.add(key);
@@ -271,20 +281,37 @@ export class Voice {
     if (!peer) return;
     this.stopHearing(peer);
     peer.stream = stream;
+    // A track taken off and put back (they walked out of earshot and in again) leaves an old source playing nothing.
+    const replay = (): void => {
+      if (peer.stream !== stream) return;
+      peer.source?.dispose();
+      peer.source = null;
+      peer.unplayable = false;
+    };
+    stream.addEventListener?.('addtrack', replay);
+    stream.addEventListener?.('removetrack', replay);
   }
 
   /** Where everyone is this frame, and how far off. Someone we can't place yet is treated as out of earshot. */
   private locate(): void {
-    for (const peer of this.peers.values()) peer.at = null;
-    const me = this.opts.audio.listenerAt;
+    for (const peer of this.peers.values()) {
+      peer.at = null;
+      peer.distance = peer.reach = Infinity;
+    }
+    const ears = this.opts.audio.listenerAt;
+    const mouth = this.opts.mouth?.() ?? ears;
     for (const speaker of this.opts.speakers()) {
       const peer = this.peers.get(speaker.peer);
       if (!peer) continue;
       peer.name = speaker.name;
-      peer.at = { x: speaker.at.x, y: speaker.at.y, z: speaker.at.z };
-      peer.distance = Math.hypot(speaker.at.x - me.x, speaker.at.y - me.y, speaker.at.z - me.z);
+      const { at } = speaker;
+      if (at) {
+        peer.at = { x: at.x, y: at.y, z: at.z };
+        peer.distance = dist(at, ears);
+      }
+      const theirEars = speaker.ears ?? at;
+      if (theirEars) peer.reach = dist(mouth, theirEars);
     }
-    for (const peer of this.peers.values()) if (!peer.at) peer.distance = Infinity;
   }
 
   /** Add our microphone to the people who have come into earshot, and take it off the ones who left it. */
@@ -292,11 +319,11 @@ export class Voice {
     const mic = this.mic;
     if (!mic) return;
     if (peer.sendingVia) {
-      if (peer.distance <= this.range * SEND_OUT) return;
+      if (peer.reach <= this.range * SEND_OUT) return;
       this.stopSending(peer, mic);
       return;
     }
-    if (peer.distance > this.range * SEND_IN) return;
+    if (peer.reach > this.range * SEND_IN) return;
     const room = this.roomFor(peer);
     if (!room?.media) return;
     peer.sendingVia = room;
@@ -319,9 +346,18 @@ export class Voice {
   /** Keep a voice playing where its speaker is, and silent while they're muted or out of earshot. */
   private updatePlayback(peer: VoicePeer): void {
     peer.heard = false;
-    if (!peer.stream) return;
+    if (!peer.stream || peer.unplayable) return;
     // The audio context only exists once the game has had a gesture, so keep trying until it does.
-    if (!peer.source) peer.source = this.opts.audio.voice(peer.stream, this.range);
+    if (!peer.source) {
+      try {
+        peer.source = this.opts.audio.voice(peer.stream, this.range);
+      } catch (err: unknown) {
+        // Never let someone's voice stop the game: this runs inside every frame.
+        console.warn(`Couldn't play ${peer.name || peer.id}'s voice`, err);
+        peer.unplayable = true;
+        return;
+      }
+    }
     const source = peer.source;
     if (!source) return;
     if (peer.at) source.setPosition(peer.at);
@@ -336,7 +372,12 @@ export class Voice {
     peer.source = null;
     peer.stream = null;
     peer.heard = false;
+    peer.unplayable = false;
   }
+}
+
+function dist(a: Vec3, b: Vec3): number {
+  return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 }
 
 /** Every other player's mouth, for `VoiceOptions.speakers`: any entity built on `BODY_FIELDS` will do. */

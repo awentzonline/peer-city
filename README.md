@@ -544,7 +544,7 @@ results show and a new round starts. Water and out of bounds cost a stroke and y
 
 **Battle.** Swing your club at someone (or run them over, or hit them with a fast ball) and they're knocked flat for a
 couple of seconds, out of any cart, and can't be knocked down again straight after getting up. Carts wait at the barn by
-the clubhouse, about one for every two golfers (six at most); whoever gets in first has it until they get out, and carts
+the clubhouse, one for every golfer (eight at most); whoever gets in first has it until they get out, and carts
 crash hard enough to throw you out.
 
 | | Desktop | VR | Touch |

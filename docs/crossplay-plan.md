@@ -354,7 +354,7 @@ What was new, or moved:
 Open questions:
 
 - The tracked swing's power (each club's `smash`) is a guess that hasn't been tried in a real headset.
-- Whether one cart for every two golfers is the right shortage, and whether players between holes want something to do.
+- Whether players between holes want something to do. (A cart for every two golfers was too few: now there's one each.)
 
 ## Lessons from a sixth game
 
