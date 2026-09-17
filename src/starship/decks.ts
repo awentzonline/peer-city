@@ -52,6 +52,8 @@ export class DeckView {
   private readonly tubeLights: THREE.MeshBasicMaterial[] = [];
   private readonly rackTorps: THREE.Mesh[] = [];
   private readonly padGlow: THREE.MeshBasicMaterial;
+  /** Each console's lit top and its floating name, which a headset's own console panels stand in for. */
+  private readonly consoleDressing = new Map<Station, THREE.Object3D[]>();
   private readonly sparks = new ParticleLayer(1500, true);
   private readonly smoke = new ParticleLayer(500, false);
   private readonly fading: Fading[] = [];
@@ -66,7 +68,7 @@ export class DeckView {
 
   constructor(
     private readonly ctx: StarshipContext,
-    private readonly scene: THREE.Scene,
+    readonly scene: THREE.Scene,
     views: EntityViews,
     local: LocalView,
   ) {
@@ -123,14 +125,13 @@ export class DeckView {
       const g = new THREE.Group();
       g.position.set(c.x, 0, c.y);
       g.rotation.y = -c.heading;
-      g.add(
-        new THREE.Mesh(merge([box(0.7, 0.9, 1, 0, 0.45, 0, 0x4a5262), box(0.5, 0.06, 0.9, -0.1, 0.95, 0, 0x2a2e38)]), SOLID),
-        new THREE.Mesh(paint(new THREE.PlaneGeometry(0.8, 0.45).rotateX(-Math.PI / 2).rotateZ(0.9).translate(0.05, 1.02, 0), STATION_COLORS[c.station]), GLOW),
-      );
+      const top = new THREE.Mesh(paint(new THREE.PlaneGeometry(0.8, 0.45).rotateX(-Math.PI / 2).rotateZ(0.9).translate(0.05, 1.02, 0), STATION_COLORS[c.station]), GLOW);
+      g.add(new THREE.Mesh(merge([box(0.7, 0.9, 1, 0, 0.45, 0, 0x4a5262), box(0.5, 0.06, 0.9, -0.1, 0.95, 0, 0x2a2e38)]), SOLID), top);
       const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture(['HELM', 'TACTICAL', 'SCIENCE', 'ENGINEERING'][c.station]), transparent: true, depthWrite: false }));
       label.scale.set(0.9, 0.23, 1);
       label.position.set(0, 1.45, 0);
       g.add(label);
+      this.consoleDressing.set(c.station, [top, label]);
       this.interior.add(g);
     }
     // the captain's chair, and the viewscreen's frame
@@ -388,6 +389,14 @@ export class DeckView {
   // -------------------------------------------------------------------------
   // Events
   // -------------------------------------------------------------------------
+
+  /**
+   * A headset's own console panels (consoleVr.ts) stand where the console's lit top and floating name are, so those give
+   * way while one is up.
+   */
+  dressConsole(station: Station, shown: boolean): void {
+    for (const o of this.consoleDressing.get(station) ?? []) o.visible = shown;
+  }
 
   beam(p: PayloadOf<typeof Beam3>): void {
     if (p.kind !== Shot.HandPhaser && p.kind !== Shot.Bolt) return;

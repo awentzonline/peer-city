@@ -102,7 +102,7 @@ export class Game {
       crew.spawn();
       this.seat = shell.seat<unknown, CrewFrontend>(crew as never, {
         desktop: (input) => new DesktopCrew(ctx, crew, input, rig),
-        vr: (poses) => new VrCrew(ctx, crew, rig, poses),
+        vr: (poses) => new VrCrew(ctx, crew, rig, poses, this.decks),
         touch: (chips) => new TouchCrew(ctx, crew, rig, chips),
       }) as Seat<unknown, Frontend<unknown>>;
       hud.message(`Welcome aboard the Wayfarer, ${launch.playerName}. The bridge is forward; the transporter room is aft of it.`);
@@ -129,7 +129,7 @@ export class Game {
         };
         this.seat = shell.seat<OfficerIntent, OfficerFrontend>(officer, {
           desktop: () => new StationScreen(ctx, Platform.Desktop, station, null, remember),
-          vr: (poses) => new StationVr(ctx, rig, poses),
+          vr: (poses) => new StationVr(ctx, rig, poses, this.decks, station, remember),
           touch: (chips) => new StationScreen(ctx, Platform.Touch, station, chips, remember),
         }) as Seat<unknown, Frontend<unknown>>;
         // someone else already at your station: move over, once you can see who's where

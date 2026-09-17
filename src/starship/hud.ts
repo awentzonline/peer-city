@@ -8,7 +8,8 @@ import { STATION_COLORS, css } from './models';
 import { manning } from './officer';
 import { bitCount } from './sector';
 import { SHIELD_MAX, SYSTEM_NAMES } from './ship';
-import { STATION_NAMES, clock, phaseLine } from './stations';
+import { clock, phaseLine } from './scopes';
+import { STATION_NAMES } from './stations';
 
 /** How a platform names a crew member's controls, for the hints. */
 export interface CrewKeys {

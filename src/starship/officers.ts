@@ -4,13 +4,16 @@ import { Platform } from '../crossplay/platform';
 import { Btn, type Rig, type XrPoseSource } from '../crossplay/rig';
 import { VrSettings } from '../crossplay/settingsPanel';
 import type { TouchChips } from '../crossplay/shell';
+import { headingToYaw } from '../crossplay/math';
 import { SnapTurn } from '../crossplay/vrControls';
+import { VrConsole } from './consoleVr';
 import type { StarshipContext } from './context';
-import { SPAWN } from './deck';
+import { CONSOLES, SPAWN } from './deck';
+import type { DeckView } from './decks';
 import { Act, Screen, SCREENS, Station, STATIONS } from './defs';
 import { act, idleOfficerIntent, type ConsoleAct, type OfficerIntent } from './intent';
 import { manning, type OfficerFrontend } from './officer';
-import { StationPanel } from './stations';
+import { StationPanel, STATION_NAMES } from './stations';
 import { AwayCamera, type Draws, type Drawn } from './view';
 
 /** A station nobody's at yet, else the least crowded one. */
@@ -88,26 +91,34 @@ export class StationScreen implements OfficerFrontend, Draws {
 }
 
 /**
- * A station player in a headset: stations are made for fingers, so in VR you stand at the back of the bridge and watch
- * the viewscreen, with a word on how to take part.
+ * A station player in a headset: you stand at that station's console on the bridge and work it with your hands, the same
+ * console a seated crew member gets (see consoleVr.ts). CHANGE STATION in its corner walks you round to the next one, so
+ * a headset can cover the bridge the way a phone's tabs do.
  */
 export class StationVr implements OfficerFrontend, Draws {
   readonly platform = Platform.Vr;
   private readonly panels: HeadsetHud;
   private readonly menu: VrSettings;
   private readonly turn = new SnapTurn();
-  private readonly intent = idleOfficerIntent(Station.None);
-  private placed = false;
+  private readonly intent: OfficerIntent;
+  private console: VrConsole | null = null;
+  private station: Station;
+  private place = true;
 
   constructor(
     private readonly ctx: StarshipContext,
     private readonly rig: Rig,
     private readonly source: XrPoseSource,
+    private readonly decks: DeckView,
+    station: Station,
+    private readonly onStation: (s: Station) => void,
   ) {
     rig.setMode(source.mode);
+    this.station = station;
+    this.intent = idleOfficerIntent(station);
     this.panels = new HeadsetHud(rig, ctx.hud, 0.2);
     this.menu = new VrSettings(ctx.settings, rig);
-    ctx.hud.message('Bridge stations are played on a phone or a screen. In a headset, join as crew to walk the decks.');
+    ctx.hud.message(`You have the ${STATION_NAMES[station].toLowerCase()}. Touch a key on the console and pull the trigger.`);
   }
 
   drawn(): Drawn {
@@ -115,30 +126,50 @@ export class StationVr implements OfficerFrontend, Draws {
   }
 
   read(dt: number): OfficerIntent {
-    const { rig } = this;
+    const { rig, intent } = this;
     this.source.read(rig, dt);
-    if (!this.placed) {
-      rig.root.position.set(SPAWN.x - 1, rig.floorY, SPAWN.y);
-      rig.root.rotation.set(0, -Math.PI / 2, 0);
-      this.placed = true;
+    intent.acts.length = 0;
+    intent.station = this.station;
+    if (this.place) {
+      // standing at the console, a step back from it, facing the way it faces
+      const c = CONSOLES[this.station];
+      rig.root.position.set(c.x - Math.cos(c.heading) * STAND_BACK, rig.floorY, c.y - Math.sin(c.heading) * STAND_BACK);
+      rig.root.rotation.set(0, headingToYaw(c.heading), 0);
+      this.place = false;
     }
     this.turn.update(rig, rig.right.stickX);
     if (rig.left.pressed(Btn.B)) this.menu.toggle();
-    this.menu.update(this.ctx.now);
-    this.intent.acts.length = 0;
-    return this.intent;
+    const onMenu = this.menu.update(this.ctx.now);
+    if (this.console?.station !== this.station) {
+      this.console?.dispose();
+      this.console = new VrConsole(this.ctx, rig, this.decks, this.station, { label: 'CHANGE STATION', press: () => this.moveOn() });
+    }
+    if (!onMenu) this.console.update(this.ctx.now, dt, intent.acts);
+    return intent;
+  }
+
+  /** Round to the next station, and stand at its console. */
+  private moveOn(): void {
+    const i = STATIONS.findIndex((s) => s === this.station);
+    this.station = STATIONS[(i + 1) % STATIONS.length];
+    this.place = true;
+    this.onStation(this.station);
+    this.ctx.hud.message(`You have the ${STATION_NAMES[this.station].toLowerCase()}.`);
   }
 
   present(): void {
-    this.ctx.hud.setHint('Watching from the back of the bridge. Rejoin as crew to take part in VR');
     this.panels.update(this.ctx.now);
   }
 
   dispose(): void {
+    this.console?.dispose();
     this.panels.dispose();
     this.menu.dispose();
   }
 }
+
+/** How far back from a console a standing officer plants themselves, m. */
+const STAND_BACK = 0.75;
 
 const SCREEN_KEYS: Record<string, Screen> = { Digit1: Screen.Forward, Digit2: Screen.Aft, Digit3: Screen.Tactical, Digit4: Screen.Target, Digit5: Screen.Away };
 

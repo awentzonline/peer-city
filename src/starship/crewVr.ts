@@ -7,8 +7,10 @@ import { Btn, type Rig, type XrPoseSource } from '../crossplay/rig';
 import { VrSettings } from '../crossplay/settingsPanel';
 import type { Tool, UseEffect } from '../crossplay/tool';
 import { SnapTurn, deadzone, readHand, readHead } from '../crossplay/vrControls';
+import { VrConsole } from './consoleVr';
 import type { StarshipContext, Vec3 } from './context';
 import type { CrewFrontend, CrewRole } from './crew';
+import type { DeckView } from './decks';
 import { Carry, CrewMode, FaultKind, type Station } from './defs';
 import { beamedNews, downedNews, fixedNews, usedSound } from './crewScreens';
 import type { Hud } from './hud';
@@ -21,8 +23,9 @@ const TICK_MS = 500;
 /**
  * Crew in a headset. Walk your room or push the left stick; the right stick snap-turns. The phaser is on your right hip,
  * the spanner on your left, and the extinguisher on your chest: squeeze a grip by one to take it, and hold the trigger to
- * use it (put the spanner's end on the sparks, point the extinguisher at the fire). A takes and loads torpedoes and picks
- * up the relic; Y opens the settings. Your watch shows how you and the ship are doing.
+ * use it (put the spanner's end on the sparks, point the extinguisher at the fire). A takes and loads torpedoes, picks
+ * up the relic, and sits you down at a bridge console, which lights that station's own panels to reach out and press
+ * (see consoleVr.ts); Y opens the settings. Your watch shows how you and the ship are doing.
  */
 export class VrCrew implements CrewFrontend, Draws {
   readonly platform = Platform.Vr;
@@ -34,8 +37,10 @@ export class VrCrew implements CrewFrontend, Draws {
   private readonly head: TrackedHead = { x: 0, y: 0, z: 0, heading: 0, pitch: 0 };
   private readonly hands: [HandIntent, HandIntent] = [handIntent(), handIntent()];
   private readonly turn = new SnapTurn();
+  private standing = false;
   private readonly tmp: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly dir: Vec3 = { x: 0, y: 0, z: 0 };
+  private console: VrConsole | null = null;
   private drawn_ = -1;
   private next = 0;
 
@@ -44,6 +49,7 @@ export class VrCrew implements CrewFrontend, Draws {
     private readonly crew: CrewRole,
     private readonly rig: Rig,
     private readonly source: XrPoseSource,
+    private readonly decks: DeckView,
   ) {
     rig.setMode(source.mode);
     this.holsters = new Holsters(rig);
@@ -62,6 +68,12 @@ export class VrCrew implements CrewFrontend, Draws {
     this.holsters.dispose();
     this.panels.dispose();
     this.menu.dispose();
+    this.closeConsole();
+  }
+
+  private closeConsole(): void {
+    this.console?.dispose();
+    this.console = null;
   }
 
   read(dt: number): CrewIntent {
@@ -76,6 +88,21 @@ export class VrCrew implements CrewFrontend, Draws {
     const onMenu = this.menu.update(this.ctx.now);
     this.turn.update(rig, right.stickX);
     readHead(rig, this.head);
+    const seated = crew.seat;
+    if (seated !== null) {
+      // at a console: A gets you up again, and the station's panels take the hands
+      if (this.console?.station !== seated) {
+        this.closeConsole();
+        this.console = new VrConsole(this.ctx, rig, this.decks, seated, { label: 'STAND UP', press: () => (this.standing = true) });
+      }
+      if (this.standing || intent.use) intent.sit = true;
+      this.standing = false;
+      if (!onMenu) this.console.update(this.ctx.now, dt, intent.acts);
+      intent.use = false;
+      for (const hand of this.hands) hand.trigger = hand.grab = false;
+      return intent;
+    }
+    this.closeConsole();
     if (crew.me?.state.mode === CrewMode.Up) {
       intent.strafe = deadzone(left.stickX);
       intent.forward = -deadzone(left.stickY);
@@ -87,6 +114,7 @@ export class VrCrew implements CrewFrontend, Draws {
       intent.use = false;
       for (const hand of this.hands) hand.trigger = hand.grab = false;
     }
+    intent.sit = intent.use && crew.nearby?.kind === 'console';
     return intent;
   }
 
@@ -178,7 +206,10 @@ export class VrCrew implements CrewFrontend, Draws {
     this.rig.flash(0x9ad8ff, 0.8);
   }
 
-  seated(_station: Station | null): void {}
+  seated(station: Station | null): void {
+    if (station === null) this.closeConsole();
+    else this.rig.right.pulse(0.4, 40);
+  }
 
   fixed(kind: FaultKind): void {
     fixedNews(this.ctx, kind);
@@ -191,5 +222,6 @@ export class VrCrew implements CrewFrontend, Draws {
 
   restarted(): void {
     this.rig.setTint(0, 0);
+    this.closeConsole();
   }
 }

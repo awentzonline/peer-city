@@ -488,6 +488,14 @@ What was new, or changed:
 - **The same panel for three kinds of player.** A phone at a station, a desktop at a station and a crew member sitting at a
   bridge console all use `StationPanel`, which only reads replicated state and gives `ConsoleAct`s. The officer role and the
   crew role both turn those into `Console` commands to the ship's owner.
+- **A console you reach out and press (2026-09-17).** DOM can't be seen inside a headset, so a station in VR is the console
+  itself: two canvas faces on the bridge furniture (`consoleVr.ts`) — a slanted desk of keys under your hands and a screen
+  at its far edge — touched with a fingertip and the trigger, the idiom `VrSettings` already had. Both VR roles use it: crew
+  sit down at a console (A), and a station player stands at one and walks round with CHANGE STATION. The split that made it
+  cheap was pulling each station's *scope* out of the DOM panel into `scopes.ts`: a map, radar, sensor sweep or deck plan
+  that draws to any 2D context and turns a tap into an order, so only the keys had to be written twice — DOM buttons for
+  fingers, canvas keys for hands. The console's own lit top and floating name hide while its panels are up, or they fight
+  for the same 20 cm.
 - **Wide entities.** The ship has 46 replicated fields; schemas were capped at 30 because masks used 32-bit bit operations.
   Masks are plain numbers now (up to 52 fields), tested and set arithmetically past the 31st, with the same wire format.
 - **Ownership settling in tests.** Rules tests that write the ship's state directly wait for the singleton's owner to settle
@@ -496,9 +504,10 @@ What was new, or changed:
 Open questions:
 
 - Balance is guessed: raider waves, weapon damage, drone lethality, power effects and repair times. A real crew will say.
-- VR crew can't use bridge consoles yet (the panel is DOM); a painted, touchable panel like `VrSettings` would do it.
 - Checked in the browser pane one role per tab (viewer, each station on desktop and phone sizes, desktop crew aboard and on
-  a planet, `?xrsim` crew, touch crew), with stand-ins spawned from the console. Not tried with several real devices at once.
+  a planet, `?xrsim` crew and station, touch crew), with stand-ins spawned from the console. Not tried with several real
+  devices at once, and the VR consoles have only been worked through `?xrsim`, never in a real headset: the reach distances
+  (`TOUCH_NEAR`, where the desk sits) are the first thing a headset will argue with.
 
 ## Later: mobile
 

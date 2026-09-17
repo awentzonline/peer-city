@@ -5,13 +5,15 @@ import { NO_PRESENTER, registerActions } from '../src/starship/actions';
 import type { CrewEntity, FaultEntity, RaiderEntity, RelicEntity, SentinelEntity, ShipEntity, StarshipContext } from '../src/starship/context';
 import { CrewRole, SEAT_BACK, type CrewBody } from '../src/starship/crew';
 import { CELL, CONSOLES, Deck, MACHINES, PAD, RACK, SPAWN, TUBES, Tile } from '../src/starship/deck';
-import { ACTIONS, Act, Beam, Carry, CrewMode, ENTITIES, Fault, FaultKind, Phase, Raider, RaiderKind, Relic, Result, Screen, Sentinel, ShipSystem, Station, SYSTEMS } from '../src/starship/defs';
+import { ACTIONS, Act, Beam, Carry, CrewMode, ENTITIES, Fault, FaultKind, Phase, Raider, RaiderKind, Relic, Result, Screen, Sentinel, ShipSystem, Station, STATIONS, SYSTEMS } from '../src/starship/defs';
+import { DESK, LEAVE_BOX, SCOPE_BOX, deskLayout, stationControls, within, type Key, type Slider } from '../src/starship/consoleVr';
 import { Torpedoes } from '../src/starship/flights';
 import { stepRules } from '../src/starship/frame';
 import { act, idleCrewIntent, idleOfficerIntent, stillCrew, type CrewIntent, type OfficerIntent } from '../src/starship/intent';
 import { EXTINGUISHER, PHASER, SPANNER } from '../src/starship/kit';
 import { OfficerRole } from '../src/starship/officer';
 import { BRIEFING_SECONDS, MAX_IMPULSE, OVER_SECONDS, POWER_POOL, ShipKeeper, efficiency, health, pips, transporterBlocked } from '../src/starship/ship';
+import { engineeringScope, helmScope, scienceScope, scopeFor, tacticalScope } from '../src/starship/scopes';
 import { RELIC_COUNT, Sector, allRelics } from '../src/starship/sector';
 import { Sim } from './harness';
 
@@ -577,5 +579,194 @@ describe('A voyage', () => {
     const me = c.ctx.me as CrewEntity;
     expect(Math.hypot(me.state.x - SPAWN.x, me.state.y - SPAWN.y)).toBeLessThan(2);
     expect([...run0.world.all(Fault)] as FaultEntity[]).toHaveLength(0);
+  });
+});
+
+describe('A console in a headset', () => {
+  /** A canvas that swallows everything drawn on it: the scopes work out where things are as they draw. */
+  const paper = () => stub() as unknown as CanvasRenderingContext2D;
+  const keyed = (rows: ReturnType<typeof stationControls>['rows'], label: string): Key => {
+    const cell = rows.flat().find((c) => c.kind === 'key' && c.label().startsWith(label));
+    expect(cell, `no key labelled ${label}`).toBeTruthy();
+    return cell as Key;
+  };
+
+  it("lays every station's keys out on the desk, clear of each other and of the key that leaves it", () => {
+    const { net, o, peers } = underway();
+    run(net, peers, 200);
+    for (const station of STATIONS) {
+      const boxes = deskLayout(stationControls(o.ctx, station, scopeFor(o.ctx, station)));
+      expect(boxes.length).toBeGreaterThan(2);
+      for (const { box } of boxes) {
+        expect(box.x).toBeGreaterThanOrEqual(8);
+        expect(box.x + box.w).toBeLessThanOrEqual(DESK.w - 8);
+        expect(box.y).toBeGreaterThan(LEAVE_BOX.y + LEAVE_BOX.h);
+        expect(box.y + box.h).toBeLessThanOrEqual(DESK.h - 30);
+        expect(box.w).toBeGreaterThan(20);
+        expect(box.h).toBeGreaterThan(20);
+      }
+      // nothing overlaps, so a fingertip means one key
+      for (const a of boxes)
+        for (const b of boxes) {
+          if (a === b) continue;
+          const over = a.box.x < b.box.x + b.box.w && b.box.x < a.box.x + a.box.w && a.box.y < b.box.y + b.box.h && b.box.y < a.box.y + a.box.h;
+          expect(over, `${(a.cell as Key).label?.() ?? 'slider'} overlaps ${(b.cell as Key).label?.() ?? 'slider'}`).toBe(false);
+        }
+      // and every key's middle finds itself again
+      for (const { box, cell } of boxes) expect(boxes.find((b) => within(b.box, { x: box.x + box.w / 2, y: box.y + box.h / 2 }))!.cell).toBe(cell);
+    }
+  });
+
+  it("targets the raider a fingertip lands on in tactical's radar, and nothing in empty space", () => {
+    const { net, o, peers } = underway();
+    const run0 = owner(peers);
+    const ship = shipOf(run0);
+    Object.assign(ship.state, { x: 2000, y: 2000, heading: 0, course: 0, speed: 0 });
+    run(net, peers, 300);
+    const r = run0.world.spawn(Raider, { x: 2400, y: 2000, heading: Math.PI, kind: RaiderKind.Fighter, hp: 60, shields: 30, voyage: ship.state.voyage, cooldown: 99 }) as RaiderEntity;
+    run(net, peers, 300);
+    const scope = tacticalScope(o.ctx);
+    const { w, h } = SCOPE_BOX;
+    scope.draw(paper(), w, h);
+    // the radar is heading up, so a raider dead ahead is straight above the ship in the middle
+    const scale = (Math.min(w, h) / 2 - 10) / 1600;
+    const hit = scope.tap(w / 2, h / 2 - 400 * scale);
+    expect(hit).toEqual(act(Act.Target, 0, 0, r.id));
+    // the far corner of the radar is thousands of units from it, well past the reach of a fingertip
+    expect(scope.tap(10, h - 20)).toBe(null);
+  });
+
+  it("sets the waypoint where a fingertip lands on helm's map", () => {
+    const { net, o, peers } = underway();
+    const ship = shipOf(owner(peers));
+    Object.assign(ship.state, { x: 2000, y: 2000, throttle: 0, speed: 0 });
+    run(net, peers, 300);
+    const scope = helmScope(o.ctx, { course: () => null });
+    const { w, h } = SCOPE_BOX;
+    scope.draw(paper(), w, h);
+    const span = 3200;
+    const here = o.ctx.ship()!.render;
+    const order = scope.tap(w / 2 + Math.min(w, h) * 0.25, h / 2)!;
+    expect(order.act).toBe(Act.Waypoint);
+    expect(order.a).toBeCloseTo(here.x + span * 0.25, 0);
+    expect(order.b).toBeCloseTo(here.y, 0);
+  });
+
+  it("sends the damage control team to whichever room a fingertip lands on in engineering's deck plan", () => {
+    const { net, o, peers } = underway();
+    run(net, peers, 200);
+    const scope = engineeringScope(o.ctx);
+    const { w, h } = SCOPE_BOX;
+    scope.draw(paper(), w, h);
+    const found = new Set<number>();
+    for (let x = 0; x < w; x += 3)
+      for (let y = 0; y < h; y += 3) {
+        const order = scope.tap(x, y);
+        if (order) {
+          expect(order.act).toBe(Act.DamageControl);
+          found.add(order.a);
+        }
+      }
+    for (const sys of SYSTEMS) expect(found.has(sys), `${sys} unreachable`).toBe(true);
+    expect(scope.tap(0, 0)).toBe(null);
+  });
+
+  it("runs helm's throttle from full astern to full ahead, holding what it was let go at", () => {
+    const { net, o, peers } = underway();
+    run(net, peers, 200);
+    const rows = stationControls(o.ctx, Station.Helm, helmScope(o.ctx, { course: () => null })).rows;
+    const throttle = rows.flat().find((c) => c.kind === 'slider') as Slider;
+    expect(throttle.set(0)).toEqual(act(Act.Throttle, -0.25));
+    expect(throttle.set(1)).toEqual(act(Act.Throttle, 1));
+    expect(throttle.set(0.2)!.a).toBe(0);
+    expect(throttle.set(0.8)!.a).toBeCloseTo(0.75, 2);
+    expect(throttle.at()).toBeCloseTo(0.8, 2);
+    expect(throttle.release()).toEqual(act(Act.Throttle, 0.75));
+    expect(throttle.release()).toBe(null);
+  });
+
+  it('steers while port or starboard is held, and gives the map the course it is turning to', () => {
+    const { net, o, peers } = underway();
+    const ship = shipOf(owner(peers));
+    Object.assign(ship.state, { x: 2000, y: 2000, heading: 0, course: 0 });
+    run(net, peers, 300);
+    const steer = { course: null as number | null };
+    const scope = helmScope(o.ctx, { course: () => steer.course });
+    const port = keyed(stationControls(o.ctx, Station.Helm, scope, steer).rows, '◀ PORT');
+    let last: ReturnType<typeof act> | null = null;
+    for (let i = 0; i < 12; i++) last = (port.press(1 / 60) as ReturnType<typeof act> | null) ?? last;
+    expect(steer.course).toBeLessThan(0);
+    expect(last!.act).toBe(Act.Course);
+    expect(last!.a).toBeCloseTo(steer.course!, 3);
+    const held = steer.course!;
+    expect(port.release!()).toEqual(act(Act.Course, held));
+    expect(steer.course).toBe(null);
+  });
+
+  it("greys tactical's keys out when there's nothing to shoot at, and lights them at a target", () => {
+    const { net, o, peers } = underway();
+    const run0 = owner(peers);
+    const ship = shipOf(run0);
+    Object.assign(ship.state, { x: 2000, y: 2000, heading: 0, course: 0, speed: 0, phaser: 1, tubes: 0 });
+    run(net, peers, 300);
+    const rows = stationControls(o.ctx, Station.Tactical, tacticalScope(o.ctx)).rows;
+    const phasers = rows.flat().find((c) => c.kind === 'key' && c.color === '#ff9a4a') as Key;
+    expect(phasers.off!()).toBe(true);
+    expect(phasers.label()).toBe('NO TARGET');
+    const r = run0.world.spawn(Raider, { x: 2300, y: 2000, heading: Math.PI, kind: RaiderKind.Fighter, hp: 60, shields: 30, voyage: ship.state.voyage, cooldown: 99 }) as RaiderEntity;
+    run(net, peers, 300);
+    const next = keyed(rows, 'NEXT TARGET');
+    orderFrom(net, peers, o, next.press(1 / 60) as ReturnType<typeof act>);
+    expect(ship.render.target).toBe(r.id);
+    run(net, peers, 300);
+    expect(phasers.off!()).toBe(false);
+    expect(phasers.label()).toContain('PHASERS');
+    expect(keyed(rows, 'FIRE TORPEDO').off!()).toBe(true);
+  });
+
+  it("spends engineering's power pips, and greys out what the pool can't afford", () => {
+    const { net, o, peers } = underway();
+    const run0 = owner(peers);
+    const ship = shipOf(run0);
+    run(net, peers, 200);
+    const rows = stationControls(o.ctx, Station.Engineering, engineeringScope(o.ctx)).rows;
+    const row = rows[SYSTEMS.indexOf(ShipSystem.Shields)];
+    const pip = (n: number) => row.find((c) => c.kind === 'key' && c.label() === String(n)) as Key;
+    // every system starts with a share of the pool, so free a pip before asking for one
+    Object.assign(ship.state, { pWep: 0 });
+    run(net, peers, 300);
+    const want = pips(ship.render, ShipSystem.Shields) + 1;
+    orderFrom(net, peers, o, pip(want).press(1 / 60) as ReturnType<typeof act>);
+    expect(pips(shipOf(o).render, ShipSystem.Shields)).toBe(want);
+    // with the whole pool in one system, the keys past what's spare go dead
+    Object.assign(ship.state, { pEng: 0, pWep: 0, pSen: 0, pShd: POWER_POOL });
+    run(net, peers, 300);
+    expect((row.find((c) => c.kind === 'key' && c.label() === 'TEAM') as Key).on!()).toBe(shipOf(o).render.team === ShipSystem.Shields);
+    const engines = rows[SYSTEMS.indexOf(ShipSystem.Engines)];
+    expect((engines.find((c) => c.kind === 'key' && c.label() === '1') as Key).off!()).toBe(true);
+  });
+
+  it("keeps science's transporter keys dead until the ship is in orbit with its shields down", () => {
+    const { net, o, peers } = underway();
+    const ship = shipOf(owner(peers));
+    run(net, peers, 200);
+    const rows = stationControls(o.ctx, Station.Science, scienceScope(o.ctx)).rows;
+    expect(transporterBlocked(ship.render)).not.toBe('');
+    for (const label of ['BEAM DOWN', 'BEAM UP', 'BEAM RELIC']) expect(keyed(rows, label).off!(), label).toBe(true);
+    expect(keyed(rows, 'ABORT').off!()).toBe(true);
+  });
+
+  it('gives its orders to the ship, the same as a phone would', () => {
+    const net = new Sim();
+    const o = peer(net, 'a', 'officer');
+    const peers = [o];
+    run(net, peers, 7000);
+    const ship = shipOf(owner(peers));
+    expect(ship.render.phase).toBe(Phase.Briefing);
+    const rows = stationControls(o.ctx, Station.Helm, helmScope(o.ctx, { course: () => null })).rows;
+    const cast = keyed(rows, 'CAST OFF');
+    expect(cast.on!()).toBe(true);
+    orderFrom(net, peers, o, cast.press(1 / 60) as ReturnType<typeof act>);
+    expect(shipOf(o).render.phase).toBe(Phase.Underway);
   });
 });
