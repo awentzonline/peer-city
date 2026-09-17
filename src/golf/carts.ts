@@ -17,7 +17,7 @@ import { Cart, Golfer, Knock, Noise, Whack } from './defs';
 /** A cart's size, m: half-lengths of its box. */
 export const CART = { halfLength: 1.2, halfWidth: 0.62, wheelRadius: 0.23 };
 /** The most carts on the course at once. */
-export const MAX_CARTS = 6;
+export const MAX_CARTS = 8;
 /** Where the driver sits, in cart space: on the left as you face forward (the world's -y side of a cart facing +x). */
 export const DRIVER_SEAT: Vec3 = { x: -0.25, y: -0.3, z: 0.28 };
 /** How near (m, from its middle) a golfer must be to get in. */
@@ -444,7 +444,7 @@ export function keepCarts(net: NetWorld, carts: CartWorld, runsMatch: boolean): 
   }
   if (!runsMatch) return;
   const golfers = net.all(Golfer).size;
-  const want = clamp(Math.ceil(golfers / 2), 1, MAX_CARTS);
+  const want = clamp(Math.ceil(golfers), 1, MAX_CARTS);
   for (let slot = 0; slot < want; slot++) {
     if (bySlot.has(slot)) continue;
     const bay = carts.course.barn.bays[slot];
