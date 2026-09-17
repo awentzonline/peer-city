@@ -18,10 +18,11 @@ export type Use = ToolUse<Golfer>;
 export const METER_RISE = 1.8;
 export const METER_FALL = 1.2;
 
-/** The swing meter's power `t` seconds after the club started back. */
+/** The swing meter's power `t` seconds after the club started back — rises to full, falls back, and repeats. */
 export function meter(t: number): number {
-  if (t <= METER_RISE) return t / METER_RISE;
-  return Math.max(0, 1 - (t - METER_RISE) / METER_FALL);
+  const cycle = t % (METER_RISE + METER_FALL);
+  if (cycle <= METER_RISE) return cycle / METER_RISE;
+  return Math.max(0, 1 - (cycle - METER_RISE) / METER_FALL);
 }
 
 interface Swing {
