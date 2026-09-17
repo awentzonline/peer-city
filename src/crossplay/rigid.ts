@@ -54,6 +54,11 @@ export function rotate(q: Quat, v: Vec3, out: Vec3 = { x: 0, y: 0, z: 0 }): Vec3
   return out;
 }
 
+/** `v` turned by the inverse of `q`: a world vector in a body's own axes. */
+export function unrotate(q: Quat, v: Vec3, out: Vec3 = { x: 0, y: 0, z: 0 }): Vec3 {
+  return rotate({ x: -q.x, y: -q.y, z: -q.z, w: q.w }, v, out);
+}
+
 export function yawQuat(heading: number): Quat {
   return { x: 0, y: 0, z: Math.sin(heading / 2), w: Math.cos(heading / 2) };
 }

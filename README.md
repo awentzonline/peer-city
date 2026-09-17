@@ -545,7 +545,8 @@ results show and a new round starts. Water and out of bounds cost a stroke and y
 **Battle.** Swing your club at someone (or run them over, or hit them with a fast ball) and they're knocked flat for a
 couple of seconds, out of any cart, and can't be knocked down again straight after getting up. Carts wait at the barn by
 the clubhouse, one for every golfer (eight at most); whoever gets in first has it until they get out, and carts
-crash hard enough to throw you out.
+crash hard enough to throw you out. Ram someone's cart and it goes where you shoved it — a parked one rolls free of its
+brake for a few seconds rather than standing there like a post.
 
 | | Desktop | VR | Touch |
 | --- | --- | --- | --- |
@@ -565,6 +566,15 @@ How it uses the engine, and what it found:
 - **One migratable `Match`** says which hole is on and when it's over. Each golfer tees up, scores and picks up their own
   ball from what they see of it, so there's no "next hole" message to lose.
 - **Knocks go to the victim's owner** as a `Knock` command, the only peer that writes that golfer.
+- **A crash has to be told to the cart it happened to.** Every peer runs its own carts as dynamic bodies and everyone
+  else's as kinematic stand-ins, which is enough for the cart doing the ramming: it hits something solid and bounces off.
+  It isn't enough for the cart that got hit. A stand-in has no mass to give way, so the crash is resolved on the
+  rammer's peer first, and the pose it then reports is one that has already come to a stop — by the time the hit reaches
+  the other peer there's nothing left of it to feel. So the rammer, the only peer that knows how fast they were closing
+  (measured before its own solver ate it), sends a `Shove` command to the other cart's owner: a velocity change at the
+  point on the cart that was struck, which its owner applies to the one body that's really its cart. The same test
+  that makes a hard contact a ram rather than two carts resting against each other — still closing, at the speeds they
+  had going in — is what takes a parked cart's brake off.
 - **One tool, three ways to swing it.** A crosshair's club runs a swing meter in the rules; a touch frontend measures the
   pull itself and passes the power in the intent (`GolfIntent.power`); a tracked club hits the ball at the speed and in the
   direction the head is really moving.
@@ -573,7 +583,8 @@ How it uses the engine, and what it found:
 
 Source: `src/golf/`. Tests: `tests/golf.test.ts` checks the seeded course, ball flight, putting and lipping out, water
 penalties and scoring, plays a hole with two bot golfers to the next tee, swings a tracked club through a ball, knocks a
-golfer flat, and passes a cart from one golfer to another.
+golfer flat, passes a cart from one golfer to another, and rams one cart into another to check the cart that was hit
+is shoved on its own peer even with its brake on.
 
 ---
 

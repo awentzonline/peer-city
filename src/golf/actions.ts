@@ -1,11 +1,11 @@
 import type { GolfContext } from './context';
-import { Cart, Feed, Golfer, Knock, Noise, Whack } from './defs';
+import { Cart, Feed, Golfer, Knock, Noise, Shove, Whack } from './defs';
 import type { Golfer as GolferRole } from './golfer';
 import { driverOf } from './golfer';
 
 /**
- * Wires Peer Golf's actions. A knock is carried out by the golfer's owner, the only peer that writes them; noises are
- * shown and heard by whoever's near. A cart is only handed to someone who asks while nobody's driving it.
+ * Wires Peer Golf's actions. A knock is carried out by the golfer's owner, and a shove by the rammed cart's owner,
+ * the only peers that write them; noises are shown and heard by whoever's near. A cart is only handed to someone who asks while nobody's driving it.
  */
 export function registerActions(ctx: GolfContext, golfer: GolferRole): void {
   const { world } = ctx;
@@ -15,6 +15,10 @@ export function registerActions(ctx: GolfContext, golfer: GolferRole): void {
   world.onCommand(Knock, Golfer, (target, p) => {
     if (target !== ctx.me) return;
     golfer.knocked(world.getAs(Golfer, p.by) ?? null, p.kx, p.ky, p.cause);
+  });
+
+  world.onCommand(Shove, Cart, (cart, p) => {
+    ctx.carts.shove(cart, { x: p.vx, y: p.vy, z: p.vz }, { x: p.x, y: p.y, z: p.z });
   });
 
   world.onAction(Noise, (p) => {

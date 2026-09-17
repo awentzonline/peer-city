@@ -1,9 +1,9 @@
 import type { NetWorld } from '@engine/index';
 import { clamp, type Vec3 } from '../crossplay/math';
-import { FixedStep, GRAVITY, RAPIER, collisionGroups as groups, headingOf, quatOf, rotate, uprightness, writeQuat, yawQuat, type Quat } from '../crossplay/rigid';
+import { FixedStep, GRAVITY, RAPIER, collisionGroups as groups, headingOf, quatOf, rotate, unrotate, uprightness, writeQuat, yawQuat, type Quat } from '../crossplay/rigid';
 import type { CartEntity, GolferEntity } from './context';
 import { GRID, N, type Course } from './course';
-import { Cart, Golfer, Knock, Noise, Whack } from './defs';
+import { Cart, Golfer, Knock, Noise, Shove, Whack } from './defs';
 
 /**
  * Golf carts, in a Rapier world over the course. Every peer runs its own: the carts it owns are dynamic bodies on
@@ -37,6 +37,22 @@ export const CRASH_FORCE = 9000;
 export const EJECT_FORCE = 32000;
 /** Faster than this, a cart knocks over whoever it hits. */
 const RAM_SPEED = 3;
+/**
+ * A contact this hard (N) between two carts is a ram rather than a nudge: worth taking a parked cart's brake off
+ * for, and worth telling the other cart's owner about. Well under `CRASH_FORCE`, which is the same contact being
+ * hard enough to hurt.
+ */
+const BUMP_FORCE = 1200;
+/** How much of its closing speed (m/s) a ram gives the cart it hits: two equal carts, a bit of bounce. */
+const SHOVE_SHARE = 0.65;
+/** Closing slower than this isn't a ram, just two carts leaning on each other. */
+const SHOVE_SPEED = 1;
+/** The most speed (m/s) one shove can hand over, so a bad extrapolation can't launch anyone. */
+const MAX_SHOVE = 12;
+/** Seconds between shoves sent about the same pair of carts, so a scraping contact isn't a hundred messages. */
+const SHOVE_GAP = 150;
+/** Seconds a parked cart rolls free after it's been rammed: without this the brake holds it like a post. */
+const COAST_SECONDS = 3;
 /** Seconds a cart can be on its side before it's put back on its wheels (or, parked, back at the barn). */
 const FLIPPED_SECONDS = 2.5;
 
@@ -58,9 +74,20 @@ export interface Crash {
   z: number;
 }
 
+/** A ram to pass on to the owner of the cart that was hit. */
+interface PendingShove {
+  by: CartEntity;
+  /** The velocity change (m/s) it earned, and where on the cart it landed, in the world. */
+  v: Vec3;
+  at: Vec3;
+}
+
 const tmpA: Vec3 = { x: 0, y: 0, z: 0 };
 const tmpB: Vec3 = { x: 0, y: 0, z: 0 };
+const tmpC: Vec3 = { x: 0, y: 0, z: 0 };
+const tmpD: Vec3 = { x: 0, y: 0, z: 0 };
 const q: Quat = { x: 0, y: 0, z: 0, w: 1 };
+const qv: Quat = { x: 0, y: 0, z: 0, w: 1 };
 
 /** One cart in the physics world: dynamic while this peer owns it, a kinematic stand-in otherwise. */
 class CartBody {
@@ -71,9 +98,14 @@ class CartBody {
   controls: CartControls = PARKED;
   /** Seconds on its side, or under water. */
   stuck = 0;
+  /** Seconds left rolling free after a ram, brake off however it's parked. */
+  coast = 0;
+  /** Its velocity before this step's solver touched it: what it was closing on someone else at. */
+  readonly preVel: Vec3 = { x: 0, y: 0, z: 0 };
 
   constructor(
     private readonly carts: CartWorld,
+    readonly cart: CartEntity,
     x: number,
     y: number,
     z: number,
@@ -92,7 +124,8 @@ class CartBody {
     const body = (this.body = world.createRigidBody(desc));
     const g = groups(CARTS, WORLD | CARTS);
     const chassis = RAPIER.ColliderDesc.cuboid(CART.halfLength, CART.halfWidth, 0.2).setTranslation(0, 0, 0.05).setMass(MASS).setFriction(0.4).setRestitution(0.25).setCollisionGroups(g);
-    if (dynamic) chassis.setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(CRASH_FORCE);
+    // reported from a nudge upward, not just from a crash: a ram worth passing on is far softer than one that hurts
+    if (dynamic) chassis.setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(BUMP_FORCE);
     const roof = RAPIER.ColliderDesc.cuboid(0.95, 0.58, 0.04).setTranslation(-0.1, 0, 1.55).setMass(8).setFriction(0.3).setCollisionGroups(g);
     for (const c of [chassis, roof]) this.handles.add(world.createCollider(c, body).handle);
 
@@ -124,14 +157,32 @@ class CartBody {
     return v.x * f.x + v.y * f.y + v.z * f.z;
   }
 
-  /** Before a physics step: the driver's pedals and wheel. */
+  /**
+   * How fast a cart is going, in the world: measured for the ones this peer runs, and for everyone else's taken
+   * from the speed along the nose its owner reported, which no local collision has eaten into.
+   */
+  velocity(out: Vec3): Vec3 {
+    if (this.dynamic) {
+      const v = this.body.linvel();
+      out.x = v.x;
+      out.y = v.y;
+      out.z = v.z;
+      return out;
+    }
+    const s = this.cart.render;
+    return rotate(quatOf(s, qv), { x: s.speed, y: 0, z: 0 }, out);
+  }
+
+  /** Before a physics step: the driver's pedals and wheel, and the speed it came in at. */
   beforeStep(step: number): void {
     const { vehicle, controls } = this;
     if (!vehicle) return;
+    this.velocity(this.preVel);
+    this.coast = Math.max(0, this.coast - step);
     const speed = this.forwardSpeed();
     let engine = 0;
     let brake = 0;
-    if (controls.brake) brake = BRAKE;
+    if (controls.brake && this.coast <= 0) brake = BRAKE;
     else if (controls.throttle > 0.05) {
       if (speed < -0.6) brake = BRAKE;
       else if (speed < TOP_SPEED) engine = controls.throttle * ENGINE_FORCE;
@@ -175,8 +226,12 @@ export class CartWorld {
   private readonly bodies = new Map<CartEntity, CartBody>();
   private readonly byHandle = new Map<number, CartBody>();
   private readonly strongest = new Map<CartBody, number>();
+  /** The hardest ram this frame on each of everyone else's carts, to pass on to its owner once. */
+  private readonly shoves = new Map<CartEntity, PendingShove>();
   /** Who each cart last ran over, and when, so one bump isn't a dozen knocks. */
   private readonly rammed = new Map<string, number>();
+  /** When each pair of carts last had a shove sent about it. */
+  private readonly shoved = new Map<string, number>();
 
   constructor(
     readonly net: NetWorld,
@@ -227,7 +282,7 @@ export class CartWorld {
       let b = this.bodies.get(cart);
       const s = cart.mine ? cart.state : cart.render;
       if (!b) {
-        b = new CartBody(this, s.x, s.y, s.z, quatOf(s, { x: 0, y: 0, z: 0, w: 1 }));
+        b = new CartBody(this, cart, s.x, s.y, s.z, quatOf(s, { x: 0, y: 0, z: 0, w: 1 }));
         this.bodies.set(cart, b);
       }
       if (cart.mine !== b.dynamic) {
@@ -259,6 +314,7 @@ export class CartWorld {
   /** Run the carts forward. Returns the crashes this peer's carts had. */
   step(dt: number): Crash[] {
     this.strongest.clear();
+    this.shoves.clear();
     this.clock.run(dt, (step) => {
       for (const b of this.bodies.values()) if (b.dynamic) b.beforeStep(step);
       this.world.step(this.events);
@@ -270,6 +326,8 @@ export class CartWorld {
         if (ground) return;
         const force = e.totalForceMagnitude();
         for (const body of [a, b]) if (body?.dynamic) this.strongest.set(body, Math.max(this.strongest.get(body) ?? 0, force));
+        // cart into cart, hard and still closing: a ram rather than two carts resting against each other
+        if (a && b && force >= BUMP_FORCE) this.bump(a, b);
       });
     });
     const crashes: Crash[] = [];
@@ -285,6 +343,66 @@ export class CartWorld {
   /** Whether a collider is the ground itself (not a tree or the clubhouse). */
   private isGround(handle: number): boolean {
     return this.world.getCollider(handle)?.shape.type === RAPIER.ShapeType.TriMesh;
+  }
+
+  /**
+   * Two carts in a hard contact. Carts sitting side by side in the barn press on each other just as hard as a ram
+   * does, so what makes it a ram is that they were still closing on each other when the solver got to it, at the
+   * speeds they had going in. A ram takes the brakes off both of them for a moment, and, when one of them is only
+   * a stand-in for someone else's cart, is passed on to its owner — a stand-in has no mass to give way, so the
+   * crash happens here first and the cart it happened to would otherwise feel almost nothing of it.
+   */
+  private bump(a: CartBody, b: CartBody): void {
+    const from = a.body.translation();
+    const to = b.body.translation();
+    // flattened onto the ground: ramming shoves a cart along, it doesn't launch it
+    let nx = to.x - from.x;
+    let ny = to.y - from.y;
+    const len = Math.hypot(nx, ny);
+    if (len < 1e-3) return;
+    nx /= len;
+    ny /= len;
+    const va = a.dynamic ? a.preVel : a.velocity(tmpC);
+    const vb = b.dynamic ? b.preVel : b.velocity(tmpD);
+    const closing = (va.x - vb.x) * nx + (va.y - vb.y) * ny;
+    if (closing < SHOVE_SPEED) return;
+    for (const body of [a, b]) if (body.dynamic) body.coast = COAST_SECONDS;
+    if (a.dynamic === b.dynamic) return; // both ours, or both someone else's: nobody to tell
+    const mine = a.dynamic ? a : b;
+    const theirs = a.dynamic ? b : a;
+    const sign = a.dynamic ? 1 : -1; // toward the cart that was hit
+    const share = Math.min(closing * SHOVE_SHARE, MAX_SHOVE);
+    const had = this.shoves.get(theirs.cart);
+    if (had && Math.hypot(had.v.x, had.v.y) >= share) return;
+    const at = contactPoint(theirs, mine.body.translation(), tmpD);
+    this.shoves.set(theirs.cart, { by: mine.cart, v: { x: nx * sign * share, y: ny * sign * share, z: 0 }, at: { x: at.x, y: at.y, z: at.z } });
+  }
+
+  /** Pass this frame's rams on to the owners of the carts that took them, at most one per pair of carts. */
+  private flushShoves(now: number): void {
+    for (const [cart, s] of this.shoves) {
+      const key = `${s.by.id}:${cart.id}`;
+      if ((this.shoved.get(key) ?? 0) > now) continue;
+      this.shoved.set(key, now + SHOVE_GAP);
+      this.net.command(Shove, { target: cart.id, by: s.by.id, vx: s.v.x, vy: s.v.y, vz: s.v.z, x: s.at.x, y: s.at.y, z: s.at.z });
+    }
+    this.shoves.clear();
+    if (this.shoved.size > 200) for (const [k, until] of this.shoved) if (until < now) this.shoved.delete(k);
+  }
+
+  /**
+   * A ram from someone else's cart, as the peer driving it saw the hit: lurch and spin away from where it landed,
+   * and roll free for a moment even if the brake was on, so a parked cart can be knocked somewhere.
+   */
+  shove(cart: CartEntity, v: Vec3, at: Vec3): void {
+    const b = this.bodies.get(cart);
+    if (!b?.dynamic) return;
+    const share = Math.min(Math.hypot(v.x, v.y, v.z), MAX_SHOVE);
+    if (share < 0.2) return;
+    b.coast = COAST_SECONDS;
+    const mass = b.body.mass() || MASS;
+    const k = (share * mass) / (Math.hypot(v.x, v.y, v.z) || 1);
+    b.body.applyImpulseAtPoint({ x: v.x * k, y: v.y * k, z: v.z * k }, at, true);
   }
 
   /**
@@ -317,6 +435,7 @@ export class CartWorld {
       }
       if (s.driver && Math.abs(s.speed) > RAM_SPEED) this.ram(cart, now);
     }
+    this.flushShoves(now);
   }
 
   /** Whether a cart is under water, for its driver to climb out. */
@@ -386,6 +505,21 @@ export class CartWorld {
     this.events.free();
     this.world.free();
   }
+}
+
+/** The point on a cart's body nearest `p`, in the world: where a cart that ran into it hit it. */
+function contactPoint(b: CartBody, p: { x: number; y: number; z: number }, out: Vec3): Vec3 {
+  const t = b.body.translation();
+  const rot = b.body.rotation();
+  const local = unrotate(rot, { x: p.x - t.x, y: p.y - t.y, z: p.z - t.z }, out);
+  local.x = clamp(local.x, -CART.halfLength, CART.halfLength);
+  local.y = clamp(local.y, -CART.halfWidth, CART.halfWidth);
+  local.z = clamp(local.z, -0.15, 0.25);
+  rotate(rot, local, out);
+  out.x += t.x;
+  out.y += t.y;
+  out.z += t.z;
+  return out;
 }
 
 /** Where a cart's driver sits, in the world, from its rendered pose. */

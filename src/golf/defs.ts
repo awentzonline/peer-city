@@ -7,7 +7,8 @@ import { HOLES } from './course';
  *
  * Each player is a `Golfer` who owns one `Ball`. Everyone plays the same hole at once: one migratable `Match` says
  * which, and when it's over. A few migratable `Cart`s are shared by everyone: whoever's driving one owns it.
- * Clubbing someone, or running them over, sends a `Knock` to their owner, the only peer that writes them.
+ * Clubbing someone, or running them over, sends a `Knock` to their owner, the only peer that writes them;
+ * ramming their cart sends a `Shove` to its owner the same way.
  */
 
 export const Golfer = defineEntity({
@@ -125,6 +126,26 @@ export const Knock = defineCommand('knock', {
   cause: t.uint(8),
 });
 
+/**
+ * Carried out by the rammed cart's owner: another cart ran into it, as the peer driving that one saw the hit.
+ * Only the rammer knows how fast it was closing — the stand-in it runs into is stopped by the crash on its own
+ * peer first, so by the time the hit reaches the rammed cart's peer there's barely anything left of it. This
+ * carries the hit across: a velocity change (m/s) at the point on the cart that was struck, so it lurches and
+ * spins, and takes its brake off if it was parked.
+ */
+export const Shove = defineCommand('shove', {
+  target: t.ref(),
+  /** The cart that did the ramming. */
+  by: t.ref(),
+  vx: t.fixed(0.02),
+  vy: t.fixed(0.02),
+  vz: t.fixed(0.02),
+  /** Where it was hit, in the world. */
+  x: t.fixed(0.05),
+  y: t.fixed(0.05),
+  z: t.fixed(0.05),
+});
+
 export const enum Whack {
   /** A club through the air. */
   Swish = 0,
@@ -148,4 +169,4 @@ export const Noise = defineAction('noise', {
 export const Feed = defineAction('feed', { text: t.string(80) });
 
 export const ENTITIES = [Golfer, Ball, Cart, Match];
-export const ACTIONS = [Knock, Noise, Feed];
+export const ACTIONS = [Knock, Shove, Noise, Feed];

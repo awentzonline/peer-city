@@ -5,7 +5,7 @@ import { Platform } from '../src/crossplay/platform';
 import { initPhysics } from '../src/crossplay/rigid';
 import { registerActions } from '../src/golf/actions';
 import { Club, Flight, ballAt, carry, stepBall, strike } from '../src/golf/ball';
-import { CartWorld, seatOf } from '../src/golf/carts';
+import { CartWorld, cartHeading, seatOf } from '../src/golf/carts';
 import type { GolfContext } from '../src/golf/context';
 import { Course, HOLES, Lie } from '../src/golf/course';
 import { ACTIONS, BallMode, Cart, ENTITIES, Match } from '../src/golf/defs';
@@ -395,5 +395,59 @@ describe('Battle', () => {
     });
     expect(b.golfer.seated).toBe(true);
     expect(b.world.getAs(Cart, cart.id)!.mine).toBe(true);
+  }, 60_000);
+
+  it('rams carts: the cart that gets hit is shoved on its own peer, brake or no brake', () => {
+    const net = new Sim({ latencyMs: 20, connectDelayMs: 50 });
+    const a = player(net, 'a', 'Ada');
+    const b = player(net, 'b', 'Bob');
+    run(net, [a, b], 6000);
+    const carts = [...a.world.all(Cart)].sort((p, q) => p.state.slot - q.state.slot);
+    expect(carts.length).toBe(2);
+
+    // each of them gets into one, so each owns the cart they're in
+    const getIn = (p: Player, id: number) =>
+      run(net, [a, b], 10_000, () => {
+        clear(p.intent);
+        const cart = p.world.getAs(Cart, id);
+        if (!cart || p.golfer.seated) return;
+        const seat = seatOf(cart, { x: 0, y: 0, z: 0 });
+        if (walkTo(p, seat.x, seat.y) < 1.5) p.intent.interact = true;
+      });
+    getIn(a, carts[0].id);
+    getIn(b, carts[1].id);
+    clear(a.intent);
+    clear(b.intent);
+    expect(a.golfer.seated).toBe(true);
+    expect(b.golfer.seated).toBe(true);
+
+    // park Bob's cart right in front of Ada's, pointing the same way
+    const ram = a.world.getAs(Cart, carts[0].id)!;
+    const hit = b.world.getAs(Cart, carts[1].id)!;
+    const heading = cartHeading(ram, true);
+    const tx = ram.state.x + Math.cos(heading) * 9;
+    const ty = ram.state.y + Math.sin(heading) * 9;
+    b.ctx.carts.place(hit, tx, ty, b.ctx.course.heightAt(tx, ty) + 0.6, heading);
+    run(net, [a, b], 500, () => {
+      clear(b.intent);
+      b.intent.brake = true;
+    });
+    const before = { x: hit.state.x, y: hit.state.y };
+
+    // Ada floors it while Bob stands on the brake
+    run(net, [a, b], 3500, () => {
+      clear(a.intent);
+      clear(b.intent);
+      a.intent.throttle = 1;
+      b.intent.brake = true;
+    });
+
+    // Bob's own copy of his cart — the only one that writes it — has been pushed along
+    expect(hit.mine).toBe(true);
+    const moved = Math.hypot(hit.state.x - before.x, hit.state.y - before.y);
+    expect(moved).toBeGreaterThan(1.5);
+    // and pushed roughly the way it was rammed, not sideways or backward
+    const along = (hit.state.x - before.x) * Math.cos(heading) + (hit.state.y - before.y) * Math.sin(heading);
+    expect(along).toBeGreaterThan(moved * 0.6);
   }, 60_000);
 });
