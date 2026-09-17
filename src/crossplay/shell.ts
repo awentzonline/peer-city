@@ -95,6 +95,15 @@ export class Shell {
     this.debug = new NetDebugPanel(world, document.body, launch.netLabel);
     this.debug.visible = launch.params.has('debug');
     this.stage.input.onLockChange = () => this.showLock();
+    // A phone has no console to look in: say what broke, once per message, so a frozen screen can be traced.
+    const seen = new Set<string>();
+    const report = (text: string): void => {
+      if (seen.has(text)) return;
+      seen.add(text);
+      opts.announce(`⚠ Error: ${text}`);
+    };
+    window.addEventListener('error', (e) => report(`${e.message} (${e.filename?.split('/').pop()}:${e.lineno})`));
+    window.addEventListener('unhandledrejection', (e) => report(errorText(e.reason)));
   }
 
   get input(): DesktopInput {
