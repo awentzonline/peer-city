@@ -122,7 +122,7 @@ export const Knock = defineCommand('knock', {
   by: t.ref(),
   kx: t.fixed(0.05),
   ky: t.fixed(0.05),
-  /** 0 a club, 1 a cart, 2 a ball. */
+  /** 0 a club, 1 a cart, 2 a ball, 3 riding in a cart that was rammed. */
   cause: t.uint(8),
 });
 

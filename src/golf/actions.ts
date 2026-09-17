@@ -19,6 +19,10 @@ export function registerActions(ctx: GolfContext, golfer: GolferRole): void {
 
   world.onCommand(Shove, Cart, (cart, p) => {
     ctx.carts.shove(cart, { x: p.vx, y: p.vy, z: p.vz }, { x: p.x, y: p.y, z: p.z });
+    if (cart.state.driver && cart.state.driver === ctx.me?.id) {
+      const rammer = world.getAs(Cart, p.by);
+      golfer.knocked(rammer ? driverOf(ctx, rammer) : null, p.vx, p.vy, 3);
+    }
   });
 
   world.onAction(Noise, (p) => {

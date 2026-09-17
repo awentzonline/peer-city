@@ -610,14 +610,14 @@ export class Golfer extends Avatar<GolfIntent, GolferBody, ClubTool> implements 
     }
   }
 
-  /** Someone clubbed you, ran you over or hit you with a ball. */
+  /** Someone clubbed you, ran you over, hit you with a ball, or rammed the cart you were riding in. */
   knocked(by: GolferEntity | null, kx: number, ky: number, cause: number): void {
     const { ctx } = this;
     if (this.down || this.now < this.graceUntil) return;
     if (this.cart) this.leaveCart(false);
     this.knockDown(kx, ky, cause === 2 ? 1300 : DOWN_MS);
     const who = by && by !== this.me ? by.render.name : null;
-    const how = cause === 1 ? 'ran you over' : cause === 2 ? 'hit you with a ball' : 'clubbed you';
+    const how = cause === 1 ? 'ran you over' : cause === 2 ? 'hit you with a ball' : cause === 3 ? 'rammed your cart' : 'clubbed you';
     ctx.hud.message(who ? `${who} ${how}!` : 'Knocked flat!');
   }
 

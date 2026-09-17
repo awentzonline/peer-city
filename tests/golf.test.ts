@@ -449,5 +449,64 @@ describe('Battle', () => {
     // and pushed roughly the way it was rammed, not sideways or backward
     const along = (hit.state.x - before.x) * Math.cos(heading) + (hit.state.y - before.y) * Math.sin(heading);
     expect(along).toBeGreaterThan(moved * 0.6);
+
+    // Bob was riding in it, so the ram knocked him down and out of the cart
+    expect(b.golfer.seated).toBe(false);
+    expect(b.body.seatedNow).toBe(false);
+    expect(b.body.knocks).toBeGreaterThan(0);
+    expect(b.ctx.me!.state.down).toBe(true);
+  }, 60_000);
+
+  it("doesn't knock down a rammed cart's driver again while they're still down", () => {
+    const net = new Sim({ latencyMs: 20, connectDelayMs: 50 });
+    const a = player(net, 'a', 'Ada');
+    const b = player(net, 'b', 'Bob');
+    run(net, [a, b], 6000);
+    const carts = [...a.world.all(Cart)].sort((p, q) => p.state.slot - q.state.slot);
+
+    const getIn = (p: Player, id: number) =>
+      run(net, [a, b], 10_000, () => {
+        clear(p.intent);
+        const cart = p.world.getAs(Cart, id);
+        if (!cart || p.golfer.seated) return;
+        const seat = seatOf(cart, { x: 0, y: 0, z: 0 });
+        if (walkTo(p, seat.x, seat.y) < 1.5) p.intent.interact = true;
+      });
+    getIn(a, carts[0].id);
+    getIn(b, carts[1].id);
+    clear(a.intent);
+    clear(b.intent);
+    expect(a.golfer.seated).toBe(true);
+    expect(b.golfer.seated).toBe(true);
+
+    const ram = a.world.getAs(Cart, carts[0].id)!;
+    const hit = b.world.getAs(Cart, carts[1].id)!;
+    const heading = cartHeading(ram, true);
+    const tx = ram.state.x + Math.cos(heading) * 9;
+    const ty = ram.state.y + Math.sin(heading) * 9;
+    b.ctx.carts.place(hit, tx, ty, b.ctx.course.heightAt(tx, ty) + 0.6, heading);
+    run(net, [a, b], 500, () => {
+      clear(b.intent);
+      b.intent.brake = true;
+    });
+
+    run(net, [a, b], 3500, () => {
+      clear(a.intent);
+      clear(b.intent);
+      a.intent.throttle = 1;
+      b.intent.brake = true;
+    });
+    expect(b.golfer.seated).toBe(false);
+    expect(b.body.knocks).toBe(1);
+    expect(b.ctx.me!.state.down).toBe(true);
+
+    // Ada keeps leaning on the (now empty) cart while Bob's still down: no repeat knockdown,
+    // since nobody's driving it any more and Bob himself is within his own cooldown
+    run(net, [a, b], 1500, () => {
+      clear(a.intent);
+      clear(b.intent);
+      a.intent.throttle = 1;
+    });
+    expect(b.body.knocks).toBe(1);
   }, 60_000);
 });
