@@ -116,7 +116,7 @@ export class RacerBody {
     this.design = design;
     this.keep = intact(design, broken);
     const desc = this.dynamic ? RAPIER.RigidBodyDesc.dynamic() : RAPIER.RigidBodyDesc.kinematicPositionBased();
-    desc.setTranslation(t.x, t.y, t.z).setRotation(r).setCanSleep(false).setCcdEnabled(this.dynamic).setAngularDamping(0.4);
+    desc.setTranslation(t.x, t.y, t.z).setRotation(r).setCanSleep(false).setCcdEnabled(this.dynamic).setAngularDamping(0.7);
     if (this.dynamic) desc.setLinvel(lv.x, lv.y, lv.z).setAngvel(av);
     const body = (this.body = world.createRigidBody(desc));
     this.wheels = [];
@@ -168,11 +168,11 @@ export class RacerBody {
         if (!this.keep[i] || !spec.wheel) return;
         const axle = p.dir === Dir.PX || p.dir === Dir.NX ? { x: 1, y: 0, z: 0 } : { x: 0, y: 1, z: 0 };
         const index = v.numWheels();
-        v.addWheel({ x: p.x * CELL, y: p.y * CELL, z: p.z * CELL }, { x: 0, y: 0, z: -1 }, axle, WHEEL_DROP + 0.12, spec.wheel.radius);
-        v.setWheelSuspensionStiffness(index, 28);
-        v.setWheelSuspensionCompression(index, 2.4);
-        v.setWheelSuspensionRelaxation(index, 3.2);
-        v.setWheelMaxSuspensionTravel(index, 0.25);
+        v.addWheel({ x: p.x * CELL, y: p.y * CELL, z: p.z * CELL }, { x: 0, y: 0, z: -1 }, axle, WHEEL_DROP + 0.22, spec.wheel.radius);
+        v.setWheelSuspensionStiffness(index, 24);
+        v.setWheelSuspensionCompression(index, 2.6);
+        v.setWheelSuspensionRelaxation(index, 4);
+        v.setWheelMaxSuspensionTravel(index, 0.4);
         v.setWheelMaxSuspensionForce(index, 60_000);
         v.setWheelFrictionSlip(index, p.kind === PartKind.BigWheel ? 1.8 : 1.3);
         v.setWheelSideFrictionStiffness(index, 0.7);
