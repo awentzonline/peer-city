@@ -23,7 +23,7 @@ const DEBRIS = 4;
 export const DRIVER_MASS = 70;
 /** Seconds of rocket fuel a race. */
 export const FUEL_SECONDS = 6;
-const STEER_ANGLE = 0.5;
+const STEER_ANGLE = 0.35;
 const BRAKE_FORCE = 45;
 /** A push off with your feet: only when slow. */
 const PUSH_FORCE = 900;
@@ -174,8 +174,8 @@ export class RacerBody {
         v.setWheelSuspensionRelaxation(index, 3.2);
         v.setWheelMaxSuspensionTravel(index, 0.25);
         v.setWheelMaxSuspensionForce(index, 60_000);
-        v.setWheelFrictionSlip(index, p.kind === PartKind.BigWheel ? 2.2 : 1.6);
-        v.setWheelSideFrictionStiffness(index, 1);
+        v.setWheelFrictionSlip(index, p.kind === PartKind.BigWheel ? 1.8 : 1.3);
+        v.setWheelSideFrictionStiffness(index, 0.7);
         this.wheels.push({ part: i, index, steers: p.x * CELL > this.com.x + 0.1 });
       });
     }
