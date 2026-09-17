@@ -428,9 +428,9 @@ export function pushOutOfCarts(net: NetWorld, p: { x: number; y: number }, radiu
 }
 
 /**
- * Keeps the course's carts: whoever runs the match makes sure there's one for about every two golfers (up to
- * `MAX_CARTS`), parked at the barn, and if two peers made the same one at once, the newer goes. Carts are never
- * taken away when golfers leave; there just aren't new ones.
+ * Keeps the course's carts: whoever runs the match makes sure there's one for every golfer (up to `MAX_CARTS`),
+ * parked at the barn, and if two peers made the same one at once, the newer goes. Carts are never taken away when
+ * golfers leave; there just aren't new ones.
  */
 export function keepCarts(net: NetWorld, carts: CartWorld, runsMatch: boolean): void {
   const bySlot = new Map<number, CartEntity>();
@@ -444,7 +444,7 @@ export function keepCarts(net: NetWorld, carts: CartWorld, runsMatch: boolean): 
   }
   if (!runsMatch) return;
   const golfers = net.all(Golfer).size;
-  const want = clamp(Math.ceil(golfers), 1, MAX_CARTS);
+  const want = clamp(golfers, 1, MAX_CARTS);
   for (let slot = 0; slot < want; slot++) {
     if (bySlot.has(slot)) continue;
     const bay = carts.course.barn.bays[slot];

@@ -344,9 +344,10 @@ describe('Battle', () => {
     const a = player(net, 'a', 'Ada');
     const b = player(net, 'b', 'Bob');
     run(net, [a, b], 6000);
-    const carts = [...a.world.all(Cart)];
-    expect(carts.length).toBe(1);
-    expect(b.world.all(Cart).size).toBe(1);
+    // one each
+    const carts = [...a.world.all(Cart)].sort((p, q) => p.state.slot - q.state.slot);
+    expect(carts.length).toBe(2);
+    expect(b.world.all(Cart).size).toBe(2);
     const cart = carts[0];
     const start = { x: cart.state.x, y: cart.state.y };
 
