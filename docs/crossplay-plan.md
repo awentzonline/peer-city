@@ -418,6 +418,55 @@ Open questions:
 - Dead survivors only spectate. They could come back as something for the Haunt (a poltergeist role), which the role
   structure would take without changes.
 
+## Lessons from a seventh game
+
+Peer Shinobi (`src/shinobi/`, `/shinobi.html`, 2026-09-16) is a stealth game with two roles: shinobi (avatars) climb a
+castle at night to kill its lord, and the Captain of the Watch (an overseer) commands the guards from a map. The owner
+asked for throwing weapons, climbing, stealth, and an asymmetric head of security with a limited view who sends guards to
+places, and left how to make that last one fun open.
+
+What carried over unchanged: `Avatar`, tools, holsters and `DesktopTool`, `Seat`, `Shell` and frontends, `OverheadView`
+and `MapGestures` for the overseer, `HeadsetHud`, touch controls, particles, `Singleton` for the night. The captain's three
+frontends are close cousins of the Haunt's.
+
+What was new, or changed:
+
+- **A 2.5D world.** Every grid cell has a height, and collision takes the feet's height: a body walks over what's within a
+  step and bumps into the rest. Rules own the vertical (`feet`, gravity, landing) and replicate it in the body's `z`. For a
+  headset the frontend lifts the play space to the feet every frame, so standing on a roof puts your real floor there.
+- **Climbing, two ways.** A virtual head holds `climb` facing a climbable face and goes up, along or over it. Tracked hands
+  climb hand over hand with `crossplay/climb.ts`'s `HandClimb`: an empty gripping hand anchors where it took hold, the body
+  moves so it stays put, and `slip` absorbs what walls and the ground didn't allow. It sits in the rules (it only reads
+  `HandIntent`s), so it's headless and tested.
+- **`Avatar.step` is protected**, so a game can write its own virtual-head walking (here: climbing and falling off edges)
+  and still use the avatar's tools, hands and tracked-head following.
+- **Thrown tools.** A `Tool`'s hooks already had what throwing needs: on a crosshair `onUse` throws along the aim; in a
+  tracked hand `onHold` samples `ToolUse.velocity` while the trigger's held and `onRelease` throws the fastest recent sample
+  (blended a little toward where the blade points). Flights are local projectiles copied to near peers (as Wilds' arrows),
+  and a blade that lands becomes a migratable pickup.
+
+How the overseer was made interesting without seeing everything:
+
+- **The captain knows what the guards know.** Sightings (a guard's `spotting` of a shinobi, worked out from replicated
+  state), noises (only if a living guard was within earshot) and deaths (only once a body's found, or a guard misses his
+  check-in). This revives Haunt's removed "hidden information as a view", and it makes guard placement matter twice: a
+  guard is both a defence and a sensor.
+- **Orders spend attention and coverage, not currency.** Sending a guard to search leaves a gap on his route. The four calls
+  (braziers, alarm bell, reinforcements, move the lord) have cooldowns rather than a shared resource, so the decision is
+  when, and moving the lord doubles as bait.
+- **Guards act on their own.** Suspicion, investigation, alarms and chases need no captain, so the game plays without one
+  and the captain directs rather than micromanages.
+
+Open questions:
+
+- Balance is guessed: sight ranges, suspicion rates, exposure factors, how lethal the tanto and kunai are, archer accuracy
+  and the call cooldowns. A real match between a captain and two or three shinobi will say.
+- Checked in the browser pane one role per tab (a console-spawned stand-in shinobi for the captain), on desktop, `?touch`
+  and `?xrsim` (hand-over-hand climbing works with the simulator's limited reach). Not tried on a phone or a headset, and
+  real VR throwing feel is untested.
+- Ideas that fit the structure without framework changes: carrying bodies into bushes, smoke bombs, guard dogs, a
+  poltergeist-style role for taken shinobi (a guard's eyes for the captain?), and captain voice lines to nearby guards.
+
 ## Later: mobile
 
 - Detection is done (`isTouchDevice()`), and the lobby's PLAY starts the touch frontend on a phone. The lobby can also

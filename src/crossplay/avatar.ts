@@ -168,8 +168,8 @@ export abstract class Avatar<I extends AvatarIntent = AvatarIntent, B extends Av
     this.pitch = clamp(this.pitch + intent.lookUp, -1.45, 1.45);
   }
 
-  /** Move a point relative to a heading, sliding along walls. */
-  private step(p: { x: number; y: number }, strafe: number, forward: number, heading: number, speed: number, dt: number): void {
+  /** Move a point relative to a heading, sliding along walls. For a game that walks a virtual head its own way (climbing, say). */
+  protected step(p: { x: number; y: number }, strafe: number, forward: number, heading: number, speed: number, dt: number): void {
     const len = Math.hypot(strafe, forward);
     if (len === 0) return;
     const k = (Math.min(1, len) * speed * dt) / len;

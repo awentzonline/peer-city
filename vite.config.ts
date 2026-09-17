@@ -23,6 +23,7 @@ export default defineConfig({
         walls: fileURLToPath(new URL('./walls.html', import.meta.url)),
         golf: fileURLToPath(new URL('./golf.html', import.meta.url)),
         haunt: fileURLToPath(new URL('./haunt.html', import.meta.url)),
+        shinobi: fileURLToPath(new URL('./shinobi.html', import.meta.url)),
       },
     },
   },

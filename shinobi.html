@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Peer Shinobi</title>
+    <link rel="stylesheet" href="/src/shinobi/style.css" />
+    <link rel="stylesheet" href="/src/crossplay/settings.css" />
+    <link rel="stylesheet" href="/src/crossplay/touch.css" />
+  </head>
+  <body>
+    <div id="game"></div>
+
+    <div id="hud" hidden>
+      <div id="hurt"></div>
+      <div id="crosshair"></div>
+      <div id="phase"></div>
+      <div id="party"></div>
+      <div id="vitals" class="shinobi-only">
+        <div id="eye"><i></i></div>
+        <div>
+          <div id="hearts"></div>
+          <div id="kit"></div>
+        </div>
+      </div>
+      <div id="roster" class="captain-only"></div>
+      <div id="calls" class="captain-only"></div>
+      <div id="select-box" hidden></div>
+      <div id="feed"></div>
+      <div id="banner"></div>
+      <div id="hint"></div>
+      <div id="help"></div>
+      <button id="vr-enter" hidden>ENTER VR</button>
+      <div id="lock" hidden>
+        <div>CLICK TO PLAY</div>
+        <small>Esc releases the mouse</small>
+      </div>
+    </div>
+
+    <div id="lobby">
+      <div class="panel">
+        <h1>PEER SHINOBI</h1>
+        <p class="tag">A castle at night. Shinobi climb its walls and cross its roofs to kill the lord, and get out again. The Captain of the Watch commands the guards, but only knows what they see and hear. No server: everyone's browser is the castle.</p>
+        <div class="roles">
+          <label class="role">
+            <input type="radio" name="role" value="shinobi" />
+            <b>SHINOBI</b>
+            <span>First person, in the dark. Climb anything, hide in the bushes, throw kunai and shuriken.</span>
+          </label>
+          <label class="role">
+            <input type="radio" name="role" value="captain" />
+            <b>CAPTAIN</b>
+            <span>Look down on a map of the castle. Read the signs, send your guards, and keep the lord alive until dawn.</span>
+          </label>
+        </div>
+        <label>Name <input id="name" maxlength="16" autocomplete="off" /></label>
+        <label
+          >Network
+          <select id="net">
+            <option value="online">Online (WebRTC via Trystero / Nostr)</option>
+            <option value="local">Local tabs (BroadcastChannel)</option>
+          </select>
+        </label>
+        <label>Castle <input id="room" maxlength="24" autocomplete="off" /></label>
+        <div class="buttons">
+          <button id="play">PLAY</button>
+          <button id="play-vr" disabled>PLAY IN VR</button>
+        </div>
+        <p class="small" id="vr-note">Checking for a VR headset…</p>
+        <details class="small shinobi-help">
+          <summary>How to be a shinobi</summary>
+          When night falls the lord walks his grounds with two samurai, from the keep's door to the tea houses and halls and back.
+          Find him (his mark ◆ shows through walls), kill him, and get back over the wall before the watch closes in.
+          <ul>
+            <li><b>Stay out of the light.</b> Lanterns, guards' lanterns and the captain's braziers make you plain to see; the
+              moonlight hardly does. Creeping helps, running gives you away, and crouched in a bush you're all but invisible.
+              Guards grow suspicious (<b>?</b>) before they raise the alarm (<b>!</b>).</li>
+            <li><b>Climb anything built:</b> the wall, the towers, every roof. Walk the rooftops and the top of the wall. Drop
+              down crouching, or the landing's loud.</li>
+            <li><b>The tanto</b> kills silently from behind, or anyone who hasn't seen you. <b>Kunai</b> kill a guard who never
+              saw them coming; <b>shuriken</b> only wound, but a blade that clatters on stone draws guards to look. Walk over a
+              thrown blade to take it back.</li>
+            <li>Three wounds and you're down: another shinobi can hold <b>E</b> over you to help you up.</li>
+            <li><b>WASD</b> move, <b>Shift</b> run, <b>Ctrl</b> creep, <b>Space</b> jump (hold at a wall to climb), <b>Click</b>
+              strike or throw, <b>1 2 3</b> tanto, kunai, shuriken.</li>
+          </ul>
+          <b>VR:</b> squeeze an empty hand on a wall and pull yourself up. The tanto's on your left hip, kunai and shuriken on your
+          chest: hold the trigger, swing and let go to throw. <b>Touch:</b> left thumb walks, right looks, hold <b>CLIMB</b> at a
+          wall, <b>STRIKE</b> / <b>THROW</b> with what's picked in the strip.
+        </details>
+        <details class="small captain-help">
+          <summary>How to command the watch</summary>
+          Patrols walk their rounds, archers watch from the towers and samurai stay by the lord, and they all act on what they see
+          and hear. You see only that: shinobi a guard sees, noises a guard heard, and a guard who's gone quiet once he misses his
+          check-in, or another finds his body.
+          <ul>
+            <li><b>Pick out guards and send them.</b> Search where there was a noise; set a watch where they'll come through; send
+              them back to their rounds. Every guard you pull away leaves a gap.</li>
+            <li><b>Calls</b> (each takes a while to come round): <b>Braziers</b> light an area for a minute; the <b>Alarm bell</b>
+              puts every guard on the alert; <b>Reinforce</b> turns out two more guards; <b>Move the lord</b> sends him somewhere
+              safer, or somewhere to bait a trap.</li>
+            <li><b>Desktop:</b> click or drag round guards, <b>right-click</b> to search, <b>H</b> stand watch, <b>R</b> back to
+              rounds, <b>1-4</b> calls. <b>WASD</b> / right-drag, wheel, <b>Q E</b> move the map.</li>
+            <li><b>Touch:</b> drag, pinch and twist the map; tap guards, then tap where to search; <b>WATCH</b> and
+              <b>ROUNDS</b> chips. <b>VR:</b> point, trigger picks out, grip sends, A cycles calls.</li>
+          </ul>
+        </details>
+        <p class="small">Open more tabs or share the URL to add players. With nobody playing the captain, the guards keep watch on their own. <a href="./">All games →</a></p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/shinobi/main.ts"></script>
+  </body>
+</html>

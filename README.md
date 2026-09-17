@@ -635,6 +635,68 @@ the Haunt back.
 
 ---
 
+## Peer Shinobi (stealth: shinobi against the Captain of the Watch)
+
+`/shinobi.html` is an eighth game, and the second where players take different roles. A castle at night: shinobi climb its
+walls and cross its roofs to kill the lord and get out again, while the Captain of the Watch commands the guards from a
+map, knowing only what those guards see and hear.
+
+```bash
+npm run dev    # http://localhost:5173/shinobi.html (?role=captain to go straight in as the captain)
+```
+
+**The night.** Shinobi gather in the forest while a clock runs down; then the watch musters: patrols with lanterns, posts at
+the gate and the keep, archers on four of the six towers, and the lord strolling between the keep's door, the halls and the
+tea houses with two samurai. Kill the lord and there are 90 seconds to get back over the wall. The night ends when every
+shinobi is out or taken, or at dawn.
+
+**Stealth.** Every frame a shinobi's peer works out how visible they are (`exposure`, replicated): the light they stand in
+(moonlight, stone lanterns, guards' lanterns, braziers), times how they move (creeping, running, still, on a wall), and far
+less crouched in a bush. A guard sees a shinobi within its field of view and a range that shrinks in the dark, grows
+suspicious (`?`) and goes to look, then raises the alarm (`!`), shouts, and chases or shoots. Running feet, hard landings and
+blades clattering on stone are noises guards within earshot come to investigate; a dead guard in sight raises the alarm.
+
+**Climbing.** The castle is a 2.5D grid where every cell has a height: a body walks over anything no more than a step above
+its feet and climbs the rest. A virtual head holds climb facing a wall to go up it, along it, or over the top; tracked
+hands grip any wall or roof edge and pull, hand over hand (`crossplay/climb.ts`). Roofs, towers and the top of the wall are
+all walkable, and falling off them lands loudly unless you land crouching.
+
+**Weapons.** The tanto kills outright from behind or on a guard that isn't alarmed. Kunai kill a guard who never saw them
+coming; shuriken only wound, but a blade that misses clatters where it lands and draws guards to it. Thrown blades fly as
+projectiles and stay where they stick or fall, to be picked up again. In a headset, hold the trigger on a blade, swing, and
+let go of the trigger to throw it as fast as your hand was going.
+
+**The captain** sees shinobi only while a guard sees them (and where they were last seen, fading), noises only if a guard
+heard them, and learns a guard is dead only when another finds the body or he misses his check-in (`intel.ts`). Pick out
+guards and send them to search, to stand watch, or back to their rounds. Four calls, each with a cooldown: light braziers,
+ring the alarm bell, turn out reinforcements, move the lord. With nobody playing the captain, the guards keep watch alone.
+
+| | Desktop | Touch | VR |
+| --- | --- | --- | --- |
+| Shinobi | **WASD**, mouse look; **Shift** run, **Ctrl** creep; **Space** jump, hold at a wall to climb; **Click** strike / throw; **1 2 3** tools; hold **E** to help up | left thumb walks, right looks; hold **CLIMB**; **STRIKE** / **THROW**; tool strip; **CREEP**; hold **HELP UP** | walk your room or the left stick; grip a wall and pull to climb; tanto on the left hip, kunai and shuriken on the chest; hold the trigger and let go to throw; hold **A** to help |
+| Captain | a free pointer: click or drag to pick out guards, **right-click** search, **H** stand watch, **R** back to rounds, **1-4** calls; **WASD**/right-drag, wheel, **Q E** move the map | drag, pinch and twist the map; tap guards, tap where to search; **WATCH**, **ROUNDS**, **ALL** chips; cards for calls | standing over the map: point the right hand; trigger picks out or calls, grip sends, **A** cycles calls, left **X** stand watch |
+
+How it uses the engine, and what it found:
+
+- **Hidden information as a view, revived.** Haunt's removed "sightings" idea is the whole captain here: every peer can
+  work out what each guard perceives from replicated state (`spotting` in `guards.ts`), so the guards' owners decide what
+  they react to and the captain's peer draws only that. It's a view, not a secret: a determined cheat could read it all.
+- **A replicated "how visible am I".** Rather than send stance, speed and light separately, a shinobi's peer sends one
+  `exposure` number. Guards read it; the HUD shows it as an eye that opens in the light.
+- **Check-ins as a clock-free signal.** A living guard's owner bumps `checkin` every ten seconds. The captain's peer only
+  needs to notice a counter that stopped, so no timestamps go over the wire.
+- **Hand-over-hand climbing** is game-neutral (`crossplay/climb.ts`), and `Avatar.step` is protected now so a game can
+  walk a virtual head its own way (climbing, falling off edges) while keeping the avatar's tools and tracked hands.
+
+Source: `src/shinobi/`. Tests: `tests/shinobi.test.ts` checks the seeded castle is connected, stepping, standing on the
+wall and sight lines, climbing a wall and walking along its top with a loud landing off it, hand-over-hand climbing, the
+watch mustering, a guard spotting a shinobi in lantern light but not one crouched in a dark bush, a clattering shuriken
+drawing a guard to look, silent tanto and kunai kills and a shuriken only alarming, picking a thrown kunai up again, the
+captain seeing and hearing only through guards, sending a guard to search, a dead guard missing his check-in, braziers and
+moving the lord, and a night won by killing the lord and escaping over the wall.
+
+---
+
 ## Scaling results
 
 `scripts/loadsim.ts` runs many `NetWorld`s in one process over a simulated network (45ms latency
