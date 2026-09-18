@@ -5,7 +5,7 @@ import type { Role } from '../crossplay/role';
 import type { Tool } from '../crossplay/tool';
 import { hurtSentinel } from './away';
 import { type CrewEntity, type FaultEntity, type RelicEntity, type SentinelEntity, type StarshipContext } from './context';
-import { CONSOLES, RACK, REACH, TUBES, Tile, WALL_HEIGHT, type ConsoleSpot } from './deck';
+import { CONSOLES, RACK, REACH, TUBES, Tile, WALL_HEIGHT, consoleBox, type ConsoleSpot } from './deck';
 import { Act, Beam3, Carry, Crew as CrewDef, CrewMode, Damage, Fault, FaultKind, Grab, Mend, Noise, Relic, Sentinel, Shot, Sound, Station, Transport } from './defs';
 import type { CrewIntent } from './intent';
 import { EXTINGUISHER, PHASER, SPANNER, TOOLS, type CrewTool, type Fixer, type Use } from './kit';
@@ -114,11 +114,17 @@ export class CrewRole extends Avatar<CrewIntent, CrewBody, CrewTool> implements 
   }
 
   protected override move(p: { x: number; y: number }, dx: number, dy: number): void {
-    this.ctx.deck.move(p, dx, dy, RADIUS);
+    this.ctx.deck.move(p, dx, dy, RADIUS, this.seatBox());
   }
 
   protected override collide(p: { x: number; y: number }): void {
-    this.ctx.deck.pushOut(p, RADIUS);
+    this.ctx.deck.pushOut(p, RADIUS, this.seatBox());
+  }
+
+  /** The console you're sitting at doesn't push you back out — a headset needs to lean right up to it to reach its panels. */
+  private seatBox() {
+    const seated = this.seat;
+    return seated === null ? undefined : consoleBox(CONSOLES[seated]);
   }
 
   spawn(): void {

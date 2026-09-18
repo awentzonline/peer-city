@@ -162,13 +162,14 @@ export class VrConsole {
     this.desk = panel(DESK_W, DESK_H, DESK_PX * 2, DESK_PY * 2, false);
     this.desk.mesh.rotation.x = -Math.PI / 2 + DESK_LEAN;
     // clear of the console's own top, which the leaning face would otherwise sink into
-    this.desk.mesh.position.set(0, 1.16, -0.1);
+    this.desk.mesh.position.set(0, 1.16, -0.08);
     this.desk.mesh.visible = true;
     mount.add(this.desk.mesh);
 
     this.screen = panel(SCREEN_W, SCREEN_H, SCREEN_PX * 2, SCREEN_PY * 2, false);
     this.screen.mesh.rotation.x = -SCREEN_LEAN;
-    this.screen.mesh.position.set(0, 1.53, -0.5);
+    // close enough behind the desk that leaning in to reach it doesn't put your face through the screen
+    this.screen.mesh.position.set(0, 1.46, -0.26);
     this.screen.mesh.visible = true;
     mount.add(this.screen.mesh);
 

@@ -24,8 +24,9 @@ const TICK_MS = 500;
  * Crew in a headset. Walk your room or push the left stick; the right stick snap-turns. The phaser is on your right hip,
  * the spanner on your left, and the extinguisher on your chest: squeeze a grip by one to take it, and hold the trigger to
  * use it (put the spanner's end on the sparks, point the extinguisher at the fire). A takes and loads torpedoes, picks
- * up the relic, and sits you down at a bridge console, which lights that station's own panels to reach out and press
- * (see consoleVr.ts); Y opens the settings. Your watch shows how you and the ship are doing.
+ * up the relic. Walk up to a bridge console and it lights that station's own panels to reach out and press (see
+ * consoleVr.ts) — the console itself steps out of your way so you can lean right up to it; back away or press A to
+ * get up. Y opens the settings. Your watch shows how you and the ship are doing.
  */
 export class VrCrew implements CrewFrontend, Draws {
   readonly platform = Platform.Vr;
@@ -38,6 +39,8 @@ export class VrCrew implements CrewFrontend, Draws {
   private readonly hands: [HandIntent, HandIntent] = [handIntent(), handIntent()];
   private readonly turn = new SnapTurn();
   private standing = false;
+  /** Set right after standing, so walking away from a console (once) is what re-arms auto-sitting, not just lingering near it. */
+  private suppressSit = false;
   private readonly tmp: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly dir: Vec3 = { x: 0, y: 0, z: 0 };
   private console: VrConsole | null = null;
@@ -89,13 +92,16 @@ export class VrCrew implements CrewFrontend, Draws {
     this.turn.update(rig, right.stickX);
     readHead(rig, this.head);
     const seated = crew.seat;
+    const nearConsole = crew.nearby?.kind === 'console';
+    if (!nearConsole) this.suppressSit = false;
     if (seated !== null) {
-      // at a console: A gets you up again, and the station's panels take the hands
+      // a console's own panels take the hands as soon as you're at one; A or backing away gets you up again
       if (this.console?.station !== seated) {
         this.closeConsole();
         this.console = new VrConsole(this.ctx, rig, this.decks, seated, { label: 'STAND UP', press: () => (this.standing = true) });
       }
-      if (this.standing || intent.use) intent.sit = true;
+      if (this.standing || intent.use || !nearConsole) intent.sit = true;
+      if (this.standing || intent.use) this.suppressSit = true;
       this.standing = false;
       if (!onMenu) this.console.update(this.ctx.now, dt, intent.acts);
       intent.use = false;
@@ -114,7 +120,8 @@ export class VrCrew implements CrewFrontend, Draws {
       intent.use = false;
       for (const hand of this.hands) hand.trigger = hand.grab = false;
     }
-    intent.sit = intent.use && crew.nearby?.kind === 'console';
+    // walk up to a console and it lights up on its own — no need to sit down first
+    intent.sit = !onMenu && !this.suppressSit && nearConsole;
     return intent;
   }
 
@@ -195,6 +202,7 @@ export class VrCrew implements CrewFrontend, Draws {
   downed(): void {
     downedNews(this.ctx);
     this.rig.setTint(0x3a0000, 0.45);
+    this.closeConsole();
   }
 
   revived(): void {
