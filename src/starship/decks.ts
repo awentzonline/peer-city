@@ -8,9 +8,11 @@ import type { CrewEntity, FaultEntity, RelicEntity, SentinelEntity, StarshipCont
 import { CELL, CONSOLES, MACHINES, PAD, RACK, ROOMS, SHIP, SITE_SIZE, TUBES, Tile, VIEWSCREEN, WALL_HEIGHT } from './deck';
 import { Beam3, Carry, Crew, CrewMode, Fault, FaultKind, Noise, Relic, Sentinel, ShipSystem, Shot, Sound, Station } from './defs';
 import { EXTINGUISHER, TOOLS } from './kit';
-import { GLOW, STATION_COLORS, biomeColors, crewModel, glowSprite, relicModel, sentinelModel, torpedoCasing } from './models';
+import { STATION_COLORS, biomeColors, crewModel, glowSprite, relicModel, sentinelModel, torpedoCasing } from './models';
 import { efficiency } from './ship';
 import { beamMesh } from './space';
+import { BridgeConsole } from './consoles';
+import { manning } from './officer';
 
 const tmpA = new THREE.Vector3();
 const tmpB = new THREE.Vector3();
@@ -52,8 +54,8 @@ export class DeckView {
   private readonly tubeLights: THREE.MeshBasicMaterial[] = [];
   private readonly rackTorps: THREE.Mesh[] = [];
   private readonly padGlow: THREE.MeshBasicMaterial;
-  /** Each console's lit top and its floating name, which a headset's own console panels stand in for. */
-  private readonly consoleDressing = new Map<Station, THREE.Object3D[]>();
+  /** The bridge consoles, in station order. */
+  readonly consoles: BridgeConsole[];
   private readonly sparks = new ParticleLayer(1500, true);
   private readonly smoke = new ParticleLayer(500, false);
   private readonly fading: Fading[] = [];
@@ -79,6 +81,8 @@ export class DeckView {
     this.padGlow = new THREE.MeshBasicMaterial({ color: 0x6ad0ff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false });
 
     this.buildInterior();
+    // the consoles, whose desks and screens always show the ship as it is
+    this.consoles = CONSOLES.map((c) => new BridgeConsole(ctx, c, this.interior));
     this.viewscreen = new THREE.Mesh(new THREE.PlaneGeometry(VIEWSCREEN.width, VIEWSCREEN.height), new THREE.MeshBasicMaterial({ map: this.screen.texture, fog: false }));
     this.viewscreen.rotation.y = -Math.PI / 2;
     this.viewscreen.position.set(VIEWSCREEN.x - 0.08, VIEWSCREEN.z, VIEWSCREEN.y);
@@ -120,20 +124,6 @@ export class DeckView {
     this.interior.add(new THREE.Mesh(merge([...walls, ...floors, ceiling]), SOLID));
     this.interior.add(new THREE.Mesh(merge(trims), this.strips));
 
-    // consoles
-    for (const c of CONSOLES) {
-      const g = new THREE.Group();
-      g.position.set(c.x, 0, c.y);
-      g.rotation.y = -c.heading;
-      const top = new THREE.Mesh(paint(new THREE.PlaneGeometry(0.8, 0.45).rotateX(-Math.PI / 2).rotateZ(0.9).translate(0.05, 1.02, 0), STATION_COLORS[c.station]), GLOW);
-      g.add(new THREE.Mesh(merge([box(0.7, 0.9, 1, 0, 0.45, 0, 0x4a5262), box(0.5, 0.06, 0.9, -0.1, 0.95, 0, 0x2a2e38)]), SOLID), top);
-      const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture(['HELM', 'TACTICAL', 'SCIENCE', 'ENGINEERING'][c.station]), transparent: true, depthWrite: false }));
-      label.scale.set(0.9, 0.23, 1);
-      label.position.set(0, 1.45, 0);
-      g.add(label);
-      this.consoleDressing.set(c.station, [top, label]);
-      this.interior.add(g);
-    }
     // the captain's chair, and the viewscreen's frame
     this.interior.add(new THREE.Mesh(merge([box(0.7, 0.5, 0.7, 28.4, 0.25, 7, 0x6a3a2a), box(0.15, 0.8, 0.7, 28.05, 0.9, 7, 0x6a3a2a), box(0.12, 0.25, 0.12, 28.4, 0.12, 7, 0x2a2e38)]), SOLID));
     this.interior.add(new THREE.Mesh(box(0.1, VIEWSCREEN.height + 0.3, VIEWSCREEN.width + 0.3, VIEWSCREEN.x, VIEWSCREEN.z, VIEWSCREEN.y, 0x1a1c22), SOLID));
@@ -390,14 +380,6 @@ export class DeckView {
   // Events
   // -------------------------------------------------------------------------
 
-  /**
-   * A headset's own console panels (consoleVr.ts) stand where the console's lit top and floating name are, so those give
-   * way while one is up.
-   */
-  dressConsole(station: Station, shown: boolean): void {
-    for (const o of this.consoleDressing.get(station) ?? []) o.visible = shown;
-  }
-
   beam(p: PayloadOf<typeof Beam3>): void {
     if (p.kind !== Shot.HandPhaser && p.kind !== Shot.Bolt) return;
     const phaser = p.kind === Shot.HandPhaser;
@@ -486,6 +468,11 @@ export class DeckView {
         f.mesh.material.dispose();
         this.fading.splice(i, 1);
       }
+    }
+    if (this.interior.visible) {
+      const manned = new Set<number>(manning(this.ctx).keys());
+      for (const c of this.ctx.world.all(Crew)) if (c.render.seat) manned.add(c.render.seat - 1);
+      for (const c of this.consoles) c.update(this.ctx.now, manned.has(c.station));
     }
     if (!ship) return;
     // machines glow with how well their systems work, and flicker when they're hurt

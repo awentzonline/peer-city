@@ -369,7 +369,10 @@ the game's sounds, so in a headset someone behind you sounds behind you.
 `settings.ts` holds one list of rows — the microphone, whether you hear others, a row per person nearby with a
 talking meter, and the game's sound — with no idea how they're drawn. `settingsMenu.ts` draws them as a DOM
 overlay on desktop (**Esc**, which also hands back the mouse), and `settingsPanel.ts` paints the same rows onto a
-panel that hangs in front of you in a headset (**Y**), where you put a fingertip on a row and pull the trigger.
+panel that hangs in front of you in a headset (**Y**), where you point at a row and pull the trigger. That pointing is
+shared (`pointer.ts`): any flat interface in a headset is worked the same way — a beam from the controller to a dot on
+whatever it's on, shown only while it's on something, so a press lands where you can see it will. Touching a panel is
+the same thing from close up.
 A new setting is added once and appears on every platform.
 
 ---
@@ -739,15 +742,17 @@ home to the starbase, and survive the raiders. Three roles, picked in the lobby:
   compass, waypoint, autopilot, warp, orbit, dock), **tactical** (heading-up radar, target, phasers, torpedoes, shields),
   **science** (scan planets and raiders, the transporter, what's on screen) and **engineering** (eight pips of power,
   system health, the damage control team). One phone can run the whole bridge; each tab shows who's at it. In a headset
-  you stand at that station's console on the bridge and work it with your hands (below).
+  you stand at that station's console on the bridge and work it by pointing (below).
 - **Viewscreen** (a TV or laptop at the front of the room): space as science puts it on screen (forward, aft, tactical,
   target) or over the away team's shoulders. In a headset you ride on the hull.
 - **Crew** (desktop, VR, touch): walk the ship's decks. Hull hits start fires and break conduits in the rooms of the systems
   they hurt; fix them with the spanner and extinguisher. Carry torpedoes from the rack to the tubes. Stand on the
-  transporter pad while the ship orbits a relic world, fight the drones with a hand phaser, and bring the relic back. At a
-  bridge console you can sit and run that station: a panel over the screen on desktop and phone, and in a headset the
-  console's own two faces — a slanted desk of keys under your hands and a screen at its far edge with the station's scope
-  (`src/starship/consoleVr.ts`). Touch a key and pull the trigger, the same reach-and-pull the settings menu uses.
+  transporter pad while the ship orbits a relic world, fight the drones with a hand phaser, and bring the relic back. On
+  desktop and phone you sit at a bridge console to run that station, with a panel over the screen. A headset doesn't
+  sit: every console has its own two faces — a desk of keys sloping up under your hands and a screen with the station's
+  scope behind it (`src/starship/consoles.ts`) — and you point an empty hand at them and pull the trigger, standing,
+  with nothing put down and nothing to get up from. The faces are part of the bridge for everyone: dimmed on standby,
+  lit while anyone (at a console, on a phone, in a headset) has that station.
 
 Stations never write the ship: they send `Console` commands to its owner, so a phone, a crew member at a console in a
 headset and a test all give orders the same way. Each station's scope — the sector map, the radar, the sensors, the deck

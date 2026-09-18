@@ -39,14 +39,6 @@ export interface Spot {
   y: number;
 }
 
-/** A world-space rectangle, for carving a no-collide exception out of the tile grid. */
-export interface Box {
-  x0: number;
-  y0: number;
-  x1: number;
-  y1: number;
-}
-
 export interface ConsoleSpot extends Spot {
   station: Station;
   /** Which way someone seated there faces. */
@@ -83,11 +75,6 @@ export const CONSOLES: ConsoleSpot[] = [
 
 /** Half the side of the solid block a console occupies, m: enough to stop you walking through it from any side. */
 const CONSOLE_HALF = 0.45;
-
-/** The solid block a console occupies, for carving a no-collide exception for whoever's sitting there. */
-export function consoleBox(c: ConsoleSpot): Box {
-  return { x0: c.x - CONSOLE_HALF, y0: c.y - CONSOLE_HALF, x1: c.x + CONSOLE_HALF, y1: c.y + CONSOLE_HALF };
-}
 
 export const PAD = { x: 21.5, y: 11.2, radius: 1.5 };
 export const RACK = { x: 19, y: 1.6 };
@@ -138,10 +125,7 @@ export class Deck {
     this.tiles = new Uint8Array(this.cols * this.rows);
     for (const r of ROOMS) this.fill(r.x0, r.y0, r.x1, r.y1, Tile.Floor);
     for (const d of DOORS) this.fill(d.x0, d.y0, d.x1, d.y1, Tile.Floor);
-    for (const c of CONSOLES) {
-      const b = consoleBox(c);
-      this.fill(b.x0, b.y0, b.x1, b.y1, Tile.Object);
-    }
+    for (const c of CONSOLES) this.fill(c.x - CONSOLE_HALF, c.y - CONSOLE_HALF, c.x + CONSOLE_HALF, c.y + CONSOLE_HALF, Tile.Object);
     this.fill(RACK.x - 1, RACK.y - 0.5, RACK.x + 1, RACK.y + 0.5, Tile.Object);
     for (const tb of TUBES) this.fill(tb.x, tb.y - 0.45, tb.x + 0.6, tb.y + 0.45, Tile.Object);
     for (const m of Object.values(MACHINES)) this.fill(m.x - 0.9, m.y - 0.9, m.x + 0.9, m.y + 0.9, Tile.Object);
@@ -233,20 +217,19 @@ export class Deck {
     return this.tile(x, y) === Tile.Floor;
   }
 
-  /** Move a circle by (dx, dy), sliding along whatever blocks it. `except`, if given, is a box that never blocks — the
-   * console you're sitting at, say, so leaning in to touch it doesn't shove you back out. */
-  move(p: { x: number; y: number }, dx: number, dy: number, r: number, except?: Box): void {
+  /** Move a circle by (dx, dy), sliding along whatever blocks it. */
+  move(p: { x: number; y: number }, dx: number, dy: number, r: number): void {
     const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / (CELL * 0.4)));
     for (let i = 0; i < steps; i++) {
       p.x += dx / steps;
-      this.pushOut(p, r, except);
+      this.pushOut(p, r);
       p.y += dy / steps;
-      this.pushOut(p, r, except);
+      this.pushOut(p, r);
     }
   }
 
-  /** Push a circle out of any blocked cell it overlaps, other than one inside `except`. */
-  pushOut(p: { x: number; y: number }, r: number, except?: Box): void {
+  /** Push a circle out of any blocked cell it overlaps. */
+  pushOut(p: { x: number; y: number }, r: number): void {
     const c0 = Math.floor((p.x - r) / CELL);
     const c1 = Math.floor((p.x + r) / CELL);
     const r0 = Math.floor((p.y - r) / CELL);
@@ -255,7 +238,6 @@ export class Deck {
       for (let cx = c0; cx <= c1; cx++) {
         const solid = cx < 0 || cy < 0 || cx >= this.cols || cy >= this.rows || this.tiles[cy * this.cols + cx] !== Tile.Floor;
         if (!solid) continue;
-        if (except && (cx + 0.5) * CELL >= except.x0 && (cx + 0.5) * CELL <= except.x1 && (cy + 0.5) * CELL >= except.y0 && (cy + 0.5) * CELL <= except.y1) continue;
         const nx = Math.max(cx * CELL, Math.min(p.x, (cx + 1) * CELL));
         const ny = Math.max(cy * CELL, Math.min(p.y, (cy + 1) * CELL));
         const ddx = p.x - nx;

@@ -5,7 +5,7 @@ import type { Role } from '../crossplay/role';
 import type { Tool } from '../crossplay/tool';
 import { hurtSentinel } from './away';
 import { type CrewEntity, type FaultEntity, type RelicEntity, type SentinelEntity, type StarshipContext } from './context';
-import { CONSOLES, RACK, REACH, TUBES, Tile, WALL_HEIGHT, consoleBox, type ConsoleSpot } from './deck';
+import { CONSOLES, RACK, REACH, TUBES, Tile, WALL_HEIGHT, type ConsoleSpot } from './deck';
 import { Act, Beam3, Carry, Crew as CrewDef, CrewMode, Damage, Fault, FaultKind, Grab, Mend, Noise, Relic, Sentinel, Shot, Sound, Station, Transport } from './defs';
 import type { CrewIntent } from './intent';
 import { EXTINGUISHER, PHASER, SPANNER, TOOLS, type CrewTool, type Fixer, type Use } from './kit';
@@ -91,6 +91,8 @@ export class CrewRole extends Avatar<CrewIntent, CrewBody, CrewTool> implements 
   private burnt = 0;
   private sprayUntil = 0;
   private carryWas = Carry.Nothing;
+  /** Working a console standing, as a headset does, rather than sitting at it. */
+  private standingAt = false;
 
   constructor(readonly ctx: StarshipContext) {
     super(TOOLS);
@@ -104,9 +106,15 @@ export class CrewRole extends Avatar<CrewIntent, CrewBody, CrewTool> implements 
     return this.ctx.now;
   }
 
+  /** The station you're at: sitting at its console, or (in a headset) working it standing up. */
   get seat(): Station | null {
     const seat = this.me?.state.seat ?? 0;
     return seat ? ((seat - 1) as Station) : null;
+  }
+
+  /** The console you're sitting at, pinned in front of it with your hands on its keys. Only a flat screen sits. */
+  get sitting(): Station | null {
+    return this.standingAt ? null : this.seat;
   }
 
   get holding(): Carry {
@@ -114,17 +122,11 @@ export class CrewRole extends Avatar<CrewIntent, CrewBody, CrewTool> implements 
   }
 
   protected override move(p: { x: number; y: number }, dx: number, dy: number): void {
-    this.ctx.deck.move(p, dx, dy, RADIUS, this.seatBox());
+    this.ctx.deck.move(p, dx, dy, RADIUS);
   }
 
   protected override collide(p: { x: number; y: number }): void {
-    this.ctx.deck.pushOut(p, RADIUS, this.seatBox());
-  }
-
-  /** The console you're sitting at doesn't push you back out — a headset needs to lean right up to it to reach its panels. */
-  private seatBox() {
-    const seated = this.seat;
-    return seated === null ? undefined : consoleBox(CONSOLES[seated]);
+    this.ctx.deck.pushOut(p, RADIUS);
   }
 
   spawn(): void {
@@ -142,7 +144,7 @@ export class CrewRole extends Avatar<CrewIntent, CrewBody, CrewTool> implements 
     const s = me.state;
     this.begin(intent);
     this.voyageCheck();
-    const seated = this.seat;
+    const seated = this.sitting;
 
     if (s.mode === CrewMode.Down) {
       intent.strafe = intent.forward = 0;
@@ -152,17 +154,13 @@ export class CrewRole extends Avatar<CrewIntent, CrewBody, CrewTool> implements 
       if (this.now - this.downAt > DOWN_SECONDS * 1000) this.revive();
     } else if (seated !== null) {
       const c = CONSOLES[seated];
-      // a headset's own legs still work at a console — only a flat view is pinned to the seat, so only it stands you up by walking
-      if (intent.sit || intent.jump || (!intent.head && Math.hypot(intent.strafe, intent.forward) > 0.5)) this.stand();
+      if (intent.sit || intent.jump || Math.hypot(intent.strafe, intent.forward) > 0.5) this.stand();
       else {
         for (const a of intent.acts) order(this.ctx, a);
-        if (intent.head) this.walkTracked(dt, intent.head, intent, true);
-        else {
-          s.x = c.x - Math.cos(c.heading) * SEAT_BACK;
-          s.y = c.y - Math.sin(c.heading) * SEAT_BACK;
-          s.yaw = this.heading;
-          s.pitch = this.pitch;
-        }
+        s.x = c.x - Math.cos(c.heading) * SEAT_BACK;
+        s.y = c.y - Math.sin(c.heading) * SEAT_BACK;
+        s.yaw = this.heading;
+        s.pitch = this.pitch;
       }
     } else {
       if (s.carry === Carry.Torpedo) {
@@ -174,7 +172,8 @@ export class CrewRole extends Avatar<CrewIntent, CrewBody, CrewTool> implements 
       else this.walk(dt, intent);
     }
 
-    const up = s.mode === CrewMode.Up && this.seat === null;
+    if (intent.head) this.workStanding(intent);
+    const up = s.mode === CrewMode.Up && this.sitting === null;
     this.findNearby();
     if (up) {
       if (s.carry === Carry.Nothing) {
@@ -357,6 +356,19 @@ export class CrewRole extends Avatar<CrewIntent, CrewBody, CrewTool> implements 
     this.pitch = -0.2;
     this.putAway();
     this.body.seated(c.station);
+  }
+
+  /**
+   * A headset at a console: its orders go straight through, and it's down as at that station, but nothing else about
+   * you changes — your tools stay in your hands, and you walk off when you like.
+   */
+  private workStanding(intent: CrewIntent): void {
+    const s = this.me!.state;
+    const aboard = s.mode === CrewMode.Up && this.ctx.deck.onShip(s.x);
+    const at = aboard ? intent.working : null;
+    this.standingAt = true;
+    s.seat = at === null ? 0 : at + 1;
+    if (aboard) for (const a of intent.acts) order(this.ctx, a);
   }
 
   private stand(): void {

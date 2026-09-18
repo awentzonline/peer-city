@@ -6,14 +6,14 @@ import { VrSettings } from '../crossplay/settingsPanel';
 import type { TouchChips } from '../crossplay/shell';
 import { headingToYaw } from '../crossplay/math';
 import { SnapTurn } from '../crossplay/vrControls';
-import { VrConsole } from './consoleVr';
+import { ConsoleHands } from './consoles';
 import type { StarshipContext } from './context';
 import { CONSOLES, SPAWN } from './deck';
 import type { DeckView } from './decks';
 import { Act, Screen, SCREENS, Station, STATIONS } from './defs';
 import { act, idleOfficerIntent, type ConsoleAct, type OfficerIntent } from './intent';
 import { manning, type OfficerFrontend } from './officer';
-import { StationPanel, STATION_NAMES } from './stations';
+import { StationPanel } from './stations';
 import { AwayCamera, type Draws, type Drawn } from './view';
 
 /** A station nobody's at yet, else the least crowded one. */
@@ -91,9 +91,9 @@ export class StationScreen implements OfficerFrontend, Draws {
 }
 
 /**
- * A station player in a headset: you stand at that station's console on the bridge and work it with your hands, the same
- * console a seated crew member gets (see consoleVr.ts). CHANGE STATION in its corner walks you round to the next one, so
- * a headset can cover the bridge the way a phone's tabs do.
+ * A station player in a headset: you stand at that station's console on the bridge and work it by pointing, the same
+ * way crew in a headset do (see consoles.ts). CHANGE STATION in its corner walks you round to the next one, so a
+ * headset can cover the bridge the way a phone's tabs do.
  */
 export class StationVr implements OfficerFrontend, Draws {
   readonly platform = Platform.Vr;
@@ -101,7 +101,7 @@ export class StationVr implements OfficerFrontend, Draws {
   private readonly menu: VrSettings;
   private readonly turn = new SnapTurn();
   private readonly intent: OfficerIntent;
-  private console: VrConsole | null = null;
+  private readonly hands: ConsoleHands;
   private station: Station;
   private place = true;
 
@@ -118,7 +118,9 @@ export class StationVr implements OfficerFrontend, Draws {
     this.intent = idleOfficerIntent(station);
     this.panels = new HeadsetHud(rig, ctx.hud, 0.2);
     this.menu = new VrSettings(ctx.settings, rig);
-    ctx.hud.message(`You have the ${STATION_NAMES[station].toLowerCase()}. Touch a key on the console and pull the trigger.`);
+    this.hands = new ConsoleHands(rig, decks.consoles);
+    this.claim();
+    ctx.hud.message('Point at a key on the console and pull the trigger.');
   }
 
   drawn(): Drawn {
@@ -140,12 +142,14 @@ export class StationVr implements OfficerFrontend, Draws {
     this.turn.update(rig, rig.right.stickX);
     if (rig.left.pressed(Btn.B)) this.menu.toggle();
     const onMenu = this.menu.update(this.ctx.now);
-    if (this.console?.station !== this.station) {
-      this.console?.dispose();
-      this.console = new VrConsole(this.ctx, rig, this.decks, this.station, { label: 'CHANGE STATION', press: () => this.moveOn() });
-    }
-    if (!onMenu) this.console.update(this.ctx.now, dt, intent.acts);
+    if (onMenu) this.hands.rest(intent.acts);
+    else this.hands.update(this.ctx.now, dt, [rig.right, rig.left], intent.acts);
     return intent;
+  }
+
+  /** Put CHANGE STATION in the corner of this station's console, and only this one's. */
+  private claim(): void {
+    for (const c of this.decks.consoles) c.corner = c.station === this.station ? { label: 'CHANGE STATION', press: () => this.moveOn() } : null;
   }
 
   /** Round to the next station, and stand at its console. */
@@ -153,8 +157,8 @@ export class StationVr implements OfficerFrontend, Draws {
     const i = STATIONS.findIndex((s) => s === this.station);
     this.station = STATIONS[(i + 1) % STATIONS.length];
     this.place = true;
+    this.claim();
     this.onStation(this.station);
-    this.ctx.hud.message(`You have the ${STATION_NAMES[this.station].toLowerCase()}.`);
   }
 
   present(): void {
@@ -162,7 +166,8 @@ export class StationVr implements OfficerFrontend, Draws {
   }
 
   dispose(): void {
-    this.console?.dispose();
+    this.hands.dispose();
+    for (const c of this.decks.consoles) c.corner = null;
     this.panels.dispose();
     this.menu.dispose();
   }

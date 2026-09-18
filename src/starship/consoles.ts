@@ -1,12 +1,14 @@
 import * as THREE from 'three';
+import { SOLID, box, merge, paint } from '../crossplay/models';
 import { disposePanel, panel, type Panel } from '../crossplay/panel';
+import { HandPointer, type Surface } from '../crossplay/pointer';
 import { Btn, type Rig, type XRHand } from '../crossplay/rig';
 import { angleDiff, type CrewEntity, type RaiderEntity, type ShipState, type StarshipContext } from './context';
-import { CONSOLES, PAD } from './deck';
-import type { DeckView } from './decks';
+import type { ConsoleSpot } from './deck';
+import { PAD } from './deck';
 import { Act, Beam, Crew, CrewMode, Phase, Raider, Relic, SCREENS, ShipSystem, Station, SYSTEMS, Warp } from './defs';
 import { act, type ConsoleAct } from './intent';
-import { STATION_COLORS, css } from './models';
+import { GLOW, STATION_COLORS, css } from './models';
 import { RAIDERS } from './raiders';
 import { phaseLine, planetStatus, scopeFor, type Scope } from './scopes';
 import {
@@ -27,31 +29,34 @@ import {
 } from './ship';
 import { STATION_NAMES, bearing, drawDial } from './stations';
 
-// The two faces of a console, in metres and in the pixels they're drawn with. The desk lies under your hands at the
-// same slant as the console's lit top; the screen stands at its far edge, low enough to leave the viewscreen in view.
-const DESK_W = 0.8;
-const DESK_H = 0.46;
-const DESK_PX = 480;
-const DESK_PY = 276;
-const DESK_LEAN = 0.9;
-const SCREEN_W = 0.72;
-const SCREEN_H = 0.44;
-const SCREEN_PX = 430;
-const SCREEN_PY = 260;
-const SCREEN_LEAN = 0.32;
+// A console's shape, in metres, side on: `u` forward from its centre (away from whoever works it), `v` up. The desk
+// slopes up away from you under your hands, at a standing height, and the screen stands on the shelf behind it.
+const DESK_SLOPE = 0.61;
+const LIP = { u: -0.42, v: 0.96 };
+const SLOPE_TOP = { u: -0.02, v: 1.24 };
+const WIDTH = 1;
+const SCREEN_FOOT = { u: 0.06, v: 1.27 };
+const SCREEN_TILT = 0.2;
 
-/** How far in front of a face a fingertip counts as touching it, and how far through. As generous as the settings panel. */
-const TOUCH_NEAR = 0.13;
-const TOUCH_THROUGH = 0.05;
-/** The fingertip, in controller space. */
-const TIP = new THREE.Vector3(0, 0, -0.05);
+// The two faces, in metres and in the logical pixels they're drawn in (600 to the metre, drawn at twice that).
+const DESK_W = 0.86;
+const DESK_H = 0.44;
+const DESK_PX = 516;
+const DESK_PY = 264;
+const SCREEN_W = 0.74;
+const SCREEN_H = 0.44;
+const SCREEN_PX = 444;
+const SCREEN_PY = 264;
+
+/** How often a console that's in use redraws, and one on standby. */
 const REDRAW_MS = 100;
+const STANDBY_MS = 1000;
+/** How long a console stays lit after a headset last pointed at it. */
+const LIT_MS = 4000;
 /** How often a held control sends the same order again. */
 const REPEAT_MS = 100;
 
-const tip = new THREE.Vector3();
-
-/** Where a fingertip landed on a face: logical pixels on its canvas. */
+/** Where a hand's pointing on a console: which face, in its logical pixels. */
 interface Hit {
   face: 'desk' | 'screen';
   x: number;
@@ -67,7 +72,7 @@ export interface Box {
 }
 
 /**
- * One control on the desk. `press` is called when a fingertip pulls the trigger on it, and again every frame it's held
+ * One control on the desk. `press` is called when a hand pulls the trigger on it, and again every frame it's held
  * when `hold` is set; either may return an order for the ship, or nothing.
  */
 export interface Key {
@@ -90,7 +95,7 @@ export interface Key {
   small?: boolean;
 }
 
-/** A bar to run a fingertip along: the helm's throttle. */
+/** A bar to run a pointer along: the helm's throttle. */
 export interface Slider {
   kind: 'slider';
   label(): string;
@@ -111,166 +116,182 @@ export interface Controls {
   status(): string[];
 }
 
+/** A key a frontend can put in the desk's corner, like a headset officer's CHANGE STATION. */
+export interface Corner {
+  label: string;
+  press(): void;
+}
+
 // ---------------------------------------------------------------------------
 // The console
 // ---------------------------------------------------------------------------
 
 /**
- * A bridge console inside a headset. Sitting down lights the station's own two faces: the slanted desk under your hands,
- * with the keys for that station, and the screen at its far edge, with the scope the phone's panel shows. Put a
- * fingertip on a key and pull the trigger — the same reach-and-pull the settings menu uses — and the order goes to the
- * ship's owner exactly as a phone's would. The panels belong to the console, not to you, so they stay put while you lean.
+ * A bridge console, as everyone sees it: a desk of keys sloping up under your hands and a screen with the station's
+ * scope standing behind it, both always showing the ship as it is. On standby (nobody at it) they're dimmed and seldom
+ * redrawn; once someone mans the station, from a console, a phone or a headset, they light up. A headset works them by
+ * pointing (see `ConsoleHands`), and the orders go to the ship's owner exactly as a phone's would.
  */
-export class VrConsole {
-  private readonly group = new THREE.Group();
+export class BridgeConsole {
+  readonly station: Station;
+  /** The desk and the screen, for pointing at. */
+  readonly surfaces: Surface[];
+  /** The key in the desk's corner, if the frontend here wants one. */
+  corner: Corner | null = null;
   private readonly desk: Panel;
   private readonly screen: Panel;
+  private readonly body: THREE.Mesh;
   private readonly scope: Scope;
   private readonly controls: Controls;
-  readonly station: Station;
   private readonly color: string;
-  private boxes: { box: Box; cell: Cell }[] = [];
-  private standBox: Box = { x: 0, y: 0, w: 0, h: 0 };
-  private scopeBox: Box = { x: 0, y: 0, w: 0, h: 0 };
+  private readonly boxes: { box: Box; cell: Cell }[];
   private hovered: Cell | null = null;
-  private hoverStand = false;
+  private hoverCorner = false;
   private held: { cell: Cell; hand: XRHand } | null = null;
+  private lit = false;
+  private pointedAt = -Infinity;
   private nextDraw = 0;
+  /** Helm's steering shares the course it's turning towards with its map. */
+  private readonly courseRef: { course: number | null } = { course: null };
 
   constructor(
     private readonly ctx: StarshipContext,
-    private readonly rig: Rig,
-    private readonly decks: DeckView,
-    station: Station,
-    /** The key in the desk's corner: what it says, and what it does. */
-    private readonly leave: { label: string; press(): void },
+    spot: ConsoleSpot,
+    parent: THREE.Object3D,
   ) {
-    this.station = station;
+    const station = (this.station = spot.station);
     this.color = css(STATION_COLORS[station]);
-    const spot = CONSOLES[station];
-    this.group.position.set(spot.x, 0, spot.y);
-    this.group.rotation.y = -spot.heading;
-    decks.scene.add(this.group);
-    // the console's own lit top and name give way to the panels standing in their place
-    decks.dressConsole(station, false);
-
-    // both faces hang off a quarter turn, so a face's own +x is the seated crew member's right
+    // a quarter turn, so the console's own -z points away from whoever works it and +x is their right
     const mount = new THREE.Group();
-    mount.rotation.y = -Math.PI / 2;
-    this.group.add(mount);
+    mount.position.set(spot.x, 0, spot.y);
+    mount.rotation.y = -spot.heading - Math.PI / 2;
+    parent.add(mount);
+    this.body = new THREE.Mesh(consoleBody(STATION_COLORS[station]), SOLID);
+    const lip = new THREE.Mesh(consoleLip(STATION_COLORS[station]), GLOW);
+    mount.add(this.body, lip);
 
     this.desk = panel(DESK_W, DESK_H, DESK_PX * 2, DESK_PY * 2, false);
-    this.desk.mesh.rotation.x = -Math.PI / 2 + DESK_LEAN;
-    // clear of the console's own top, which the leaning face would otherwise sink into
-    this.desk.mesh.position.set(0, 1.16, -0.08);
-    this.desk.mesh.visible = true;
-    mount.add(this.desk.mesh);
-
+    this.desk.mesh.rotation.x = -(Math.PI / 2 - DESK_SLOPE);
+    // just proud of the slope, so it doesn't fight with it
+    const out = 0.004;
+    this.desk.mesh.position.set(0, (LIP.v + SLOPE_TOP.v) / 2 + out * Math.cos(DESK_SLOPE), -(LIP.u + SLOPE_TOP.u) / 2 + out * Math.sin(DESK_SLOPE));
     this.screen = panel(SCREEN_W, SCREEN_H, SCREEN_PX * 2, SCREEN_PY * 2, false);
-    this.screen.mesh.rotation.x = -SCREEN_LEAN;
-    // close enough behind the desk that leaning in to reach it doesn't put your face through the screen
-    this.screen.mesh.position.set(0, 1.46, -0.26);
-    this.screen.mesh.visible = true;
-    mount.add(this.screen.mesh);
+    this.screen.mesh.rotation.x = -SCREEN_TILT;
+    const [su, sv] = screenCentre();
+    this.screen.mesh.position.set(0, sv + out * Math.sin(SCREEN_TILT), -su + out * Math.cos(SCREEN_TILT));
+    for (const p of [this.desk, this.screen]) {
+      p.mesh.visible = true;
+      p.mesh.renderOrder = 0;
+      p.mesh.material.transparent = false;
+      p.mesh.material.depthWrite = true;
+      mount.add(p.mesh);
+    }
+    this.surfaces = [
+      { mesh: this.desk.mesh, width: DESK_W, height: DESK_H, px: DESK_PX, py: DESK_PY },
+      { mesh: this.screen.mesh, width: SCREEN_W, height: SCREEN_H, px: SCREEN_PX, py: SCREEN_PY },
+    ];
 
-    const scope = (this.scope = scopeFor(ctx, station, this.courseRef));
-    this.controls = this.build(scope);
-    ctx.hud.message(`${STATION_NAMES[station].toUpperCase()}. Touch a key and pull the trigger.`);
+    this.scope = scopeFor(ctx, station, this.courseRef);
+    this.controls = stationControls(ctx, station, this.scope, this.courseRef);
+    this.boxes = deskLayout(this.controls);
+    this.setLit(false);
   }
 
   dispose(): void {
     disposePanel(this.desk);
     disposePanel(this.screen);
-    this.group.removeFromParent();
-    this.decks.dressConsole(this.station, true);
+    this.body.geometry.dispose();
+    this.body.parent?.removeFromParent();
+  }
+
+  /** Redraw as often as it's being used: `manned` when someone has this station, anywhere. */
+  update(now: number, manned: boolean): void {
+    const lit = manned || now - this.pointedAt < LIT_MS;
+    if (lit !== this.lit) this.setLit(lit);
+    if (now < this.nextDraw) return;
+    this.nextDraw = now + (lit ? REDRAW_MS : STANDBY_MS);
+    this.drawDesk();
+    this.drawScreen();
   }
 
   /**
-   * Read the hands, draw both faces, and put any orders given into `acts`. Returns whether the console took this
-   * frame's trigger, so a tool doesn't fire as well.
+   * The hands on this console this frame: for each hand, where it's pointing on this console, or null (pointing
+   * elsewhere, or at nothing). Orders given go into `acts`.
    */
-  update(now: number, dt: number, acts: ConsoleAct[]): boolean {
-    let used = false;
+  touch(now: number, hands: readonly XRHand[], hits: readonly (Hit | null)[], dt: number, acts: ConsoleAct[]): void {
     let hovered: Cell | null = null;
-    let hoverStand = false;
-    this.rig.root.updateMatrixWorld();
-    this.group.updateMatrixWorld();
-    for (const hand of [this.rig.right, this.rig.left]) {
-      const hit = this.under(hand);
+    let hoverCorner = false;
+    for (let i = 0; i < hands.length; i++) {
+      const hand = hands[i];
+      const hit = hits[i];
       if (!hit) {
         if (this.held?.hand === hand) this.letGo(acts);
         continue;
       }
-      const holding = this.held?.hand === hand && hand.down(Btn.Trigger);
+      this.pointedAt = now;
       const cell = this.cellAt(hit);
       if (cell) hovered = cell;
-      if (hit.face === 'desk' && !cell && within(this.standBox, hit)) hoverStand = true;
-      if (holding && this.held) {
-        used = true;
-        this.act(this.held.cell, hit, dt, acts);
-        continue;
+      const onCorner = hit.face === 'desk' && !cell && !!this.corner && within(LEAVE_BOX, hit);
+      if (onCorner) hoverCorner = true;
+      if (this.held?.hand === hand) {
+        if (hand.down(Btn.Trigger)) {
+          this.act(this.held.cell, hit, dt, acts);
+          continue;
+        }
+        this.letGo(acts);
       }
-      if (this.held?.hand === hand) this.letGo(acts);
-      if (!hand.pressed(Btn.Trigger)) {
-        // a fingertip resting on a face is still the console's business, not a tool's
-        used = used || hit.face === 'desk';
-        continue;
-      }
-      used = true;
+      if (!hand.pressed(Btn.Trigger)) continue;
       hand.pulse(0.6, 30);
       this.nextDraw = 0;
       if (hit.face === 'screen') {
-        const order = this.scope.tap(hit.x - this.scopeBox.x, hit.y - this.scopeBox.y);
+        const order = this.scope.tap(hit.x - SCOPE_BOX.x, hit.y - SCOPE_BOX.y);
         this.ctx.sfx.play('tap');
         if (order) acts.push(order);
         continue;
       }
-      if (!cell) {
-        if (within(this.standBox, hit)) this.leave.press();
+      if (onCorner) {
+        this.ctx.sfx.play('tap');
+        this.corner!.press();
         continue;
       }
+      if (!cell) continue;
       this.held = { cell, hand };
       this.act(cell, hit, dt, acts);
     }
-    if (hovered !== this.hovered || hoverStand !== this.hoverStand) {
+    if (hovered !== this.hovered || hoverCorner !== this.hoverCorner) {
       this.hovered = hovered;
-      this.hoverStand = hoverStand;
+      this.hoverCorner = hoverCorner;
       this.nextDraw = 0;
     }
-    if (now >= this.nextDraw) {
-      this.nextDraw = now + REDRAW_MS;
-      this.drawDesk();
-      this.drawScreen();
+  }
+
+  /** Nobody's hands are on it any more: let go of anything held. */
+  idle(acts: ConsoleAct[]): void {
+    if (this.held) this.letGo(acts);
+    if (this.hovered || this.hoverCorner) {
+      this.hovered = null;
+      this.hoverCorner = false;
+      this.nextDraw = 0;
     }
-    return used;
+  }
+
+  private setLit(lit: boolean): void {
+    this.lit = lit;
+    this.nextDraw = 0;
+    // a console on standby still shows the ship, only dimly: the bridge looks alive, and you can see who's where
+    for (const p of [this.desk, this.screen]) p.mesh.material.color.setScalar(lit ? 1 : 0.38);
   }
 
   // -------------------------------------------------------------------------
   // Hands
   // -------------------------------------------------------------------------
 
-  /** Where a hand's fingertip is on a face, or null. */
-  private under(hand: XRHand): Hit | null {
-    if (!hand.connected) return null;
-    hand.object.updateMatrixWorld();
-    for (const [face, p, w, h, px, py] of [
-      ['desk', this.desk, DESK_W, DESK_H, DESK_PX, DESK_PY],
-      ['screen', this.screen, SCREEN_W, SCREEN_H, SCREEN_PX, SCREEN_PY],
-    ] as const) {
-      tip.copy(TIP).applyMatrix4(hand.object.matrixWorld);
-      p.mesh.worldToLocal(tip);
-      if (tip.z > TOUCH_NEAR || tip.z < -TOUCH_THROUGH || Math.abs(tip.x) > w / 2 || Math.abs(tip.y) > h / 2) continue;
-      return { face, x: (0.5 + tip.x / w) * px, y: (0.5 - tip.y / h) * py };
-    }
-    return null;
-  }
-
   private cellAt(hit: Hit): Cell | null {
     if (hit.face !== 'desk') return null;
     return this.boxes.find((b) => within(b.box, hit))?.cell ?? null;
   }
 
-  /** Act on a key or slider a fingertip is on, this frame. */
+  /** Act on a key or slider a hand is on, this frame. */
   private act(cell: Cell, hit: Hit, dt: number, acts: ConsoleAct[]): void {
     if (cell.kind === 'slider') {
       const box = this.boxes.find((b) => b.cell === cell)!.box;
@@ -303,23 +324,14 @@ export class VrConsole {
   private drawDesk(): void {
     const { ctx: g } = this.desk;
     g.setTransform(2, 0, 0, 2, 0, 0);
-    g.clearRect(0, 0, DESK_PX, DESK_PY);
-    g.fillStyle = 'rgba(10,16,28,0.94)';
-    g.beginPath();
-    g.roundRect(2, 2, DESK_PX - 4, DESK_PY - 4, 14);
-    g.fill();
-    g.strokeStyle = this.color;
-    g.globalAlpha = 0.5;
-    g.lineWidth = 2;
-    g.stroke();
-    g.globalAlpha = 1;
+    face(g, DESK_PX, DESK_PY, this.color);
 
     g.textAlign = 'left';
     g.textBaseline = 'alphabetic';
     g.fillStyle = this.color;
     g.font = 'bold 20px Trebuchet MS, sans-serif';
     g.fillText(STATION_NAMES[this.station].toUpperCase(), 16, 28);
-    this.key(g, this.standBox, this.leave.label, { on: false, off: false, hot: this.hoverStand, color: '#ff9a7a', small: true });
+    if (this.corner) this.key(g, LEAVE_BOX, this.corner.label, { on: false, off: false, hot: this.hoverCorner, color: '#ff9a7a', small: true });
 
     for (const { box, cell } of this.boxes) {
       if (cell.kind === 'slider') this.slider(g, box, cell);
@@ -368,7 +380,7 @@ export class VrConsole {
 
   private slider(g: CanvasRenderingContext2D, box: Box, s: Slider): void {
     g.save();
-    g.fillStyle = 'rgba(255,255,255,0.08)';
+    g.fillStyle = this.hovered === s ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)';
     g.beginPath();
     g.roundRect(box.x, box.y, box.w, box.h, 8);
     g.fill();
@@ -379,9 +391,9 @@ export class VrConsole {
     g.globalAlpha = 1;
     g.fillStyle = '#fff';
     g.fillRect(box.x + 3 + (box.w - 6) * f - 3, box.y + 2, 6, box.h - 4);
-    g.strokeStyle = this.color;
-    g.globalAlpha = 0.6;
-    g.lineWidth = 2;
+    g.strokeStyle = this.hovered === s ? '#fff' : this.color;
+    g.globalAlpha = this.hovered === s ? 1 : 0.6;
+    g.lineWidth = this.hovered === s ? 3 : 2;
     g.beginPath();
     g.roundRect(box.x, box.y, box.w, box.h, 8);
     g.stroke();
@@ -398,89 +410,178 @@ export class VrConsole {
     const { ctx: g } = this.screen;
     const ship = this.ctx.ship()?.render;
     g.setTransform(2, 0, 0, 2, 0, 0);
-    g.clearRect(0, 0, SCREEN_PX, SCREEN_PY);
-    g.fillStyle = 'rgba(8,12,22,0.96)';
-    g.beginPath();
-    g.roundRect(2, 2, SCREEN_PX - 4, SCREEN_PY - 4, 12);
-    g.fill();
-    g.strokeStyle = this.color;
-    g.globalAlpha = 0.5;
-    g.lineWidth = 2;
-    g.stroke();
-    g.globalAlpha = 1;
+    face(g, SCREEN_PX, SCREEN_PY, this.color);
     g.textAlign = 'left';
     g.textBaseline = 'alphabetic';
+    // the station's name, so the console says what it is from across the bridge
+    g.fillStyle = this.color;
+    g.font = 'bold 17px Trebuchet MS, sans-serif';
+    g.fillText(STATION_NAMES[this.station].toUpperCase(), 14, 26);
     if (!ship) {
       g.fillStyle = '#9fb0c8';
-      g.font = 'bold 16px Trebuchet MS, sans-serif';
-      g.fillText('LOOKING FOR THE SHIP…', 16, 30);
+      g.font = 'bold 14px Trebuchet MS, sans-serif';
+      g.fillText('LOOKING FOR THE SHIP…', 14, 54);
       this.screen.tex.needsUpdate = true;
       return;
     }
     // hull and shields, then the voyage's line
-    bar(g, 12, 12, 120, 12, ship.hull / 100, ship.hull < 30 ? '#ff5a4a' : ship.hull < 60 ? '#ffb84a' : '#7ae08a');
-    bar(g, 140, 12, 120, 12, ship.shields / SHIELD_MAX, ship.shieldsUp ? '#6ab8ff' : '#4a5a70');
+    const bx = 150;
+    bar(g, bx, 12, 110, 10, ship.hull / 100, ship.hull < 30 ? '#ff5a4a' : ship.hull < 60 ? '#ffb84a' : '#7ae08a');
+    bar(g, bx + 120, 12, 110, 10, ship.shields / SHIELD_MAX, ship.shieldsUp ? '#6ab8ff' : '#4a5a70');
     g.fillStyle = '#9fb0c8';
     g.font = '11px system-ui, sans-serif';
-    g.fillText(`HULL ${Math.round(ship.hull)}%`, 12, 36);
-    g.fillText(`SHIELDS ${Math.round(ship.shields)}`, 140, 36);
+    g.fillText(`HULL ${Math.round(ship.hull)}%`, bx, 35);
+    g.fillText(`SHIELDS ${Math.round(ship.shields)}`, bx + 120, 35);
     if (ship.alert) {
       g.fillStyle = '#ff5a4a';
-      g.font = 'bold 13px Trebuchet MS, sans-serif';
-      g.fillText('RED ALERT', SCREEN_PX - 82, 22);
+      g.font = 'bold 12px Trebuchet MS, sans-serif';
+      g.textAlign = 'right';
+      g.fillText('RED ALERT', SCREEN_PX - 14, 22);
+      g.textAlign = 'left';
     }
     g.fillStyle = '#cfe0f6';
     g.font = '11px system-ui, sans-serif';
-    g.fillText(phaseLine(this.ctx, ship), 12, 54, SCREEN_PX - 24);
+    g.fillText(phaseLine(this.ctx, ship), 14, 54, SCREEN_PX - 28);
     // the scope itself, drawn in its own corner of the canvas
     g.save();
     g.beginPath();
-    g.rect(this.scopeBox.x, this.scopeBox.y, this.scopeBox.w, this.scopeBox.h);
+    g.rect(SCOPE_BOX.x, SCOPE_BOX.y, SCOPE_BOX.w, SCOPE_BOX.h);
     g.clip();
-    g.translate(this.scopeBox.x, this.scopeBox.y);
-    this.scope.draw(g, this.scopeBox.w, this.scopeBox.h);
+    g.translate(SCOPE_BOX.x, SCOPE_BOX.y);
+    this.scope.draw(g, SCOPE_BOX.w, SCOPE_BOX.h);
     g.restore();
     if (this.station === Station.Helm) {
       // a compass in the corner of the map, since the helm steers by it
       const size = 92;
       g.save();
-      g.translate(this.scopeBox.x + this.scopeBox.w - size - 6, this.scopeBox.y + this.scopeBox.h - size - 6);
+      g.translate(SCOPE_BOX.x + SCOPE_BOX.w - size - 6, SCOPE_BOX.y + SCOPE_BOX.h - size - 6);
       g.fillStyle = 'rgba(8,12,22,0.8)';
       g.beginPath();
       g.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
       g.fill();
-      drawDial(g, size, ship.heading, this.course ?? ship.course, ship.autopilot || ship.warp !== Warp.Idle || !!ship.orbit);
+      drawDial(g, size, ship.heading, this.courseRef.course ?? ship.course, ship.autopilot || ship.warp !== Warp.Idle || !!ship.orbit);
       g.restore();
     }
     const feed = this.ctx.hud.feed.at(-1);
     if (feed) {
       g.fillStyle = '#ffd35a';
       g.font = '12px system-ui, sans-serif';
-      g.fillText(feed.text, 12, SCREEN_PY - 8, SCREEN_PX - 24);
+      g.fillText(feed.text, 14, SCREEN_PY - 8, SCREEN_PX - 28);
     }
     this.screen.tex.needsUpdate = true;
   }
+}
 
-  // -------------------------------------------------------------------------
-  // Laying the keys out
-  // -------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Working the consoles in a headset
+// ---------------------------------------------------------------------------
 
-  private build(scope: Scope): Controls {
-    const controls = stationControls(this.ctx, this.station, scope, this.courseRef);
-    this.boxes = deskLayout(controls);
-    this.standBox = LEAVE_BOX;
-    this.scopeBox = SCOPE_BOX;
-    return controls;
+/**
+ * A headset's hands on the bridge consoles: point a hand at any console's desk or screen (or touch it) and pull the
+ * trigger, and its orders go into the frame's acts. No sitting down, no taking your hands off anything else: a hand
+ * that's holding a tool is still holding a tool, and walking off is just walking off.
+ */
+export class ConsoleHands {
+  private readonly pointer: HandPointer;
+  private readonly surfaces: Surface[];
+  private readonly hits: (Hit | null)[] = [];
+  private live = false;
+
+  constructor(
+    rig: Rig,
+    private readonly consoles: readonly BridgeConsole[],
+  ) {
+    this.pointer = new HandPointer(rig);
+    this.surfaces = consoles.flatMap((c) => c.surfaces);
   }
 
-  /** Helm's steering shares the course it's turning towards with its map. */
-  private readonly courseRef: { course: number | null } = { course: null };
-  private get course(): number | null {
-    return this.courseRef.course;
+  /** Point `hands` at the consoles this frame. Returns the console a hand's on, if any. */
+  update(now: number, dt: number, hands: readonly XRHand[], acts: ConsoleAct[]): Station | null {
+    this.live = true;
+    const points = this.pointer.update(this.surfaces, hands);
+    let on: Station | null = null;
+    this.consoles.forEach((c, ci) => {
+      this.hits.length = 0;
+      for (const p of points) {
+        const mine = !!p && Math.floor(p.surface / 2) === ci;
+        this.hits.push(mine ? { face: p.surface % 2 ? 'screen' : 'desk', x: p.x, y: p.y } : null);
+        if (mine) on = c.station;
+      }
+      c.touch(now, hands, this.hits, dt, acts);
+    });
+    return on;
+  }
+
+  /** Hands off every console, e.g. while the settings menu is up. */
+  rest(acts: ConsoleAct[]): void {
+    if (!this.live) return;
+    this.live = false;
+    this.pointer.hide();
+    for (const c of this.consoles) c.idle(acts);
+  }
+
+  dispose(): void {
+    this.pointer.dispose();
+    for (const c of this.consoles) c.idle([]);
   }
 }
 
-/** The key in the desk's corner that leaves the console, and the screen's window onto the scope. */
+// ---------------------------------------------------------------------------
+// Shapes
+// ---------------------------------------------------------------------------
+
+/** The screen's centre, (u, v), leaning back from its foot on the shelf. */
+function screenCentre(): [number, number] {
+  return [SCREEN_FOOT.u + (SCREEN_H / 2) * Math.sin(SCREEN_TILT), SCREEN_FOOT.v + (SCREEN_H / 2) * Math.cos(SCREEN_TILT)];
+}
+
+/** Side on, extruded across: a pedestal with a toe recess, the sloping desk, the shelf behind; and the screen's case. */
+function consoleBody(color: number): THREE.BufferGeometry {
+  const s = new THREE.Shape();
+  s.moveTo(-0.3, 0);
+  s.lineTo(0.4, 0);
+  s.lineTo(0.4, SLOPE_TOP.v);
+  s.lineTo(SLOPE_TOP.u, SLOPE_TOP.v);
+  s.lineTo(LIP.u, LIP.v);
+  s.lineTo(LIP.u, LIP.v - 0.08);
+  s.lineTo(-0.3, 0.8);
+  s.closePath();
+  // shape x is forward (the console's -z), and it's extruded across (+x)
+  const shell = paint(new THREE.ExtrudeGeometry(s, { depth: WIDTH, bevelEnabled: false }).rotateY(Math.PI / 2).translate(-WIDTH / 2, 0, 0), 0x4a5262);
+  const [su, sv] = screenCentre();
+  const bezel = paint(
+    new THREE.BoxGeometry(SCREEN_W + 0.05, SCREEN_H + 0.05, 0.05)
+      .translate(0, 0, -0.026)
+      .rotateX(-SCREEN_TILT)
+      .translate(0, sv, -su),
+    0x22262e,
+  );
+  const stand = box(0.3, 0.1, 0.14, 0, SLOPE_TOP.v + 0.04, -(SCREEN_FOOT.u + 0.1), 0x2a2e38);
+  const band = box(WIDTH + 0.01, 0.04, 0.72, 0, 0.12, -0.05, color);
+  return merge([shell, bezel, stand, band]);
+}
+
+/** A strip of the station's colour glowing along the desk's front edge. */
+function consoleLip(color: number): THREE.BufferGeometry {
+  return paint(new THREE.BoxGeometry(WIDTH + 0.004, 0.018, 0.018).translate(0, LIP.v - 0.02, -LIP.u + 0.004), color);
+}
+
+/** A face's backing: a dark panel edged in the station's colour, on a bezel so nothing shows through its corners. */
+function face(g: CanvasRenderingContext2D, w: number, h: number, color: string): void {
+  g.fillStyle = '#12161e';
+  g.fillRect(0, 0, w, h);
+  g.fillStyle = '#0a1019';
+  g.beginPath();
+  g.roundRect(2, 2, w - 4, h - 4, 12);
+  g.fill();
+  g.strokeStyle = color;
+  g.globalAlpha = 0.5;
+  g.lineWidth = 2;
+  g.stroke();
+  g.globalAlpha = 1;
+}
+
+/** The corner key's place on the desk, and the screen's window onto the scope. */
 export const LEAVE_BOX: Box = { x: DESK_PX - 106, y: 10, w: 90, h: 24 };
 export const SCOPE_BOX: Box = { x: 12, y: 62, w: SCREEN_PX - 24, h: SCREEN_PY - 62 - 18 };
 
@@ -677,7 +778,7 @@ function helmKeys(ctx: StarshipContext, scope: Scope, ref: () => { course: numbe
       if (!s) return [];
       const wd = Math.hypot(s.wx - s.x, s.wy - s.y);
       return [
-        s.waypoint ? `WAYPOINT ${Math.round(wd)} u${s.speed > 5 && s.warp === Warp.Idle ? ` · ETA ${Math.round(wd / s.speed)} s` : ''}` : 'No waypoint: touch the map on the screen',
+        s.waypoint ? `WAYPOINT ${Math.round(wd)} u${s.speed > 5 && s.warp === Warp.Idle ? ` · ETA ${Math.round(wd / s.speed)} s` : ''}` : 'No waypoint: point at the map on the screen',
         `${s.orbit ? 'IN ORBIT' : s.autopilot ? 'AUTOPILOT' : `STEERING ${String(bearing(s.course)).padStart(3, '0')}°`}`,
       ];
     },
@@ -759,7 +860,7 @@ function tacticalKeys(ctx: StarshipContext): Controls {
       const s = ship(ctx);
       if (!s) return [];
       const t = target();
-      if (!t) return [ctx.world.all(Raider).size ? 'NO TARGET · touch a raider on the scope' : 'NO TARGET · no raiders on sensors', `${s.torps} torpedoes in the rack`];
+      if (!t) return [ctx.world.all(Raider).size ? 'NO TARGET · point at a raider on the scope' : 'NO TARGET · no raiders on sensors', `${s.torps} torpedoes in the rack`];
       const spec = RAIDERS[t.render.kind];
       const rel = Math.round((angleDiff(s.heading, Math.atan2(t.y - s.y, t.x - s.x)) * 180) / Math.PI);
       const side = Math.abs(rel) < 3 ? 'dead ahead' : `${Math.abs(rel)}° ${rel > 0 ? 'starboard' : 'port'}`;
@@ -833,7 +934,7 @@ function scienceKeys(ctx: StarshipContext, scope: Scope): Controls {
       if (!s) return [];
       const p = scope.picked;
       const what = !p
-        ? 'NOTHING SELECTED · touch a planet or raider on the scope'
+        ? 'NOTHING SELECTED · point at a planet or raider on the scope'
         : 'planet' in p
           ? `${ctx.sector.planets[p.planet].name.toUpperCase()} · ${planetStatus(ctx, s, p.planet)}`
           : `${RAIDERS[(ctx.world.getAs(Raider, p.raider) as RaiderEntity | undefined)?.render.kind ?? 0].name.toUpperCase()} · ${(ctx.world.getAs(Raider, p.raider) as RaiderEntity | undefined)?.render.scanned ? 'harmonics known' : 'unscanned'}`;

@@ -7,7 +7,7 @@ import { Btn, type Rig, type XrPoseSource } from '../crossplay/rig';
 import { VrSettings } from '../crossplay/settingsPanel';
 import type { Tool, UseEffect } from '../crossplay/tool';
 import { SnapTurn, deadzone, readHand, readHead } from '../crossplay/vrControls';
-import { VrConsole } from './consoleVr';
+import { ConsoleHands } from './consoles';
 import type { StarshipContext, Vec3 } from './context';
 import type { CrewFrontend, CrewRole } from './crew';
 import type { DeckView } from './decks';
@@ -19,14 +19,16 @@ import type { Drawn, Draws } from './view';
 
 const TRIGGER = 0.6;
 const TICK_MS = 500;
+/** How long you count as at a console after pointing at it. */
+const WORKED_MS = 5000;
 
 /**
  * Crew in a headset. Walk your room or push the left stick; the right stick snap-turns. The phaser is on your right hip,
  * the spanner on your left, and the extinguisher on your chest: squeeze a grip by one to take it, and hold the trigger to
  * use it (put the spanner's end on the sparks, point the extinguisher at the fire). A takes and loads torpedoes, picks
- * up the relic. Walk up to a bridge console and it lights that station's own panels to reach out and press (see
- * consoleVr.ts) — the console itself steps out of your way so you can lean right up to it; back away or press A to
- * get up. Y opens the settings. Your watch shows how you and the ship are doing.
+ * up the relic. The bridge consoles are worked standing: point an empty hand at a console's keys or screen (or touch
+ * them) and pull the trigger (see consoles.ts) — nothing stops you, and nothing needs putting down. Y opens the
+ * settings. Your watch shows how you and the ship are doing.
  */
 export class VrCrew implements CrewFrontend, Draws {
   readonly platform = Platform.Vr;
@@ -38,12 +40,12 @@ export class VrCrew implements CrewFrontend, Draws {
   private readonly head: TrackedHead = { x: 0, y: 0, z: 0, heading: 0, pitch: 0 };
   private readonly hands: [HandIntent, HandIntent] = [handIntent(), handIntent()];
   private readonly turn = new SnapTurn();
-  private standing = false;
-  /** Set right after standing, so walking away from a console (once) is what re-arms auto-sitting, not just lingering near it. */
-  private suppressSit = false;
+  private readonly consoles: ConsoleHands;
+  /** The console last pointed at, and when: you're still at it for a moment after you lower your hand. */
+  private worked: Station | null = null;
+  private workedAt = -Infinity;
   private readonly tmp: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly dir: Vec3 = { x: 0, y: 0, z: 0 };
-  private console: VrConsole | null = null;
   private drawn_ = -1;
   private next = 0;
 
@@ -52,12 +54,13 @@ export class VrCrew implements CrewFrontend, Draws {
     private readonly crew: CrewRole,
     private readonly rig: Rig,
     private readonly source: XrPoseSource,
-    private readonly decks: DeckView,
+    decks: DeckView,
   ) {
     rig.setMode(source.mode);
     this.holsters = new Holsters(rig);
     this.panels = new HeadsetHud(rig, ctx.hud, 0.22);
     this.menu = new VrSettings(ctx.settings, rig);
+    this.consoles = new ConsoleHands(rig, decks.consoles);
     this.intent.head = this.head;
     this.intent.hands = this.hands;
     ctx.hud.message('Phaser on your right hip, spanner on your left, extinguisher on your chest. A takes and loads things.');
@@ -71,12 +74,7 @@ export class VrCrew implements CrewFrontend, Draws {
     this.holsters.dispose();
     this.panels.dispose();
     this.menu.dispose();
-    this.closeConsole();
-  }
-
-  private closeConsole(): void {
-    this.console?.dispose();
-    this.console = null;
+    this.consoles.dispose();
   }
 
   read(dt: number): CrewIntent {
@@ -91,38 +89,31 @@ export class VrCrew implements CrewFrontend, Draws {
     const onMenu = this.menu.update(this.ctx.now);
     this.turn.update(rig, right.stickX);
     readHead(rig, this.head);
-    // your legs work whether or not you're at a console — only the panels take your hands
     if (crew.me?.state.mode === CrewMode.Up) {
       intent.strafe = deadzone(left.stickX);
       intent.forward = -deadzone(left.stickY);
     }
-    const seated = crew.seat;
-    const nearConsole = crew.nearby?.kind === 'console';
-    if (!nearConsole) this.suppressSit = false;
-    if (seated !== null) {
-      // a console's own panels take the hands as soon as you're at one; A or walking off gets you up again
-      if (this.console?.station !== seated) {
-        this.closeConsole();
-        this.console = new VrConsole(this.ctx, rig, this.decks, seated, { label: 'STAND UP', press: () => (this.standing = true) });
-      }
-      if (this.standing || intent.use || !nearConsole) intent.sit = true;
-      if (this.standing || intent.use) this.suppressSit = true;
-      this.standing = false;
-      if (!onMenu) this.console.update(this.ctx.now, dt, intent.acts);
-      intent.use = false;
-      for (const hand of this.hands) hand.trigger = hand.grab = false;
-      return intent;
-    }
-    this.closeConsole();
     this.holsters.update(crew.inventory);
     readHand(rig, this.holsters, right, this.hands[Side.Right], TRIGGER);
     readHand(rig, this.holsters, left, this.hands[Side.Left], TRIGGER);
-    if (onMenu) {
-      intent.use = false;
+    const up = crew.me?.state.mode === CrewMode.Up;
+    if (onMenu || !up) {
+      this.consoles.rest(intent.acts);
+      if (onMenu) intent.use = false;
       for (const hand of this.hands) hand.trigger = hand.grab = false;
+    } else {
+      // an empty hand points at the consoles; one holding a tool is still using it
+      const free = [right, left].filter((h) => !this.holsters.held(h) && !this.holsters.grabbing(h));
+      const on = this.consoles.update(this.ctx.now, dt, free, intent.acts);
+      if (on !== null) {
+        this.worked = on;
+        this.workedAt = this.ctx.now;
+        for (const hand of this.hands) if (hand.tool === null) hand.trigger = false;
+      }
     }
-    // walk up to a console and it lights up on its own — no need to sit down first
-    intent.sit = !onMenu && !this.suppressSit && nearConsole;
+    // at a console while you're pointing at it (and a moment after), or standing right at it
+    const near = crew.nearby?.kind === 'console' ? crew.nearby.console.station : null;
+    intent.working = this.ctx.now - this.workedAt < WORKED_MS ? this.worked : near;
     return intent;
   }
 
@@ -131,7 +122,7 @@ export class VrCrew implements CrewFrontend, Draws {
     if (!ctx.me) return;
     this.holsters.animate(dt, ctx.me.state.mode === CrewMode.Up && ctx.me.state.carry === Carry.Nothing);
     ctx.sfx.setListener(rig.head(this.tmp), direction(rig.headHeading(), rig.headPitch(), this.dir));
-    ctx.hud.crew(ctx, crew, { use: 'A', fire: 'the trigger', tools: 'right-hip left-hip chest', bar: '' });
+    ctx.hud.crew(ctx, crew, { use: 'A', fire: 'the trigger', tools: 'right-hip left-hip chest', bar: '', sit: false });
     this.watch(ctx.hud);
   }
 
@@ -203,7 +194,6 @@ export class VrCrew implements CrewFrontend, Draws {
   downed(): void {
     downedNews(this.ctx);
     this.rig.setTint(0x3a0000, 0.45);
-    this.closeConsole();
   }
 
   revived(): void {
@@ -215,10 +205,7 @@ export class VrCrew implements CrewFrontend, Draws {
     this.rig.flash(0x9ad8ff, 0.8);
   }
 
-  seated(station: Station | null): void {
-    if (station === null) this.closeConsole();
-    else this.rig.right.pulse(0.4, 40);
-  }
+  seated(): void {}
 
   fixed(kind: FaultKind): void {
     fixedNews(this.ctx, kind);
@@ -231,6 +218,5 @@ export class VrCrew implements CrewFrontend, Draws {
 
   restarted(): void {
     this.rig.setTint(0, 0);
-    this.closeConsole();
   }
 }

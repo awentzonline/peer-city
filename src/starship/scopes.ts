@@ -10,7 +10,7 @@ export type Picked = { planet: number } | { raider: number } | null;
 
 /**
  * The display half of a station: what its scope draws, and what a tap on it means. A console is this plus controls, so
- * the phone's panel (`StationPanel`) and a headset's console (`VrConsole`) can show the same map, radar or deck plan
+ * the phone's panel (`StationPanel`) and the bridge's consoles (`BridgeConsole`) can show the same map, radar or deck plan
  * without either owning it.
  */
 export interface Scope {

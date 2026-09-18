@@ -20,6 +20,8 @@ export interface CrewKeys {
   /** Switch tools: "1 2 3". */
   tools: string;
   bar: string;
+  /** False where consoles aren't sat at (a headset points at them instead). */
+  sit?: boolean;
 }
 
 /** What changed about the voyage since last frame, for a frontend to make a fuss about. */
@@ -119,7 +121,7 @@ export class Hud extends HudBase {
     const s = me.state;
     const hp = Math.round(s.hp);
     this.set('hp', hp, () => this.hpEl && (this.hpEl.style.width = `${hp}%`));
-    const tool = role.seat !== null || s.carry !== Carry.Nothing ? '' : (role.inventory.current?.name ?? '');
+    const tool = role.sitting !== null || s.carry !== Carry.Nothing ? '' : (role.inventory.current?.name ?? '');
     if (tool !== this.tool) {
       this.tool = tool;
       if (this.toolEl) this.toolEl.innerHTML = [PHASER, SPANNER, EXTINGUISHER].map((t, i) => `<span class="${t.name === tool ? 'on' : ''}"><small>${i + 1}</small>${t.name}</span>`).join('');
@@ -177,7 +179,7 @@ function crewHint(ctx: StarshipContext, role: CrewRole, keys: CrewKeys): string 
   const s = me.state;
   const ship = ctx.ship()?.render;
   if (s.mode === CrewMode.Down) return "You're hurt. The medics will have you back on your feet in sickbay in a moment";
-  if (role.seat !== null) return `At the ${STATION_NAMES[role.seat].toLowerCase()} console. ${keys.use} to stand up`;
+  if (role.sitting !== null) return `At the ${STATION_NAMES[role.sitting].toLowerCase()} console. ${keys.use} to stand up`;
   const n = role.nearby;
   if (s.carry === Carry.Torpedo) {
     if (n?.kind === 'tube') return n.loaded ? 'That tube is loaded' : `${keys.use} to load the torpedo`;
@@ -186,7 +188,8 @@ function crewHint(ctx: StarshipContext, role: CrewRole, keys: CrewKeys): string 
   }
   if (s.carry === Carry.Relic) return `Got it! Get clear of the drones and ask science to beam you up. ${keys.use} to put it down`;
   if (n?.kind === 'relic') return `${keys.use} to take the relic`;
-  if (n?.kind === 'console') return `${keys.use} to sit at the ${STATION_NAMES[n.console.station].toLowerCase()} console`;
+  // a headset works a console by pointing at it: the console lighting up says as much as a hint could
+  if (n?.kind === 'console') return keys.sit === false ? '' : `${keys.use} to sit at the ${STATION_NAMES[n.console.station].toLowerCase()} console`;
   if (n?.kind === 'rack') return ship && ship.torps > 0 ? `${keys.use} to take a torpedo (${ship.torps} in the rack)` : 'The rack is empty. The starbase can restock it';
   if (n?.kind === 'tube') return n.loaded ? 'Tube loaded' : 'Tube empty: bring a torpedo from the rack';
 

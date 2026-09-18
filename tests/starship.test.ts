@@ -6,7 +6,7 @@ import type { CrewEntity, FaultEntity, RaiderEntity, RelicEntity, SentinelEntity
 import { CrewRole, SEAT_BACK, type CrewBody } from '../src/starship/crew';
 import { CELL, CONSOLES, Deck, MACHINES, PAD, RACK, SPAWN, TUBES, Tile } from '../src/starship/deck';
 import { ACTIONS, Act, Beam, Carry, CrewMode, ENTITIES, Fault, FaultKind, Phase, Raider, RaiderKind, Relic, Result, Screen, Sentinel, ShipSystem, Station, STATIONS, SYSTEMS } from '../src/starship/defs';
-import { DESK, LEAVE_BOX, SCOPE_BOX, deskLayout, stationControls, within, type Key, type Slider } from '../src/starship/consoleVr';
+import { DESK, LEAVE_BOX, SCOPE_BOX, deskLayout, stationControls, within, type Key, type Slider } from '../src/starship/consoles';
 import { Torpedoes } from '../src/starship/flights';
 import { stepRules } from '../src/starship/frame';
 import { act, idleCrewIntent, idleOfficerIntent, stillCrew, type CrewIntent, type OfficerIntent } from '../src/starship/intent';
@@ -108,10 +108,10 @@ function frame(p: Peer, now: number, dt: number): void {
   }
   if (p.crew) {
     p.crew.update(dt, p.cintent!);
-    const { strafe, forward, trigger } = p.cintent!;
+    const { strafe, forward, trigger, head, working } = p.cintent!;
     stillCrew(p.cintent!);
-    // held controls stay held; presses last a frame
-    Object.assign(p.cintent!, { strafe, forward, trigger });
+    // held controls stay held (and a headset stays on); presses last a frame
+    Object.assign(p.cintent!, { strafe, forward, trigger, head, working });
   }
   stepRules(p.ctx, p.keeper, p.torpedoes, dt, now);
 }
@@ -541,6 +541,27 @@ describe('Fighting', () => {
     run(net, peers, 200);
     expect(c.crew!.seat).toBe(null);
     expect(c.body!.seats).toEqual([Station.Helm, null]);
+  });
+
+  it('lets a headset work a console standing: its orders go through, and nothing stops it or takes its tools', () => {
+    const { net, o, c, peers } = underway();
+    const helm = CONSOLES[Station.Helm];
+    const me = c.ctx.me as CrewEntity;
+    placeCrew(c, helm.x - 0.9, helm.y, 0);
+    const intent = c.cintent!;
+    intent.head = { x: me.state.x, y: me.state.y, z: 1.6, heading: 0, pitch: 0 };
+    run(net, peers, 200);
+    intent.working = Station.Helm;
+    intent.acts.push(act(Act.OnScreen, Screen.Aft));
+    run(net, peers, 300);
+    expect(shipOf(o).render.screen).toBe(Screen.Aft);
+    expect(c.crew!.seat).toBe(Station.Helm);
+    expect(c.crew!.sitting).toBe(null);
+    expect(c.body!.seats).toEqual([]);
+    // walking off is just walking off
+    intent.working = null;
+    run(net, peers, 200);
+    expect(c.crew!.seat).toBe(null);
   });
 });
 
