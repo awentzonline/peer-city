@@ -5,12 +5,12 @@ import type { Role } from '../crossplay/role';
 import type { Tool } from '../crossplay/tool';
 import { hurtSentinel } from './away';
 import { type CrewEntity, type FaultEntity, type RelicEntity, type SentinelEntity, type StarshipContext } from './context';
-import { CONSOLES, RACK, REACH, TUBES, Tile, WALL_HEIGHT, type ConsoleSpot } from './deck';
-import { Act, Beam3, Carry, Crew as CrewDef, CrewMode, Damage, Fault, FaultKind, Grab, Mend, Noise, Relic, Sentinel, Shot, Sound, Station, Transport } from './defs';
+import { CONSOLES, PAD, RACK, REACH, TUBES, Tile, WALL_HEIGHT, type ConsoleSpot } from './deck';
+import { Act, Beam, Beam3, Carry, Crew as CrewDef, CrewMode, Damage, Fault, FaultKind, Grab, Mend, Noise, Relic, Sentinel, Shot, Sound, Station, Transport } from './defs';
 import type { CrewIntent } from './intent';
 import { EXTINGUISHER, PHASER, SPANNER, TOOLS, type CrewTool, type Fixer, type Use } from './kit';
 import { order } from './officer';
-import { bridgeSpot } from './ship';
+import { bridgeSpot, transporterBlocked } from './ship';
 
 /** How the crew's rules reach back to the device playing them. */
 export interface CrewBody extends AvatarBody {
@@ -304,6 +304,13 @@ export class CrewRole extends Avatar<CrewIntent, CrewBody, CrewTool> implements 
     const s = this.me!.state;
     const n = this.nearby;
     const ship = ctx.ship()?.render;
+    // with nobody at science, crew work the transporter themselves: from the pad, or by communicator from a planet
+    if (ship && selfBeam(ctx) && !n) {
+      if (ctx.deck.onShip(s.x) ? Math.hypot(s.x - PAD.x, s.y - PAD.y) <= PAD.radius : s.carry !== Carry.Torpedo) {
+        order(ctx, { act: ctx.deck.onShip(s.x) ? Act.BeamDown : Act.BeamUp, a: 0, b: 0, ref: 0 });
+        return;
+      }
+    }
     if (s.carry === Carry.Relic) {
       for (const r of ctx.world.all(Relic) as ReadonlySet<RelicEntity>) if (r.render.carrier === this.me!.id) ctx.world.command(Grab, { target: r.id, by: 0 });
       s.carry = Carry.Nothing;
@@ -494,6 +501,12 @@ export class CrewRole extends Avatar<CrewIntent, CrewBody, CrewTool> implements 
     if (!this.ctx.deck.onShip(s.x)) return PHASER;
     return fire ? EXTINGUISHER : sparks ? SPANNER : null;
   }
+}
+
+/** Whether crew can beam themselves: nobody's at science to do it, and the transporter's free to use. */
+export function selfBeam(ctx: StarshipContext): boolean {
+  const ship = ctx.ship()?.render;
+  return !!ship && ship.beam === Beam.Idle && !transporterBlocked(ship) && !crewStations(ctx).has(Station.Science);
 }
 
 /** Sitting or standing, crew count at their station too. */

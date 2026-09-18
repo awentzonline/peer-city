@@ -1,6 +1,6 @@
 import { HudBase } from '../crossplay/hud';
 import type { CrewEntity, StarshipContext } from './context';
-import type { CrewRole } from './crew';
+import { selfBeam, type CrewRole } from './crew';
 import { PAD } from './deck';
 import { Carry, Crew, CrewMode, Fault, FaultKind, Phase, Raider, Relic, Result, Screen, Station } from './defs';
 import { EXTINGUISHER, PHASER, SPANNER } from './kit';
@@ -186,6 +186,8 @@ function crewHint(ctx: StarshipContext, role: CrewRole, keys: CrewKeys): string 
     if (n?.kind === 'rack') return `${keys.use} to put it back`;
     return 'Carry the torpedo to an empty tube at the end of the torpedo room';
   }
+  const self = selfBeam(ctx);
+  if (s.carry === Carry.Relic && self) return `Got it! Get clear of the drones, then ${keys.use} to beam up with it`;
   if (s.carry === Carry.Relic) return `Got it! Get clear of the drones and ask science to beam you up. ${keys.use} to put it down`;
   if (n?.kind === 'relic') return `${keys.use} to take the relic`;
   // a headset works a console by pointing at it: the console lighting up says as much as a hint could
@@ -208,11 +210,13 @@ function crewHint(ctx: StarshipContext, role: CrewRole, keys: CrewKeys): string 
   if (!ctx.deck.onShip(s.x)) {
     const relic = [...ctx.world.all(Relic)].some((r) => r.render.site === ctx.deck.siteAt(s.x) + 1);
     const home = ship.relics & (1 << ctx.deck.siteAt(s.x));
+    if (self) return home ? `The relic from here is aboard. ${keys.use} to beam up` : relic ? `The relic is on a plinth in the ruins. ${keys.use} to beam up` : `Nothing here. ${keys.use} to beam up`;
     if (home) return 'The relic from here is aboard. Ask science to beam you up';
     if (relic) return `The relic is on a plinth in the ruins. Mind the drones: ${tool === PHASER ? `${keys.fire} to shoot` : `take your phaser (${keys.tools.split(' ')[0] ?? '1'})`}`;
     return 'Nothing here. Ask science to beam you up';
   }
   if (Math.hypot(s.x - PAD.x, s.y - PAD.y) <= PAD.radius) {
+    if (self) return `On the pad. ${keys.use} to beam down`;
     return ship.orbit ? 'On the pad. Science can beam you down once the shields are down' : 'On the transporter pad: when the ship is in orbit, science can beam you down';
   }
   if (ship.phase === Phase.Briefing) return `Docked at the starbase. Casting off in ${clock(ship.timer)}: take a console on the bridge, or get ready by the transporter`;
