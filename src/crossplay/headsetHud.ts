@@ -21,8 +21,12 @@ export class HeadsetHud {
     watchSize = 0.2,
   ) {
     this.watch = panel(watchSize, watchSize, 512, 512, false);
-    this.watch.mesh.position.set(0, 0.05, 0.16);
-    this.watch.mesh.rotation.x = -Math.PI / 2 + 0.5;
+    // Left target-ray space: -X is the back of the hand (spec: perpendicular to the palm, flipped for
+    // the left hand), so the face sits there rather than out by the thumb, tilted up toward the eyes.
+    this.watch.mesh.position.set(-0.05, 0.03, 0.03);
+    this.watch.mesh.rotation.set(0, 0, 0);
+    this.watch.mesh.rotateY(-Math.PI / 2);
+    this.watch.mesh.rotateX(0.4);
     rig.left.object.add(this.watch.mesh);
     this.strip.mesh.position.set(0, -0.12, -1.5);
     rig.camera.add(this.strip.mesh);
