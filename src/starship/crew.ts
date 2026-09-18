@@ -152,10 +152,11 @@ export class CrewRole extends Avatar<CrewIntent, CrewBody, CrewTool> implements 
       if (this.now - this.downAt > DOWN_SECONDS * 1000) this.revive();
     } else if (seated !== null) {
       const c = CONSOLES[seated];
-      if (intent.sit || intent.jump || Math.hypot(intent.strafe, intent.forward) > 0.5) this.stand();
+      // a headset's own legs still work at a console — only a flat view is pinned to the seat, so only it stands you up by walking
+      if (intent.sit || intent.jump || (!intent.head && Math.hypot(intent.strafe, intent.forward) > 0.5)) this.stand();
       else {
         for (const a of intent.acts) order(this.ctx, a);
-        if (intent.head) this.walkTracked(dt, intent.head, intent, false);
+        if (intent.head) this.walkTracked(dt, intent.head, intent, true);
         else {
           s.x = c.x - Math.cos(c.heading) * SEAT_BACK;
           s.y = c.y - Math.sin(c.heading) * SEAT_BACK;

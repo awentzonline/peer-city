@@ -91,11 +91,16 @@ export class VrCrew implements CrewFrontend, Draws {
     const onMenu = this.menu.update(this.ctx.now);
     this.turn.update(rig, right.stickX);
     readHead(rig, this.head);
+    // your legs work whether or not you're at a console — only the panels take your hands
+    if (crew.me?.state.mode === CrewMode.Up) {
+      intent.strafe = deadzone(left.stickX);
+      intent.forward = -deadzone(left.stickY);
+    }
     const seated = crew.seat;
     const nearConsole = crew.nearby?.kind === 'console';
     if (!nearConsole) this.suppressSit = false;
     if (seated !== null) {
-      // a console's own panels take the hands as soon as you're at one; A or backing away gets you up again
+      // a console's own panels take the hands as soon as you're at one; A or walking off gets you up again
       if (this.console?.station !== seated) {
         this.closeConsole();
         this.console = new VrConsole(this.ctx, rig, this.decks, seated, { label: 'STAND UP', press: () => (this.standing = true) });
@@ -109,10 +114,6 @@ export class VrCrew implements CrewFrontend, Draws {
       return intent;
     }
     this.closeConsole();
-    if (crew.me?.state.mode === CrewMode.Up) {
-      intent.strafe = deadzone(left.stickX);
-      intent.forward = -deadzone(left.stickY);
-    }
     this.holsters.update(crew.inventory);
     readHand(rig, this.holsters, right, this.hands[Side.Right], TRIGGER);
     readHand(rig, this.holsters, left, this.hands[Side.Left], TRIGGER);
