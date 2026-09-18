@@ -86,7 +86,7 @@ export class VrSurvivor implements SurvivorFrontend {
     const active = sim.mode === SurvivorMode.Alive || sim.mode === SurvivorMode.Downed;
     this.holsters.animate(dt, active);
     ctx.sfx.setListener(rig.head(this.tmp), direction(rig.headHeading(), rig.headPitch(), this.dir));
-    ctx.hud.showSurvivor(ctx, sim, { light: 'Trigger', help: 'Hold A', bar: '' });
+    ctx.hud.showSurvivor(ctx, sim, { light: '', help: 'Hold A', bar: '' });
     this.wrist.update(ctx);
     heartbeat(ctx, this.heart);
   }

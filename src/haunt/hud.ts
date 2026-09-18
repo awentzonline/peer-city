@@ -10,7 +10,7 @@ import { LOW_BATTERY, MAX_HP, REVIVE_SECONDS, type SurvivorRole } from './surviv
 
 /** How a platform names a survivor's controls, for the hints. */
 export interface SurvivorKeys {
-  /** Switching the flashlight: "Click". */
+  /** Switching the flashlight: "Click", or '' for no hint about it. */
   light: string;
   /** Helping someone up: "Hold E". */
   help: string;
@@ -253,7 +253,7 @@ function survivorHint(ctx: HauntContext, sim: SurvivorRole, keys: SurvivorKeys):
   if (s.key) return 'Take the key to the pedestal by the gate';
   if (s.light && sim.battery < 20) return 'Your battery is running low';
   if (!s.light && sim.battery < LOW_BATTERY) return 'Your flashlight is flat. Let it rest';
-  if (!s.light) return `${keys.light} to switch your flashlight on. It gives you away`;
+  if (!s.light && keys.light) return `${keys.light} to switch your flashlight on`;
   return '';
 }
 

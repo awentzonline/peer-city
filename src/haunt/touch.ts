@@ -29,7 +29,7 @@ const KEYS: SurvivorKeys = { light: 'Tap LIGHT', help: 'Hold HELP UP', bar: '' }
 
 /**
  * A phone or tablet. The left thumb walks (push to the edge to run) and the right drags the view. LIGHT switches the
- * flashlight, and a tap on the screen doesn't, so looking round never gives you away by accident. CREEP toggles
+ * flashlight, and a tap on the screen doesn't, so looking round never switches it by accident. CREEP toggles
  * creeping, and HELP UP shows by someone who's down, to hold. Buzzes when you're struck.
  */
 export class TouchSurvivor implements SurvivorFrontend {
