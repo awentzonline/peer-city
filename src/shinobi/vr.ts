@@ -8,7 +8,7 @@ import type { Tool, UseEffect } from '../crossplay/tool';
 import { SnapTurn, deadzone, readHand, readHead } from '../crossplay/vrControls';
 import type { ShinobiContext, Vec3 } from './context';
 import { GuardKind, ShinobiMode } from './defs';
-import { escapedNews, takenNews, tookDownNews, watchGuards } from './desktop';
+import { escapedNews, newWatch, takenNews, tookDownNews, watchGuards } from './desktop';
 import { idleShinobiIntent, type ShinobiIntent } from './intent';
 import type { NinjaTool } from './kit';
 import type { ShinobiFrontend, ShinobiRole } from './shinobi';
@@ -32,7 +32,7 @@ export class VrShinobi implements ShinobiFrontend {
   private readonly head: TrackedHead = { x: 0, y: 0, z: 0, heading: 0, pitch: 0 };
   private readonly hands: [HandIntent, HandIntent] = [handIntent(), handIntent()];
   private readonly turn = new SnapTurn();
-  private readonly watch = { hunted: 0 };
+  private readonly watch = newWatch();
   private readonly tmp: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly dir: Vec3 = { x: 0, y: 0, z: 0 };
 

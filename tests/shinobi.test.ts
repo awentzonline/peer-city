@@ -345,6 +345,29 @@ describe('The watch', () => {
     expect(a.ctx.me!.state.hp).toBeLessThan(MAX_HP);
   });
 
+  it("doesn't keep shouting about the same intruder, and the lord's samurai don't flip-flop at the end of their leash", () => {
+    const net = new Sim();
+    const a = peer(net, 'a', 'shinobi');
+    startNight(net, [a]);
+    const samurai = guards(a, GuardKind.Samurai)[0].state;
+    run(net, [a], 1000);
+    // run circles in the open by the lord, right in front of one of his samurai, for half a minute
+    place(a, samurai.x + Math.cos(samurai.angle) * 3, samurai.y + Math.sin(samurai.angle) * 3, 0);
+    const me = a.ctx.me!.state;
+    let chasers = 0;
+    run(net, [a], 30000, () => {
+      me.hp = MAX_HP;
+      me.mode = ShinobiMode.Alive;
+      a.intent!.forward = 1;
+      a.shinobi!.heading += 0.03;
+      chasers = Math.max(chasers, guards(a).filter((g) => g.state.mode === GuardMode.Chase).length);
+    });
+    const shouts = a.noises.filter((k) => k === 4 /* Sound.Shout */).length;
+    expect(chasers).toBeGreaterThan(0);
+    expect(shouts).toBeGreaterThan(0);
+    expect(shouts).toBeLessThanOrEqual(4);
+  });
+
   it('comes to look at a blade that clatters nearby', () => {
     const net = new Sim();
     const a = peer(net, 'a', 'shinobi');

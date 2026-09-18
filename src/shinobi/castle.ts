@@ -662,28 +662,32 @@ export class Castle {
 
 /**
  * Distance fields over the ground: how many steps every cell is from a target, walking. A guard heads downhill on the
- * field for where it's going, cutting corners wherever it can walk straight. Fields are shared by everyone going the same
- * way, and remade when they're a moment old.
+ * field for where it's going, cutting corners wherever it can walk straight. The castle never changes once it's built,
+ * so a field is good for as long as it's kept, and it's shared by everyone going the same way.
  */
 export class Paths {
-  private readonly fields = new Map<number, { field: Uint16Array; at: number }>();
+  private readonly fields = new Map<number, Uint16Array>();
   private readonly queue = new Int32Array(SIZE * SIZE);
+  /** Which cells can be walked on, so filling a field is plain array work. */
+  private readonly walkable = new Uint8Array(SIZE * SIZE);
 
-  constructor(
-    private readonly castle: Castle,
-    private readonly maxAgeMs = 4000,
-  ) {}
+  constructor(private readonly castle: Castle) {
+    for (let j = 0; j < SIZE; j++) for (let i = 0; i < SIZE; i++) this.walkable[j * SIZE + i] = castle.open(i, j) ? 1 : 0;
+  }
 
-  field(x: number, y: number, now: number): Uint16Array {
+  field(x: number, y: number): Uint16Array {
     const target = this.castle.nearestOpen(x, y);
     const key = Castle.index(Math.floor(target.x), Math.floor(target.y));
-    const cached = this.fields.get(key);
-    if (cached && now - cached.at < this.maxAgeMs) return cached.field;
-    const field = cached?.field ?? new Uint16Array(SIZE * SIZE);
-    this.fill(field, key);
-    this.fields.delete(key);
-    this.fields.set(key, { field, at: now });
-    if (this.fields.size > 48) this.fields.delete(this.fields.keys().next().value!);
+    let field = this.fields.get(key);
+    if (field) {
+      // most recently used goes to the back
+      this.fields.delete(key);
+    } else {
+      field = new Uint16Array(SIZE * SIZE);
+      this.fill(field, key);
+      if (this.fields.size >= 64) this.fields.delete(this.fields.keys().next().value!);
+    }
+    this.fields.set(key, field);
     return field;
   }
 
@@ -705,10 +709,10 @@ export class Paths {
   }
 
   /** Where a body at (x, y) should head for next on its way to (tx, ty), or null if it can't get there. */
-  next(x: number, y: number, tx: number, ty: number, r: number, now: number): Spot | null {
+  next(x: number, y: number, tx: number, ty: number, r: number): Spot | null {
     const { castle } = this;
     if (Math.hypot(tx - x, ty - y) < 12 && this.clearWalk(x, y, tx, ty, r)) return { x: tx, y: ty };
-    const field = this.field(tx, ty, now);
+    const field = this.field(tx, ty);
     let i = Math.floor(x);
     let j = Math.floor(y);
     if (field[Castle.index(i, j)] === 0xffff) {
@@ -749,7 +753,7 @@ export class Paths {
   }
 
   private fill(field: Uint16Array, from: number): void {
-    const { castle, queue } = this;
+    const { walkable, queue } = this;
     field.fill(0xffff);
     let head = 0;
     let tail = 0;
@@ -758,16 +762,22 @@ export class Paths {
     while (head < tail) {
       const c = queue[head++];
       const i = c % SIZE;
-      const j = (c - i) / SIZE;
       const d = field[c] + 1;
-      for (let k = 0; k < 4; k++) {
-        const ni = i + DIRS8[k][0];
-        const nj = j + DIRS8[k][1];
-        if (!castle.open(ni, nj)) continue;
-        const n = nj * SIZE + ni;
-        if (field[n] <= d) continue;
-        field[n] = d;
-        queue[tail++] = n;
+      if (i + 1 < SIZE && walkable[c + 1] && field[c + 1] > d) {
+        field[c + 1] = d;
+        queue[tail++] = c + 1;
+      }
+      if (i > 0 && walkable[c - 1] && field[c - 1] > d) {
+        field[c - 1] = d;
+        queue[tail++] = c - 1;
+      }
+      if (c + SIZE < SIZE * SIZE && walkable[c + SIZE] && field[c + SIZE] > d) {
+        field[c + SIZE] = d;
+        queue[tail++] = c + SIZE;
+      }
+      if (c >= SIZE && walkable[c - SIZE] && field[c - SIZE] > d) {
+        field[c - SIZE] = d;
+        queue[tail++] = c - SIZE;
       }
     }
   }

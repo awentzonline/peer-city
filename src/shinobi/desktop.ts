@@ -34,7 +34,7 @@ export class DesktopShinobi implements ShinobiFrontend {
   private readonly held: DesktopTool;
   private readonly spectator: Spectator;
   private readonly tip: Vec3 = { x: 0, y: 0, z: 0 };
-  private readonly watch = { hunted: 0 };
+  private readonly watch = newWatch();
 
   constructor(
     private readonly ctx: ShinobiContext,
@@ -160,8 +160,14 @@ export function firstPerson(ctx: ShinobiContext, sim: ShinobiRole, rig: Rig): vo
 const eyeTmp: Vec3 = { x: 0, y: 0, z: 0 };
 const dirTmp: Vec3 = { x: 0, y: 0, z: 0 };
 
-/** A sting and a banner when a guard raises the alarm on you, and your heart pounding while they hunt you. */
-export function watchGuards(ctx: ShinobiContext, state: { hunted: number }, rig: Rig | null, buzz?: () => void): void {
+/** How long you have to have been clear of the hunt before being spotted again stings again, ms. */
+const STING_CLEAR_MS = 10000;
+
+/**
+ * A sting and a banner when a guard raises the alarm on you, and your heart pounding while they hunt you. Only when the
+ * hunt starts: more guards joining it, or one taking it up again moments after losing you, says nothing new.
+ */
+export function watchGuards(ctx: ShinobiContext, state: WatchState, rig: Rig | null, buzz?: () => void): void {
   const me = ctx.me;
   if (!me || me.state.mode !== ShinobiMode.Alive) {
     state.hunted = 0;
@@ -172,13 +178,25 @@ export function watchGuards(ctx: ShinobiContext, state: { hunted: number }, rig:
     const s = g.render;
     if (s.mode !== GuardMode.Dead && s.alert === Alert.Alarmed && s.target === me.id) hunted++;
   }
-  if (hunted > state.hunted) {
+  const wasClear = state.hunted === 0 && ctx.now - state.huntedAt > STING_CLEAR_MS;
+  if (hunted) state.huntedAt = ctx.now;
+  if (hunted && wasClear) {
     ctx.sfx.play('spotted');
     ctx.hud.showBanner('SPOTTED!', '#ff5a4a', 1200);
     rig?.flash(0x5a0000, 0.25);
     buzz?.();
   }
   state.hunted = hunted;
+}
+
+export interface WatchState {
+  /** How many guards were after you last frame, and when any last were. */
+  hunted: number;
+  huntedAt: number;
+}
+
+export function newWatch(): WatchState {
+  return { hunted: 0, huntedAt: -1e9 };
 }
 
 export function hurtFlash(ctx: ShinobiContext, rig: Rig): void {

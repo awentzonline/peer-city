@@ -8,7 +8,7 @@ import { FIRE, TOUCH_TUNING } from '../crossplay/touch';
 import { TouchControls, type TouchButtonSpec } from '../crossplay/touchControls';
 import type { ShinobiContext, ShinobiEntity, Vec3 } from './context';
 import { GuardKind, Shinobi, ShinobiMode } from './defs';
-import { Spectator, downedNews, escapedNews, firstPerson, hurtFlash, landedNews, takenNews, tookDownNews, watchGuards } from './desktop';
+import { Spectator, downedNews, escapedNews, firstPerson, hurtFlash, landedNews, newWatch, takenNews, tookDownNews, watchGuards } from './desktop';
 import type { ShinobiKeys } from './hud';
 import { idleShinobiIntent, stillShinobi, type ShinobiIntent } from './intent';
 import { TANTO, TOOLS, type NinjaTool } from './kit';
@@ -40,7 +40,7 @@ export class TouchShinobi implements ShinobiFrontend {
   private readonly held: DesktopTool;
   private readonly spectator: Spectator;
   private readonly tip: Vec3 = { x: 0, y: 0, z: 0 };
-  private readonly watch = { hunted: 0 };
+  private readonly watch = newWatch();
   private creeping = false;
 
   constructor(

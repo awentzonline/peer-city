@@ -29,7 +29,7 @@ export type SoundName =
   | 'ping'
   | 'dawn';
 
-const RANGE: Partial<Record<SoundName, number>> = { whoosh: 25, twang: 45, stab: 25, swish: 12, steps: 22, land: 30, clatter: 40, fall: 35, shout: 70, thrust: 25, cry: 60, pickup: 12, kindle: 40 };
+const RANGE: Partial<Record<SoundName, number>> = { whoosh: 25, twang: 45, stab: 25, swish: 12, steps: 22, land: 30, clatter: 40, fall: 35, shout: 50, thrust: 25, cry: 60, pickup: 12, kindle: 40 };
 
 /**
  * Peer Shinobi's sounds, synthesized (see crossplay/audio.ts): whooshes and thuds made of filtered noise, a temple bell
@@ -73,11 +73,14 @@ export class Sfx extends SpatialAudio {
         this.noiseBurst(out, 0.7 * v, 0.25, 350, 1, 'lowpass');
         this.tone(out, 0.3 * v, 0.3, 'sine', 70, 40, 0.05);
         break;
-      case 'shout':
-        this.tone(out, 0.3 * v, 0.45, 'sawtooth', 260, 200);
-        this.tone(out, 0.18 * v, 0.45, 'square', 390, 300, 0.02);
-        this.noiseBurst(out, 0.12 * v, 0.4, 1200, 1, 'bandpass');
+      case 'shout': {
+        // a gruff call, pitched a little differently each time so a second one doesn't grate
+        const f = 230 + Math.random() * 50;
+        this.tone(out, 0.2 * v, 0.4, 'sawtooth', f, f * 0.78);
+        this.tone(out, 0.1 * v, 0.4, 'triangle', f * 1.5, f * 1.15, 0.02);
+        this.noiseBurst(out, 0.08 * v, 0.35, 900, 1, 'bandpass');
         break;
+      }
       case 'thrust':
         this.noiseBurst(out, 0.45 * v, 0.14, 1100, 1, 'bandpass');
         this.tone(out, 0.2 * v, 0.1, 'triangle', 320, 180, 0.03);

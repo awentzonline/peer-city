@@ -64,6 +64,11 @@ const BODY_SIGHT = 13;
 const REST_SECONDS = [35, 65] as const;
 /** The alarm's widening of a guard's eyes. */
 const ALARM_SIGHT = 1.3;
+/** How long a guard keeps quiet after shouting, ms, and after hearing someone else shout (no need to echo them). */
+const SHOUT_MS = 20000;
+const ECHO_MS = 8000;
+/** How often a guard tells the captain it's still after the same intruder, ms. */
+const REPORT_MS = 8000;
 
 interface GuardLocal {
   nextLook: number;
@@ -84,6 +89,11 @@ interface GuardLocal {
   cy: number;
   /** Reached where it was going. */
   arrived: boolean;
+  /** When it last shouted, heard another guard shout, and told the captain of an intruder (and which). */
+  shoutedAt: number;
+  heardShoutAt: number;
+  reportedAt: number;
+  reportedId: number;
 }
 
 export const GuardMind = defineLocal<GuardLocal>(() => ({
@@ -101,6 +111,10 @@ export const GuardMind = defineLocal<GuardLocal>(() => ({
   cx: 0,
   cy: 0,
   arrived: false,
+  shoutedAt: -1e9,
+  heardShoutAt: -1e9,
+  reportedAt: -1e9,
+  reportedId: 0,
 }));
 
 /** Bodies a peer's guards have already raised the alarm over. */
@@ -303,18 +317,26 @@ function perceive(ctx: ShinobiContext, g: GuardEntity, dt: number, alarm: boolea
     if (s.sus >= SUSPICIOUS) flee(ctx, g);
     return;
   }
-  if (s.sus >= 1 || (s.alert === Alert.Alarmed && s.sus > 0.5)) {
-    const fresh = s.alert !== Alert.Alarmed || s.target !== best.id;
+  // a samurai only goes after someone near enough the lord; further off, it keeps watching them
+  const leashed = s.kind === GuardKind.Samurai && beyondLeash(ctx, best.x, best.y);
+  if ((s.sus >= 1 || (s.alert === Alert.Alarmed && s.sus > 0.5)) && !leashed) {
+    const fresh = s.mode !== GuardMode.Chase || s.target !== best.id;
     s.alert = Alert.Alarmed;
-    if (s.mode !== GuardMode.Chase || fresh) {
+    if (fresh) {
       s.mode = GuardMode.Chase;
       s.target = best.id;
       l.nextPath = 0;
+      shout(ctx, g);
+      if (best.id !== l.reportedId || now - l.reportedAt > REPORT_MS) {
+        l.reportedAt = now;
+        l.reportedId = best.id;
+        world.send(Report, { kind: ReportKind.Intruder, guard: g.id, about: best.id, x: best.x, y: best.y }, { to: 'all' });
+      }
     }
-    if (fresh) {
-      world.send(Noise, { kind: Sound.Shout, x: s.x, y: s.y, z: s.z + 1.7, a: s.kind }, { to: 'all' });
-      world.send(Report, { kind: ReportKind.Intruder, guard: g.id, about: best.id, x: best.x, y: best.y }, { to: 'all' });
-    }
+    return;
+  }
+  if (leashed) {
+    l.facing = Math.atan2(best.y - s.y, best.x - s.x);
     return;
   }
   if (s.sus >= SUSPICIOUS && s.mode !== GuardMode.Chase && !downed) {
@@ -336,7 +358,7 @@ function lookForBodies(ctx: ShinobiContext, g: GuardEntity): void {
     if (!castle.sees(s.x, s.y, s.z + spec.eye, body.x, body.y, b.z + 0.3)) continue;
     BodyMind.of(body).found = true;
     world.send(Report, { kind: ReportKind.Body, guard: g.id, about: body.id, x: body.x, y: body.y }, { to: 'all' });
-    world.send(Noise, { kind: Sound.Shout, x: s.x, y: s.y, z: s.z + 1.7, a: s.kind }, { to: 'all' });
+    shout(ctx, g);
     s.alert = Alert.Alarmed;
     s.sus = Math.max(s.sus, 0.8);
     if (s.mode !== GuardMode.Chase) investigate(g, body.x, body.y, ctx, true);
@@ -391,7 +413,7 @@ function chase(ctx: ShinobiContext, g: GuardEntity, spec: GuardSpec, dt: number,
   s.look = 0;
   if (s.kind === GuardKind.Samurai) {
     const lord = lordOf(ctx, g);
-    if (lord && Math.hypot(lord.x - s.x, lord.y - s.y) > LEASH) {
+    if (lord && (Math.hypot(lord.x - s.x, lord.y - s.y) > LEASH || beyondLeash(ctx, tx, ty))) {
       s.mode = GuardMode.Escort;
       s.target = lord.id;
       s.alert = Alert.Suspicious;
@@ -613,8 +635,27 @@ function flee(ctx: ShinobiContext, g: GuardEntity): void {
   GuardMind.of(g).nextPath = 0;
 }
 
+/**
+ * Raise a cry, unless this guard shouted a moment ago, or has just heard another guard do it: everyone near enough
+ * already knows, and a courtyard of guards each yelling in turn is only noise.
+ */
+function shout(ctx: ShinobiContext, g: GuardEntity): void {
+  const { now } = ctx;
+  const s = g.state;
+  const l = GuardMind.of(g);
+  if (now - l.shoutedAt < SHOUT_MS || now - l.heardShoutAt < ECHO_MS) return;
+  l.shoutedAt = now;
+  ctx.world.send(Noise, { kind: Sound.Shout, x: s.x, y: s.y, z: s.z + 1.7, a: s.kind }, { to: 'all' });
+}
+
+/** Whether a spot is too far from the lord for his samurai to leave him for. */
+function beyondLeash(ctx: ShinobiContext, x: number, y: number): boolean {
+  const lord = lordOf(ctx, null);
+  return !!lord && lord.render.mode !== GuardMode.Dead && Math.hypot(lord.x - x, lord.y - y) > LEASH;
+}
+
 /** The lord a samurai is guarding: the round's. */
-function lordOf(ctx: ShinobiContext, _g: GuardEntity): GuardEntity | null {
+function lordOf(ctx: ShinobiContext, _g: GuardEntity | null): GuardEntity | null {
   const id = ctx.round()?.state.lord ?? 0;
   return (ctx.world.getAs(Guard, id) as GuardEntity | undefined) ?? null;
 }
@@ -630,7 +671,7 @@ function step(ctx: ShinobiContext, g: GuardEntity, tx: number, ty: number, speed
   if (path) {
     if (now >= l.nextPath || !l.waypoint) {
       l.nextPath = now + 300 + Math.random() * 100;
-      l.waypoint = paths.next(s.x, s.y, tx, ty, spec.radius, now);
+      l.waypoint = paths.next(s.x, s.y, tx, ty, spec.radius);
     }
     if (!l.waypoint) return;
     gx = l.waypoint.x;
@@ -683,6 +724,7 @@ export function hear(ctx: ShinobiContext, kind: Sound, x: number, y: number, z: 
   for (const g of world.owned(Guard) as ReadonlySet<GuardEntity>) {
     const s = g.state;
     if (s.mode === GuardMode.Dead || Math.hypot(g.x - x, g.y - y, s.z - z) > reach) continue;
+    if (kind === Sound.Shout) GuardMind.of(g).heardShoutAt = ctx.now;
     const loud = kind === Sound.Shout || kind === Sound.Cry || kind === Sound.Gong || kind === Sound.Attack;
     if (s.kind === GuardKind.Lord) {
       if (loud) flee(ctx, g);
@@ -707,7 +749,6 @@ export function hear(ctx: ShinobiContext, kind: Sound, x: number, y: number, z: 
  * whoever did it.
  */
 export function struck(ctx: ShinobiContext, g: GuardEntity, by: number, weapon: Weapon, amount: number, fromX: number, fromY: number): void {
-  const { world } = ctx;
   const s = g.state;
   if (s.mode === GuardMode.Dead) return;
   const behind = Math.abs(angleDiff(s.angle, Math.atan2(fromY - s.y, fromX - s.x))) > 1.9;
@@ -733,7 +774,7 @@ export function struck(ctx: ShinobiContext, g: GuardEntity, by: number, weapon: 
   s.target = by;
   s.mode = GuardMode.Chase;
   s.angle = Math.atan2(fromY - s.y, fromX - s.x);
-  world.send(Noise, { kind: Sound.Shout, x: s.x, y: s.y, z: s.z + 1.7, a: s.kind }, { to: 'all' });
+  shout(ctx, g);
 }
 
 function die(ctx: ShinobiContext, g: GuardEntity, by: number): void {

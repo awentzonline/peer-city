@@ -106,9 +106,14 @@ export class HudBase {
   hurt(): void {
     const el = this.hurtEl;
     if (!el) return;
-    el.classList.remove('show');
-    void el.offsetWidth;
+    // restart a flash already running in place; reading layout to restart it cost a frame's worth of time on every hit
+    const running = el.classList.contains('show') ? el.getAnimations() : [];
+    if (running.length) {
+      for (const a of running) a.currentTime = 0;
+      return;
+    }
     el.classList.add('show');
+    el.addEventListener('animationend', () => el.classList.remove('show'), { once: true });
   }
 
   /** Expire feed lines and banners. Call every rendered frame. Returns whether anything changed. */
