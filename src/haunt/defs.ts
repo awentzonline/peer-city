@@ -1,4 +1,4 @@
-import { defineAction, defineCommand, defineEntity, t } from '@engine/index';
+import { defineAction, defineCommand, defineEntity, defineSingleton, t } from '@engine/index';
 import { BODY_FIELDS } from '../crossplay/avatar';
 
 /**
@@ -137,7 +137,7 @@ export const enum Result {
   Claimed = 2,
 }
 
-export const Round = defineEntity({
+export const Round = defineSingleton({
   name: 'round',
   fields: {
     x: t.fixed(1),

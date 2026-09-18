@@ -1,4 +1,4 @@
-import { defineAction, defineCommand, defineEntity, t } from '@engine/index';
+import { defineAction, defineCommand, defineEntity, defineSingleton, t } from '@engine/index';
 import { BODY_FIELDS } from '../crossplay/avatar';
 import { MAX_PARTS, type Dir, type PartKind } from './parts';
 import { FUEL_SECONDS } from './physics';
@@ -82,7 +82,7 @@ export const enum Phase {
   Results = 3,
 }
 
-export const Race = defineEntity({
+export const Race = defineSingleton({
   name: 'race',
   fields: {
     x: t.fixed(1),

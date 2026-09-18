@@ -1,4 +1,4 @@
-import { defineAction, defineCommand, defineEntity, t } from '@engine/index';
+import { defineAction, defineCommand, defineEntity, defineSingleton, t } from '@engine/index';
 import { BODY_FIELDS } from '../crossplay/avatar';
 
 /**
@@ -88,7 +88,7 @@ export const SCREENS = [Screen.Forward, Screen.Aft, Screen.Tactical, Screen.Targ
  * The ship, and the voyage it's on: one migratable entity for everyone, simulated by whoever owns it. Stations never
  * write it: they send `Console` commands, and its owner carries them out.
  */
-export const Ship = defineEntity({
+export const Ship = defineSingleton({
   name: 'ship',
   fields: {
     x: t.fixed(0.05),

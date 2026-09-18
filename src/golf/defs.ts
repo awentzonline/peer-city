@@ -1,4 +1,4 @@
-import { defineAction, defineCommand, defineEntity, t } from '@engine/index';
+import { defineAction, defineCommand, defineEntity, defineSingleton, t } from '@engine/index';
 import { BODY_FIELDS } from '../crossplay/avatar';
 import { HOLES } from './course';
 
@@ -95,7 +95,7 @@ export const enum Phase {
   Results = 2,
 }
 
-export const Match = defineEntity({
+export const Match = defineSingleton({
   name: 'match',
   fields: {
     x: t.fixed(1),

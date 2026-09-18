@@ -79,7 +79,8 @@ And two patterns for coordinating without a server:
 - **Ownership is a lock.** `world.withLock(e, change)` wins ownership, makes the change and lets go, so only one
   peer collects a pickup or sows a plot.
 - **One of something for everyone nearby.** `Singleton` makes an entity (a race, a match) if nobody has,
-  and settles on the lowest id if several peers made one at once.
+  and if several exist, everyone keeps the one that's been running longest, so a peer that joins slowly
+  and makes a second one joins the match in progress instead of resetting it.
 
 ---
 
@@ -166,7 +167,7 @@ update() {
 | `world.send(Action, payload, target)`, `world.onAction(Action, fn)` | typed actions: events, or anything routed by hand |
 | `world.command(Command, payload)`, `world.onCommand(Command, Def?, (target, payload, ctx) => ...)` | ask a target's owner to change it; handled only there, per target type |
 | `world.withLock(e, (e) => ...)` → `Promise<result \| undefined>` | change something only one peer may: ownership as a lock |
-| `new Singleton(world, Def, {init}).update(now)` | one entity for everyone nearby (a race, a match), made by whoever's first |
+| `defineSingleton({name, fields})`, `new Singleton(world, Def, {init}).update(now)` | one entity for everyone nearby (a race, a match), made by whoever's first; duplicates settle on the longest-running |
 | `world.track(Def, {added, removed})` | keep something derived in step with one type's entities |
 | `world.on('entityAdded' / 'entityRemoved' / 'ownershipGained' / 'ownershipLost' / 'peerJoined' / 'peerLeft')` | lifecycle |
 | `world.isAuthorityFor(x, y)`, `world.isObserved(x, y, r)`, `world.peerFoci()` | coordination helpers |

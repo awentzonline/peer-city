@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ByteReader, ByteWriter } from '../src/engine/net/codec';
 import { defineAction, defineCommand, defineEntity, t } from '../src/engine/net/schema';
-import { Singleton } from '../src/engine/net/singleton';
+import { Singleton, defineSingleton } from '../src/engine/net/singleton';
 import { defineLocal, type NetEntity } from '../src/engine/net/entity';
 import type { NetWorld } from '../src/engine/net/world';
 import { Sim } from './harness';
@@ -18,7 +18,7 @@ const Crate = defineEntity({
 const Ping = defineAction('ping', { n: t.int(), who: t.string() });
 const Hit = defineAction('hit', { target: t.ref(), dmg: t.uint(8) });
 const Paint = defineCommand('paint', { crate: t.ref(), color: t.uint(8) }, { target: 'crate' });
-const Match = defineEntity({ name: 'match', fields: { x: t.fixed(1), y: t.fixed(1), round: t.uint(8) }, migratable: true });
+const Match = defineSingleton({ name: 'match', fields: { x: t.fixed(1), y: t.fixed(1), round: t.uint(8) } });
 
 const base = { worldId: 'test', entities: [Avatar, Crate, Match], actions: [Ping, Hit, Paint], interestRadius: 800, zoneSize: 2048 };
 
@@ -461,6 +461,37 @@ describe('commands, locks, singletons and tracking', () => {
     sim.run(5000, (now) => keepers.forEach((k) => k.update(now)));
     expect(keepers.map((k) => k.entity?.id)).toEqual([ids[0], ids[0]]);
     expect(keepers.filter((k) => k.entity!.mine)).toHaveLength(1);
+  });
+
+  it('keeps the running singleton when a slow joiner makes one of its own, whichever id wins', () => {
+    // ids are random, so the old "lowest id wins" rule lost this coin flip half the time. Run it enough
+    // that luck can't explain a pass, and check the joiner adopts the match in progress every time.
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const sim = new Sim();
+      const a = sim.add('a', base);
+      a.setFocus(0, 0);
+      const host = new Singleton(a, Match, { init: () => ({ x: 5, y: 5 }), waitMs: 0, jitterMs: 0 });
+      sim.run(1500, (now) => host.update(now));
+      const playing = host.entity!;
+      playing.state.round = 7;
+
+      // b's connection came up slower than its wait allowed, so it makes a second one before hearing ours
+      const b = sim.add('b', base);
+      b.setFocus(0, 0);
+      const joiner = new Singleton(b, Match, { init: () => ({ x: 5, y: 5 }), waitMs: 0, jitterMs: 0 });
+      joiner.update(sim.now);
+      expect(b.all(Match).size).toBe(1);
+      expect(joiner.entity!.id).not.toBe(playing.id);
+
+      sim.run(2000, (now) => {
+        host.update(now);
+        joiner.update(now);
+      });
+      expect(host.entity!.id).toBe(playing.id);
+      expect(joiner.entity!.id).toBe(playing.id);
+      expect(joiner.entity!.state.round).toBe(7);
+      for (const w of [a, b]) expect(w.all(Match).size).toBe(1);
+    }
   });
 
   it('tracks the entities of one type, including ones already known', () => {
