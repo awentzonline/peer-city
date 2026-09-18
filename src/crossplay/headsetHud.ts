@@ -27,6 +27,7 @@ export class HeadsetHud {
     this.watch.mesh.rotation.set(0, 0, 0);
     this.watch.mesh.rotateY(-Math.PI / 2);
     this.watch.mesh.rotateX(0.4);
+    this.watch.mesh.rotateZ(Math.PI / 2);
     rig.left.object.add(this.watch.mesh);
     this.strip.mesh.position.set(0, -0.12, -1.5);
     rig.camera.add(this.strip.mesh);
