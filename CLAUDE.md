@@ -31,7 +31,7 @@ Use `.claude/launch.json` + the preview tool to run dev servers (`peer-city` on 
   `src/game`. README §"The crossplay layer".
 - `src/<game>/` — one directory per game, each with its own `<game>.html` entry point and
   README section. Current games: `fps` (Peer City 3D), `wilds`, `derby`, `walls`, `golf`,
-  `haunt`, `shinobi`, `starship`. See progress/status notes in memory (auto-loaded) for
+  `haunt`, `shinobi`, `starship`, `sewer` (Sewer Lordz). See progress/status notes in memory (auto-loaded) for
   what's built vs. still in progress on each.
 - `src/game/` — **legacy** 2D top-down Peer City (`city.html`), frozen, predates the
   crossplay layer. Don't refactor it to match newer games unless specifically asked.

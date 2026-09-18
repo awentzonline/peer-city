@@ -762,6 +762,66 @@ authority cell, so one peer runs the ship and every NPC. Space and the decks are
 viewscreen is a render target of the space scene (`Stage.render`, new, lets a game draw more than one pass). `?station=science`
 picks a station. Schemas can now have up to 52 fields (the ship has 46).
 
+## Sewer Lordz (co-op sewer diving: goblins, loot, rising sewage and a voxel fatberg)
+
+`/sewer.html`, `src/sewer/`. Friends go down a manhole into filthy sewers after the riches that end up there. The
+sewage hides the bottom, goblins come out of the drains, the water keeps rising, and a fatberg plugs the way to the vault.
+
+```bash
+npm run dev    # http://localhost:5173/sewer.html
+```
+
+**The dive.** Lordz gather at the foot of the ladder while a clock runs down, then loot is buried in the silt, two
+things are stuck in a fresh fatberg, and the vault's treasure (a crown, gems, the golden toilet) waits behind it. Loot
+you dig up goes in the sack on your back (four things at most); bring it to the ladder and it's banked. Hold interact at
+the ladder to climb out. The dive's over once nobody's left down there but the dead: rich if anyone got out, and the
+sewer keeps the lot if nobody did. Five scratches (or your head under the sewage too long) put you down; a friend holds
+interact over you for three seconds to haul you up, and with nobody left on their feet you can drag yourself up, slowly.
+
+**Goblins** are pesky thieves, a little shorter than you. They scratch, then scamper, and would rather grab something
+out of your sack and run for a drain with it. **Punch** one and it goes flying as a ragdoll; a wound-up haymaker (or bad
+luck) bursts it into gunk and pieces. **Grab** one by the scruff and throw it, or pull it in half: two hands in a
+headset, or holding the right button on desktop.
+
+**The metal detector** beeps faster and higher over anything buried, and only its holder hears it. **The water rises**,
+faster in a surge, and each of four relief valves lets some away while it's open. Turn the wheel (hold interact, or grab
+it and crank it round in a headset) and it creeps shut again over 45 seconds.
+
+**The fatberg** is a grid of voxels (16 × 10 × 12, a quarter meter each), two bits of density apiece, in eight
+networked chunks. **Pump** the pressure hose (a hand on its slide, back and forth, in a headset; R on desktop) and spray
+it: every tenth of a second a jet ray-marches the grid and sends the voxel it hits to its chunk's owner, which wears the
+fat away round it and writes the chunk's bytes back. Lumps nothing holds up any more come loose and float off. Bodies
+collide with the fat, so the way to the vault opens as you carve it; wading through it below the knee is allowed, since
+nobody can aim through opaque sewage.
+
+| | Desktop | Touch | VR |
+| --- | --- | --- | --- |
+| Lord | **WASD**, mouse look; **Click** punch (hold to wind up); **E** grab, or hold to dig, turn a valve, haul up or climb; **1 2 3** fists, detector, hose; **R** pump; holding a goblin, **Click** throws and **right-click** tears | left thumb wades, right looks; **PUNCH**, **GRAB** (hold to use), **TOOL**, **PUMP**, **TEAR** | swing your fists; grip a goblin, a valve's wheel or loot in the muck; two hands on a goblin and pull; detector on the left hip, hose on the right; **A** hauls up and climbs |
+
+How it uses the engine, and what it found:
+
+- **Voxels over the network.** `t.bytes` carries a chunk's densities, so only the chunks the jet touches are resent.
+  Every peer keeps one grid from all the chunks (`plug.ts`) for drawing, collision and aiming; only an owner blasts, and
+  an owner only wears its own chunks. Loose lumps are found by a flood fill from the tunnel's walls and sent as
+  `Crumble` events for everyone's local debris.
+- **Ragdolls are local.** An owner sends one `Splat` (where, which way, how hard, and flung, burst or torn), and every
+  peer builds its own Rapier ragdoll from the goblin's parts (the same meshes its animated rig is made of) in a small
+  world of the sewer's floors and walls, with buoyancy and drag below the waterline.
+- **Holding an NPC.** A grabbed goblin's ownership goes to the grabber's peer (`requestOwnership`, then `Held` with a
+  `heldBy` ref) so it follows the hand with no lag; a throw or a tear is then just that peer splatting its own goblin.
+  Loot works the same way: it's owned by whoever's carrying it (a Lord, or the goblin that snatched it, by `carrier`).
+- **Hand gestures in the role.** The pump stroke, the crank of a valve, a punch's speed and the pull of a tear are all
+  worked out in `LordRole` from tracked hand poses, so they're headless and tested.
+- **Opaque water** is a shader plane over the whole map at the sewage's height (`water.ts`), with the lamp's greasy
+  sheen; the view goes brown with your head under.
+
+Source: `src/sewer/`. Tests: `tests/sewer.test.ts` checks the seeded sewer is connected and the vault can only be
+reached through the fat, packing chunks, seeding, ablating, ray-marching, crumbling and breaching the fatberg, pump
+strokes, a dive starting with its loot and fatberg the same for everyone, water rising and valves draining it, punches
+and haymakers, grabbing and tearing, digging and banking, a goblin snatching from a sack and dropping it when splattered,
+a pumped hose carving the fat for every peer, climbing out and a new dive, being downed and hauled up, and in a headset,
+pumping the hose with the other hand and tearing a goblin between two.
+
 ## Scaling results
 
 `scripts/loadsim.ts` runs many `NetWorld`s in one process over a simulated network (45ms latency

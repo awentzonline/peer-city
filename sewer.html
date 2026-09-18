@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sewer Lordz</title>
+    <link rel="stylesheet" href="/src/sewer/style.css" />
+    <link rel="stylesheet" href="/src/crossplay/settings.css" />
+    <link rel="stylesheet" href="/src/crossplay/touch.css" />
+  </head>
+  <body>
+    <div id="game"></div>
+
+    <div id="hud" hidden>
+      <div id="hurt"></div>
+      <div id="crosshair"></div>
+      <div id="phase"></div>
+      <div id="party"></div>
+      <div id="water" title="The sewage"><div id="water-fill"></div><small>SEWAGE</small></div>
+      <div id="vitals">
+        <div id="hearts"></div>
+        <div class="bar" id="air" hidden><div id="air-fill"></div><small>AIR</small></div>
+        <div class="bar" id="charge" hidden><div id="charge-fill"></div><small>PRESSURE</small></div>
+        <div id="sack"></div>
+      </div>
+      <div id="detector" hidden><div class="dial"><div id="needle"></div></div><small>DETECTOR</small></div>
+      <div id="action" hidden><b id="action-label"></b><div class="bar"><div id="action-fill"></div></div></div>
+      <div id="feed"></div>
+      <div id="banner"></div>
+      <div id="hint"></div>
+      <div id="help"></div>
+      <button id="vr-enter" hidden>ENTER VR</button>
+      <div id="lock" hidden>
+        <div>CLICK TO DIVE IN</div>
+        <small>Esc releases the mouse</small>
+      </div>
+    </div>
+
+    <div id="lobby">
+      <div class="panel">
+        <h1>SEWER LORDZ</h1>
+        <p class="tag">Down the manhole with your mates, into the filth, for the riches that end up down there. Goblins want them too. No server: everyone's browser is the sewer.</p>
+        <label>Name <input id="name" maxlength="16" autocomplete="off" /></label>
+        <label
+          >Network
+          <select id="net">
+            <option value="online">Online (WebRTC via Trystero / Nostr)</option>
+            <option value="local">Local tabs (BroadcastChannel)</option>
+          </select>
+        </label>
+        <label>Sewer <input id="room" maxlength="24" autocomplete="off" /></label>
+        <div class="buttons">
+          <button id="play">DIVE IN</button>
+          <button id="play-vr" disabled>DIVE IN VR</button>
+        </div>
+        <p class="small" id="vr-note">Checking for a VR headset…</p>
+        <details class="small">
+          <summary>How to be a Lord</summary>
+          Everyone gathers at the foot of the ladder, and down you go. The sewage hides the bottom, so there's no seeing what's down
+          there:
+          <ul>
+            <li><b>The metal detector</b> beeps faster over loot buried in the silt. Dig it up and it goes in your sack. Carry it back to
+              the ladder and it's banked.</li>
+            <li><b>Goblins</b> come out of the drains to scratch you and snatch loot out of your sack. <b>Punch</b> them and they fly.
+              Wind up a haymaker and they burst. <b>Grab</b> one and throw it, or pull it in half.</li>
+            <li><b>The fatberg</b> plugs the tunnel to the vault, where the best stuff is. <b>Pump</b> your pressure hose and blast your
+              way through.</li>
+            <li><b>The water rises.</b> Turn the <b>relief valves</b> to let it away, or you'll be swimming in it. Head under too long
+              and you're down: a friend has to haul you up.</li>
+            <li>It's over when nobody's left on their feet. Climb out with the haul to keep it.</li>
+          </ul>
+          <b>Desktop:</b> <b>WASD</b> wade, <b>Click</b> punch (hold to wind up), <b>E</b> grab, or hold to dig, turn a valve, haul
+          someone up or climb out. <b>1 2 3</b> fists, detector, hose. <b>R</b> pumps, <b>Click</b> sprays. Holding a goblin,
+          <b>Click</b> throws it and <b>right-click</b> tears it.
+          <br /><b>VR:</b> swing your fists. Grip to grab: a goblin, a valve's wheel, loot in the muck. Two hands on a goblin, pull
+          apart. The hose is on your right hip: grip its slide with your other hand and pump. <b>A</b> hauls up and climbs.
+          <br /><b>Touch:</b> left thumb wades, right looks, <b>PUNCH</b>, <b>GRAB</b>, <b>TOOL</b> and <b>PUMP</b>.
+        </details>
+        <p class="small">Open more tabs or share the URL to bring your mates. <a href="./">All games →</a></p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/sewer/main.ts"></script>
+  </body>
+</html>

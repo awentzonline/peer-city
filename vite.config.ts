@@ -25,6 +25,7 @@ export default defineConfig({
         haunt: fileURLToPath(new URL('./haunt.html', import.meta.url)),
         shinobi: fileURLToPath(new URL('./shinobi.html', import.meta.url)),
         starship: fileURLToPath(new URL('./starship.html', import.meta.url)),
+        sewer: fileURLToPath(new URL('./sewer.html', import.meta.url)),
       },
     },
   },

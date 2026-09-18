@@ -1,0 +1,589 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #0a0c07;
+  font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
+  color: #e4e8d0;
+  user-select: none;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+}
+
+#game canvas {
+  display: block;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ---------------- HUD ---------------- */
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  text-shadow: 1px 1px 2px #000;
+}
+
+#crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: rgba(200, 224, 90, 0.7);
+  box-shadow: 0 0 2px #000;
+}
+
+#hurt {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 35%, rgba(150, 0, 0, 0.7));
+}
+
+#hurt.show {
+  animation: hurt 0.6s ease-out;
+}
+
+@keyframes hurt {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+#phase {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 18px;
+  border-radius: 4px;
+  background: rgba(10, 14, 4, 0.65);
+  border: 1px solid rgba(200, 224, 90, 0.35);
+  font-size: 15px;
+  font-weight: bold;
+  letter-spacing: 3px;
+  color: #c8e05a;
+  white-space: nowrap;
+}
+
+#party {
+  position: absolute;
+  top: 60px;
+  left: 18px;
+  width: 230px;
+  font-size: 14px;
+}
+
+#party div {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 8px;
+  margin-bottom: 3px;
+  border-radius: 3px;
+  background: rgba(10, 14, 4, 0.55);
+}
+
+#party div.me b {
+  color: #ffd35a;
+}
+
+#party div.valves {
+  grid-template-columns: 1fr auto;
+  color: #7ac8ff;
+}
+
+#party i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+#party span {
+  font-size: 12px;
+  color: #b8c0a0;
+}
+
+/* how high the sewage is, up the right edge */
+#water {
+  position: absolute;
+  right: 18px;
+  top: 70px;
+  width: 16px;
+  height: 180px;
+  border: 2px solid rgba(228, 232, 208, 0.5);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+#water-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 0;
+  background: linear-gradient(#8a8a2a, #4a4a18);
+  transition: height 0.5s;
+}
+
+#water.surge #water-fill {
+  background: linear-gradient(#e0c04a, #8a6a18);
+  animation: surge 0.6s infinite alternate;
+}
+
+@keyframes surge {
+  to {
+    filter: brightness(1.5);
+  }
+}
+
+#water small {
+  position: absolute;
+  top: 100%;
+  right: -8px;
+  margin-top: 4px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #b8c0a0;
+}
+
+/* your health, air, pressure and sack, bottom left */
+#vitals {
+  position: absolute;
+  left: 18px;
+  bottom: 44px;
+  width: 240px;
+}
+
+#hearts {
+  font-size: 28px;
+  color: #d8402f;
+  letter-spacing: 2px;
+}
+
+#hearts i {
+  font-style: normal;
+  color: rgba(216, 64, 47, 0.2);
+}
+
+.bar {
+  position: relative;
+  height: 14px;
+  margin-top: 5px;
+  border: 2px solid rgba(228, 232, 208, 0.5);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.bar div {
+  height: 100%;
+  width: 0;
+  transition: width 0.15s;
+}
+
+.bar small {
+  position: absolute;
+  left: 6px;
+  top: 0;
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 1px;
+  color: #111;
+  text-shadow: none;
+  font-weight: bold;
+}
+
+#air-fill {
+  background: #6ac8ff;
+}
+
+#charge-fill {
+  background: #ffd35a;
+}
+
+#charge-fill.low {
+  background: #e0703a;
+}
+
+#sack {
+  margin-top: 6px;
+  font-size: 14px;
+  color: #ffd35a;
+}
+
+/* the detector's dial, bottom right */
+#detector {
+  position: absolute;
+  right: 24px;
+  bottom: 60px;
+  text-align: center;
+  color: #8fe3ff;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+#detector .dial {
+  position: relative;
+  width: 110px;
+  height: 58px;
+  overflow: hidden;
+  border: 3px solid #8fe3ff;
+  border-bottom: none;
+  border-radius: 110px 110px 0 0;
+  background: rgba(0, 20, 30, 0.6);
+}
+
+#needle {
+  position: absolute;
+  left: 53px;
+  bottom: 0;
+  width: 4px;
+  height: 50px;
+  background: #e8e8e8;
+  transform-origin: 50% 100%;
+  transform: rotate(-60deg);
+  transition: transform 0.12s;
+}
+
+/* something held: hauling up, digging, a valve */
+#action {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  width: 260px;
+  transform: translateX(-50%);
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 2px;
+}
+
+#action-fill {
+  background: #9fe0a8;
+}
+
+#feed {
+  position: absolute;
+  right: 50px;
+  bottom: 160px;
+  max-width: 420px;
+  text-align: right;
+  font-size: 14px;
+}
+
+#feed div {
+  margin-top: 4px;
+  animation: fadeout 6s forwards;
+}
+
+@keyframes fadeout {
+  0%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+#banner {
+  position: absolute;
+  top: 26%;
+  width: 100%;
+  text-align: center;
+  font-size: 70px;
+  font-weight: bold;
+  letter-spacing: 6px;
+  opacity: 0;
+  transition: opacity 0.4s;
+  text-shadow: 3px 3px 6px #000;
+}
+
+#banner.show {
+  opacity: 1;
+}
+
+#hint {
+  position: absolute;
+  top: 56%;
+  width: 100%;
+  text-align: center;
+  font-size: 17px;
+  color: #e8f0c0;
+}
+
+#help {
+  position: absolute;
+  bottom: 12px;
+  left: 18px;
+  right: 18px;
+  font-size: 12px;
+  color: rgba(228, 232, 208, 0.6);
+}
+
+#lock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.45);
+  font-size: 30px;
+  font-weight: bold;
+  letter-spacing: 4px;
+  color: #c8e05a;
+}
+
+#lock small {
+  font-size: 13px;
+  font-weight: normal;
+  letter-spacing: 1px;
+  color: #e4e8d0;
+}
+
+#vr-enter {
+  position: absolute;
+  left: 18px;
+  top: 14px;
+  pointer-events: auto;
+  padding: 8px 14px;
+  font: bold 14px/1 'Trebuchet MS', sans-serif;
+  letter-spacing: 2px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(90deg, #3a5a1a, #1a4a3a);
+}
+
+/* ---------------- lobby ---------------- */
+#lobby {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  background:
+    radial-gradient(ellipse at 50% 120%, rgba(90, 110, 20, 0.45), transparent 60%),
+    repeating-linear-gradient(0deg, #14170c 0 38px, #0f1209 38px 42px),
+    #0a0c07;
+}
+
+#lobby .panel {
+  width: min(460px, 92vw);
+  margin: 24px 0;
+  padding: 26px 28px;
+  border-radius: 8px;
+  background: rgba(12, 16, 6, 0.92);
+  border: 1px solid rgba(200, 224, 90, 0.3);
+  box-shadow: 0 0 40px rgba(120, 160, 20, 0.15);
+}
+
+#lobby h1 {
+  margin: 0 0 6px;
+  text-align: center;
+  font-family: Impact, 'Trebuchet MS', sans-serif;
+  font-size: 46px;
+  letter-spacing: 6px;
+  color: #c8e05a;
+  text-shadow: 0 3px 0 #3a4a10, 0 0 24px rgba(200, 224, 90, 0.35);
+}
+
+#lobby .tag {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.45;
+  text-align: center;
+  color: #b8c0a0;
+}
+
+#lobby label {
+  display: block;
+  margin: 10px 0;
+  font-size: 12px;
+  color: #a8b090;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+#lobby input,
+#lobby select {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 9px 10px;
+  font-size: 16px;
+  font-family: inherit;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e4e8d0;
+}
+
+#lobby select option {
+  color: #000;
+}
+
+#lobby .buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+#lobby button {
+  flex: 1;
+  padding: 12px;
+  font-size: 19px;
+  font-family: Impact, 'Trebuchet MS', sans-serif;
+  letter-spacing: 3px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #141a06;
+  background: linear-gradient(90deg, #c8e05a, #8ab030);
+}
+
+#lobby #play-vr {
+  color: #fff;
+  background: linear-gradient(90deg, #3a5a1a, #1a4a3a);
+}
+
+#lobby button:disabled {
+  cursor: default;
+  filter: grayscale(1) brightness(0.55);
+}
+
+#lobby button:not(:disabled):hover {
+  filter: brightness(1.1);
+}
+
+#lobby .small {
+  font-size: 12px;
+  color: #a8b090;
+  margin: 10px 0 0;
+}
+
+#lobby details summary {
+  cursor: pointer;
+  color: #c8e05a;
+}
+
+#lobby ul {
+  padding-left: 18px;
+}
+
+#lobby li {
+  margin: 4px 0;
+}
+
+#lobby a {
+  color: #c8e05a;
+}
+
+/* ---------------- played with fingers ---------------- */
+body.touch #help {
+  display: none;
+}
+
+body.touch #phase {
+  top: 8px;
+  padding: 3px 10px;
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+body.touch #party {
+  top: 40px;
+  left: calc(10px + env(safe-area-inset-left, 0px));
+  width: 160px;
+  font-size: 11px;
+}
+
+body.touch #party div {
+  padding: 2px 6px;
+}
+
+body.touch #vitals {
+  left: 50%;
+  bottom: 8px;
+  width: 180px;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+body.touch #hearts {
+  font-size: 20px;
+}
+
+body.touch #sack {
+  font-size: 11px;
+}
+
+body.touch #water {
+  top: 40px;
+  right: auto;
+  left: calc(180px + env(safe-area-inset-left, 0px));
+  height: 100px;
+}
+
+body.touch #detector {
+  right: auto;
+  left: calc(12px + env(safe-area-inset-left, 0px));
+  bottom: 44%;
+  transform: scale(0.75);
+  transform-origin: left bottom;
+}
+
+body.touch #feed {
+  left: calc(12px + env(safe-area-inset-left, 0px));
+  right: auto;
+  bottom: 56%;
+  max-width: 44%;
+  text-align: left;
+  font-size: 11px;
+}
+
+body.touch #hint {
+  top: auto;
+  bottom: 86px;
+  left: 50%;
+  width: 46%;
+  transform: translateX(-50%);
+  font-size: 12px;
+}
+
+body.touch #banner {
+  font-size: 38px;
+  letter-spacing: 3px;
+}
+
+body.touch .touch-chips {
+  left: auto;
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  top: 40px;
+}
+
+@media (orientation: portrait) {
+  body.touch #hint {
+    bottom: 130px;
+    width: 80%;
+  }
+}
