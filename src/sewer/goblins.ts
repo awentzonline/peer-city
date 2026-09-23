@@ -97,6 +97,8 @@ export function updateOwnedGoblins(ctx: SewerContext, dt: number): void {
   for (const g of world.owned(Goblin) as ReadonlySet<GoblinEntity>) {
     const s = g.state;
     const l = GoblinMind.of(g);
+    // new to this peer mid-chase (its owner changed): keep after them rather than giving up on a clock that never started
+    if (!l.sawAt && s.mode === GoblinMode.Chase && s.target) l.sawAt = now;
     if (!sewer || s.dive !== sewer.dive || sewer.phase !== Phase.Dive) {
       world.despawn(g);
       continue;

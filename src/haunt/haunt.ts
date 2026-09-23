@@ -92,7 +92,7 @@ export class HauntRole implements Role<HauntIntent, HauntFrontend> {
 
   spawn(): void {
     const { ctx } = this;
-    ctx.haunt = ctx.world.spawn(HauntDef, { x: 40, y: 40, name: ctx.playerName, dread: START_DREAD });
+    ctx.haunt = ctx.world.spawn(HauntDef, { x: 40, y: 40, name: ctx.playerName, dread: START_DREAD, since: Math.floor(Date.now() / 1000) });
     ctx.world.setFocus(40, 40, 140);
   }
 

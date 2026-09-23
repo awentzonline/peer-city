@@ -99,6 +99,8 @@ export const Haunt = defineEntity({
     py: t.fixed(0.05),
     present: t.bool(),
     dread: t.uint(8),
+    /** When they became the Haunt, wall-clock seconds: with two, the later one yields. */
+    since: t.uint(32),
   },
   interpolate: ['px', 'py'],
 });

@@ -124,7 +124,9 @@ export class StationPanel {
   private readonly feedEl = el('div', 'feed-line');
   private station: Station;
   private scope: Scope = { draw: () => {}, tap: () => null };
-  private tick: () => void = () => {};
+  private tick: (dt: number) => void = () => {};
+  private nextRoster = 0;
+  private dialDrawn = '';
   private nextDraw = 0;
   private feedDrawn = '';
   private readonly observer: ResizeObserver | null = null;
@@ -242,14 +244,17 @@ export class StationPanel {
     this.fit();
   }
 
-  /** Call every rendered frame. */
-  update(now: number): void {
+  /** Call every rendered frame, with the frame's time. */
+  update(now: number, dt = 1 / 60): void {
     const { ctx } = this;
     const ship = ctx.ship()?.render;
-    // who's where
-    const officers = manning(ctx);
-    const seated = crewStations(ctx);
-    for (const [s, t] of this.tabs) setText(t.who, [...(officers.get(s) ?? []), ...(seated.get(s) ?? [])].join(', ') || 'unmanned');
+    // who's where: a few times a second is plenty for a roster
+    if (now >= this.nextRoster) {
+      this.nextRoster = now + 250;
+      const officers = manning(ctx);
+      const seated = crewStations(ctx);
+      for (const [s, t] of this.tabs) setText(t.who, [...(officers.get(s) ?? []), ...(seated.get(s) ?? [])].join(', ') || 'unmanned');
+    }
     const feed = ctx.hud.feed.at(-1)?.text ?? '';
     if (feed !== this.feedDrawn) {
       this.feedDrawn = feed;
@@ -266,7 +271,7 @@ export class StationPanel {
     this.shields.set(ship.shields / SHIELD_MAX, ship.shieldsUp ? '#6ab8ff' : '#4a5a70');
     this.alertEl.classList.toggle('on', ship.alert);
     setText(this.phaseEl, phaseLine(ctx, ship));
-    this.tick();
+    this.tick(dt);
     if (now < this.nextDraw) return;
     this.nextDraw = now + 50;
     const g = this.scopeEl.getContext('2d');
@@ -402,10 +407,9 @@ export class StationPanel {
     wrap.append(left, right);
     this.controls.appendChild(wrap);
 
-    this.tick = () => {
+    this.tick = (dt) => {
       const ship = ctx.ship()?.render;
       if (!ship) return;
-      const dt = 1 / 60;
       if (steering !== 0 && course !== null) {
         course += steering * 0.9 * dt;
         const t = performance.now();
@@ -423,10 +427,13 @@ export class StationPanel {
       zeroMark.style.bottom = '20%';
       setText(tLabel, `${Math.round(shown * 100)}% · ${Math.round(ship.speed)} u/s`);
       setText(zoomB, scope.zoomLabel!());
-      const dg = dial.getContext('2d');
+      const auto = ship.autopilot || ship.warp !== Warp.Idle || !!ship.orbit;
+      const dialKey = `${ship.heading}|${course ?? ship.course}|${auto}`;
+      const dg = dialKey !== this.dialDrawn ? dial.getContext('2d') : null;
       if (dg) {
+        this.dialDrawn = dialKey;
         dg.clearRect(0, 0, dial.width, dial.height);
-        drawDial(dg, dial.width, ship.heading, course ?? ship.course, ship.autopilot || ship.warp !== Warp.Idle || !!ship.orbit);
+        drawDial(dg, dial.width, ship.heading, course ?? ship.course, auto);
       }
       setText(dialLabel, `HEADING ${String(bearing(ship.heading)).padStart(3, '0')}°${ship.orbit ? ' · IN ORBIT' : ship.autopilot ? ' · AUTOPILOT' : ''}`);
       autopilot.classList.toggle('on', ship.autopilot);

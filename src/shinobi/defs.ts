@@ -125,6 +125,8 @@ export const Captain = defineEntity({
     px: t.fixed(0.1),
     py: t.fixed(0.1),
     pointing: t.bool(),
+    /** When they became the Captain, wall-clock seconds: with two, the later one yields. */
+    since: t.uint(32),
   },
   interpolate: ['px', 'py'],
 });

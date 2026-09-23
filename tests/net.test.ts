@@ -3,7 +3,7 @@ import { ByteReader, ByteWriter } from '../src/engine/net/codec';
 import { defineAction, defineCommand, defineEntity, t } from '../src/engine/net/schema';
 import { Singleton, defineSingleton } from '../src/engine/net/singleton';
 import { defineLocal, type NetEntity } from '../src/engine/net/entity';
-import type { NetWorld } from '../src/engine/net/world';
+import { newerEpoch, type NetWorld } from '../src/engine/net/world';
 import { Sim } from './harness';
 
 const Avatar = defineEntity({
@@ -39,12 +39,38 @@ describe('codec', () => {
     expect(r.remaining).toBe(0);
   });
 
+  it('refuses to encode a non-finite or out-of-range varuint instead of looping forever', () => {
+    for (const v of [Infinity, -Infinity, NaN, -1, 2 ** 53]) expect(() => new ByteWriter().varuint(v)).toThrow(RangeError);
+    expect(() => new ByteWriter().varint(Infinity)).toThrow(RangeError);
+  });
+
+  it('quantizes NaN and Infinity to the field default rather than sending them', () => {
+    expect(t.fixed(0.5, 7).quantize(NaN)).toBe(14);
+    expect(t.fixed(0.5).quantize(Infinity)).toBe(0);
+    expect(t.float32(2).quantize(NaN)).toBe(2);
+    expect(t.int(3).quantize(-Infinity)).toBe(3);
+    expect(t.uint(8, 9).quantize(NaN)).toBe(9);
+    expect(t.enum<number>(1).quantize(NaN)).toBe(1);
+    expect(Number.isFinite(t.angle(10).quantize(NaN))).toBe(true);
+  });
+
   it('quantizes angles and fixed point', () => {
     const a = t.angle(8);
     expect(a.dequantize(a.quantize(-Math.PI / 2))).toBeCloseTo((3 * Math.PI) / 2, 1);
     const f = t.fixed(0.5);
     expect(f.quantize(10.24)).toBe(20);
     expect(f.quantize(10.26)).toBe(21);
+  });
+});
+
+describe('epochs', () => {
+  it('order with the u16 wrapping round, so an entity that changes hands 65k times keeps working', () => {
+    expect(newerEpoch(2, 1)).toBe(true);
+    expect(newerEpoch(1, 2)).toBe(false);
+    expect(newerEpoch(5, 5)).toBe(false);
+    expect(newerEpoch(0, 0xffff)).toBe(true);
+    expect(newerEpoch(0xffff, 0)).toBe(false);
+    expect(newerEpoch(3, 0xfff0)).toBe(true);
   });
 });
 
@@ -208,6 +234,88 @@ describe('replication', () => {
     sim.run(400);
     await Promise.resolve();
     expect(second).toBe(false);
+  });
+
+  it('lets two worlds register different entity lists without disturbing each other', () => {
+    const sim = new Sim();
+    const lobby = sim.add('lobby', { ...base, worldId: 'lobby', entities: [Crate] });
+    const game = sim.add('game', base);
+    lobby.setFocus(0, 0);
+    game.setFocus(0, 0);
+    const c1 = lobby.spawn(Crate, { x: 1, y: 1 });
+    const av = game.spawn(Avatar, { x: 2, y: 2 });
+    const c2 = game.spawn(Crate, { x: 3, y: 3 });
+    sim.run(200);
+    expect([...lobby.all(Crate)]).toEqual([c1]);
+    expect([...game.all(Crate)]).toEqual([c2]);
+    expect([...game.all(Avatar)]).toEqual([av]);
+    expect(() => lobby.all(Avatar)).toThrow(/not registered/);
+  });
+
+  it('takes a handoff back when the peer it went to never got it', async () => {
+    const sim = new Sim();
+    const a = sim.add('a', base);
+    const b = sim.add('b', base);
+    a.setFocus(0, 0);
+    b.setFocus(0, 0);
+    const crate = a.spawn(Crate, { x: 10, y: 10 });
+    sim.run(500);
+    const onB = find(b, crate.id)!;
+
+    // b's link drops everything for a moment: the request gets through, the handoff coming back doesn't
+    const handle = (b as unknown as { handlePacket: (data: Uint8Array, peer: string) => void }).handlePacket.bind(b);
+    let dropping = false;
+    (b as unknown as { handlePacket: unknown }).handlePacket = (data: Uint8Array, peer: string) => {
+      if (!dropping) handle(data, peer);
+    };
+    let granted: boolean | undefined;
+    b.requestOwnership(onB).then((ok) => (granted = ok));
+    dropping = true;
+    sim.run(400);
+    dropping = false;
+    expect(crate.mine).toBe(false); // a handed it over...
+    expect(onB.mine).toBe(false); // ...and b never got it
+
+    // a takes it back rather than letting it go stale; after that it's free to migrate as usual
+    sim.run(4000);
+    await Promise.resolve();
+    expect(granted).toBe(false);
+    expect(a.stats.reclaims).toBe(1);
+    expect(crate.alive).toBe(true);
+    expect(onB.alive).toBe(true);
+    expect(Number(crate.mine) + Number(onB.mine)).toBe(1);
+    expect(crate.owner).toBe(onB.owner);
+  });
+
+  it('spawns with explicitly-undefined init keys as their defaults', () => {
+    const sim = new Sim();
+    const a = sim.add('a', base);
+    a.setFocus(0, 0);
+    const av = a.spawn(Avatar, { x: 5, name: undefined, hp: undefined });
+    expect(av.state.name).toBe('');
+    expect(av.state.hp).toBe(100);
+    expect(() => sim.run(200)).not.toThrow();
+  });
+
+  it('does not keep an entity held when the grant lands after the request timed out', async () => {
+    const sim = new Sim({ latencyMs: 60, connectDelayMs: 100 });
+    const a = sim.add('a', base);
+    const b = sim.add('b', { ...base, ownershipRequestTimeoutMs: 20 });
+    a.setFocus(0, 0);
+    b.setFocus(0, 0);
+    const crate = a.spawn(Crate, { x: 10, y: 10 });
+    sim.run(500);
+
+    const onB = find(b, crate.id)!;
+    let granted: boolean | undefined;
+    b.requestOwnership(onB).then((ok) => (granted = ok));
+    sim.run(600);
+    await Promise.resolve();
+    expect(granted).toBe(false);
+    // the owner still handed it over, since it read the request before hearing anything else
+    expect(onB.mine).toBe(true);
+    // ...but nobody asked any more, so it stays free to migrate or be requested by someone else
+    expect(onB.held).toBe(false);
   });
 
   it('migratable entities survive their owner leaving; avatars do not', () => {

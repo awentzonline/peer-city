@@ -37,6 +37,9 @@ function wrapAngle(a: number): number {
   return a < 0 ? a + TAU : a;
 }
 
+/** Non-finite numbers never reach the wire: they'd hang the varint encoder or teleport the entity. */
+const finite = (v: number, fallback: number): number => (Number.isFinite(v) ? v : fallback);
+
 export const t = {
   /** true / false, 1 byte. */
   bool(defaultValue = false): FieldType<boolean> {
@@ -58,7 +61,7 @@ export const t = {
       kind: `u${bits}`,
       defaultValue,
       interp: 'none',
-      quantize: (v) => Math.max(0, Math.min(max, Math.round(v))),
+      quantize: (v) => Math.max(0, Math.min(max, Math.round(finite(v, defaultValue)))),
       dequantize: (q) => q as number,
       write: bits === 8 ? (w, q) => w.u8(q as number) : bits === 16 ? (w, q) => w.u16(q as number) : (w, q) => w.u32(q as number),
       read: bits === 8 ? (r) => r.u8() : bits === 16 ? (r) => r.u16() : (r) => r.u32(),
@@ -74,7 +77,7 @@ export const t = {
       kind: 'enum',
       defaultValue,
       interp: 'none',
-      quantize: (v) => Math.max(0, Math.min(255, Math.round(v))),
+      quantize: (v) => Math.max(0, Math.min(255, Math.round(finite(v, defaultValue)))),
       dequantize: (q) => q as E,
       write: (w, q) => w.u8(q as number),
       read: (r) => r.u8(),
@@ -87,7 +90,7 @@ export const t = {
       kind: 'int',
       defaultValue,
       interp: 'none',
-      quantize: (v) => Math.round(v),
+      quantize: (v) => Math.round(finite(v, defaultValue)),
       dequantize: (q) => q as number,
       write: (w, q) => w.varint(q as number),
       read: (r) => r.varint(),
@@ -105,7 +108,7 @@ export const t = {
       kind: `fixed:${precision}`,
       defaultValue,
       interp,
-      quantize: (v) => Math.round(v * inv),
+      quantize: (v) => Math.round(finite(v, defaultValue) * inv),
       dequantize: (q) => (q as number) * precision,
       write: (w, q) => w.varint(q as number),
       read: (r) => r.varint(),
@@ -118,7 +121,7 @@ export const t = {
       kind: 'f32',
       defaultValue,
       interp,
-      quantize: (v) => Math.fround(v),
+      quantize: (v) => Math.fround(finite(v, defaultValue)),
       dequantize: (q) => q as number,
       write: (w, q) => w.f32(q as number),
       read: (r) => r.f32(),
@@ -133,7 +136,7 @@ export const t = {
       kind: `angle:${bits}`,
       defaultValue,
       interp: 'angle',
-      quantize: (v) => Math.round(wrapAngle(v) * scale) % steps,
+      quantize: (v) => Math.round(wrapAngle(finite(v, defaultValue)) * scale) % steps,
       dequantize: (q) => (q as number) / scale,
       write: bits <= 8 ? (w, q) => w.u8(q as number) : (w, q) => w.u16(q as number),
       read: bits <= 8 ? (r) => r.u8() : (r) => r.u16(),
@@ -307,8 +310,6 @@ export interface EntityDef<S extends Shape = Shape> {
   readonly snapDistance: number;
   readonly maxExtrapolateMs: number;
   readonly cullDistance: number;
-  /** Assigned when registered with a NetWorld. */
-  typeId: number;
   /** Phantom for type inference. */
   readonly _state?: Infer<S>;
 }
@@ -334,8 +335,7 @@ export function defineEntity<S extends Shape>(opts: EntityOptions<S>): EntityDef
     interpKinds: interpIdx.map((i) => (layout.types[i].interp === 'none' ? 'linear' : layout.types[i].interp)),
     snapDistance: opts.snapDistance ?? 250,
     maxExtrapolateMs: opts.maxExtrapolateMs ?? 150,
-    cullDistance: opts.cullDistance ?? Infinity,
-    typeId: -1,
+    cullDistance: opts.cullDistance ?? Infinity
   };
 }
 
@@ -343,13 +343,12 @@ export interface ActionDef<S extends Shape = Shape> {
   readonly kind: 'action';
   readonly name: string;
   readonly layout: FieldLayout<S>;
-  typeId: number;
   readonly _payload?: Infer<S>;
 }
 
 /** A typed, binary-encoded message (RPC / event) with a schema. */
 export function defineAction<S extends Shape>(name: string, fields: S): ActionDef<S> {
-  return { kind: 'action', name, layout: new FieldLayout(fields), typeId: -1 };
+  return { kind: 'action', name, layout: new FieldLayout(fields) };
 }
 
 /**

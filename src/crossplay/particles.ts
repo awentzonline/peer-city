@@ -60,6 +60,8 @@ export class ParticleLayer {
   private readonly pos: THREE.InstancedBufferAttribute;
   private readonly col: THREE.InstancedBufferAttribute;
   private readonly size: THREE.InstancedBufferAttribute;
+  /** How many were uploaded last frame: none then and none now means nothing to send. */
+  private lastN = 0;
   private readonly live: Particle[] = [];
   private readonly pool: Particle[] = [];
 
@@ -132,9 +134,13 @@ export class ParticleLayer {
       n++;
     }
     this.geo.instanceCount = n;
-    this.pos.needsUpdate = true;
-    this.col.needsUpdate = true;
-    this.size.needsUpdate = true;
+    if (n === 0 && this.lastN === 0) return;
+    this.lastN = n;
+    for (const attr of [this.pos, this.col, this.size]) {
+      attr.clearUpdateRanges();
+      attr.addUpdateRange(0, n * attr.itemSize);
+      attr.needsUpdate = true;
+    }
   }
 }
 

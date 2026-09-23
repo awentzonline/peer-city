@@ -101,7 +101,7 @@ export class Intel {
       for (const g of guards) {
         const gs = g.render;
         if (gs.mode === GuardMode.Dead) continue;
-        if ((gs.mode === GuardMode.Chase && gs.target === sv.id && gs.alert === Alert.Alarmed && Math.hypot(g.x - sv.x, g.y - sv.y) < 25) || spotting(castle, { ...gs, x: g.x, y: g.y }, { ...s, x: sv.x, y: sv.y }, alarm) > 0) {
+        if ((gs.mode === GuardMode.Chase && gs.target === sv.id && gs.alert === Alert.Alarmed && Math.hypot(g.x - sv.x, g.y - sv.y) < 25) || spotting(castle, gs, g.x, g.y, s, sv.x, sv.y, alarm) > 0) {
           seen = true;
           break;
         }

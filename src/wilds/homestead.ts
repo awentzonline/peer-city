@@ -1,6 +1,11 @@
 import { clamp, type CampfireEntity, type PlotEntity, type WildsContext } from './context';
 import { Campfire, Crop, Fuel, Plot, Stump, Survivor } from './defs';
 import { Ground, ObstacleKind } from './land';
+import type { NetEntity } from '@engine/index';
+
+/** Scratch for `world.query`, one per call site: filled each call, never kept. */
+const nearby1: NetEntity<any>[] = [];
+const nearby2: NetEntity<any>[] = [];
 
 /** How long a crop takes to grow, seconds. */
 export const GROW_SECONDS = 150;
@@ -41,7 +46,7 @@ export function ripe(plot: PlotEntity, wall: number): boolean {
 export function plotNear(ctx: WildsContext, x: number, y: number, r: number, accept: (p: PlotEntity) => boolean = () => true): PlotEntity | undefined {
   let best: PlotEntity | undefined;
   let bestD = r;
-  for (const p of ctx.world.query(x, y, r, Plot)) {
+  for (const p of ctx.world.query(x, y, r, Plot, nearby1)) {
     const d = Math.hypot(p.x - x, p.y - y);
     if (d <= bestD && accept(p)) {
       bestD = d;
@@ -100,7 +105,7 @@ export async function harvest(ctx: WildsContext, plot: PlotEntity): Promise<Crop
 export function fireNear(ctx: WildsContext, x: number, y: number, r: number, ashes = false): CampfireEntity | undefined {
   let best: CampfireEntity | undefined;
   let bestD = r;
-  for (const f of ctx.world.query(x, y, r, Campfire)) {
+  for (const f of ctx.world.query(x, y, r, Campfire, nearby2)) {
     if (!ashes && f.render.until <= ctx.wall) continue;
     const d = Math.hypot(f.x - x, f.y - y);
     if (d <= bestD) {

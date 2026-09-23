@@ -78,6 +78,7 @@ export class Shell {
   readonly menu: SettingsMenu;
   readonly debug: NetDebugPanel;
   private seated: Seat<unknown, Frontend<unknown>> | null = null;
+  private readonly ac = new AbortController();
   private frontends: Frontends<Frontend<unknown>> | null = null;
   private readonly vrButton = document.getElementById('vr-enter') as HTMLButtonElement | null;
 
@@ -108,8 +109,8 @@ export class Shell {
       seen.add(text);
       opts.announce(`⚠ Error: ${text}`);
     };
-    window.addEventListener('error', (e) => report(`${e.message} (${e.filename?.split('/').pop()}:${e.lineno})`));
-    window.addEventListener('unhandledrejection', (e) => report(errorText(e.reason)));
+    window.addEventListener('error', (e) => report(`${e.message} (${e.filename?.split('/').pop()}:${e.lineno})`), { signal: this.ac.signal });
+    window.addEventListener('unhandledrejection', (e) => report(errorText(e.reason)), { signal: this.ac.signal });
   }
 
   get input(): DesktopInput {
@@ -222,8 +223,12 @@ export class Shell {
   }
 
   dispose(): void {
+    this.ac.abort();
+    this.seated?.frontend.dispose();
+    this.seated = null;
     this.voice.dispose();
     this.menu.dispose();
+    this.stage.dispose();
     this.world.dispose();
   }
 }

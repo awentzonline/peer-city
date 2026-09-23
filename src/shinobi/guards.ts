@@ -124,8 +124,6 @@ const BodyMind = defineLocal<{ found: boolean }>(() => ({ found: false }));
 export const POST_HOME = 100;
 
 export interface GuardLike {
-  x: number;
-  y: number;
   z: number;
   angle: number;
   look: number;
@@ -134,8 +132,6 @@ export interface GuardLike {
 }
 
 export interface ShinobiLike {
-  x: number;
-  y: number;
   z: number;
   head: number;
   exposure: number;
@@ -147,23 +143,23 @@ export interface ShinobiLike {
  * dark, crouching in a bush, it has to be very close to see anything. Everyone works this out from what they receive,
  * which is how the captain knows only what the guards see.
  */
-export function spotting(castle: Castle, g: GuardLike, sv: ShinobiLike, alarm: boolean): number {
+export function spotting(castle: Castle, g: GuardLike, gx: number, gy: number, sv: ShinobiLike, sx: number, sy: number, alarm: boolean): number {
   if (sv.mode === ShinobiMode.Dead || sv.mode === ShinobiMode.Escaped) return 0;
   const spec = GUARDS[g.kind];
-  const ex = g.x;
-  const ey = g.y;
+  const ex = gx;
+  const ey = gy;
   const ez = g.z + spec.eye;
   const cz = sv.z + sv.head * 0.75;
-  const dx = sv.x - ex;
-  const dy = sv.y - ey;
+  const dx = sx - ex;
+  const dy = sy - ey;
   const d = Math.hypot(dx, dy, cz - ez);
   const wary = alarm || g.alert === Alert.Alarmed;
-  if (d < 1.3 && sv.exposure > 0.12) return castle.sees(ex, ey, ez, sv.x, sv.y, cz) ? 1 : 0;
+  if (d < 1.3 && sv.exposure > 0.12) return castle.sees(ex, ey, ez, sx, sy, cz) ? 1 : 0;
   const range = spec.sight * (0.12 + 0.88 * sv.exposure) * (wary ? ALARM_SIGHT : 1);
   if (d > range) return 0;
   const fov = spec.fov * (wary ? 1.35 : 1);
   if (Math.abs(angleDiff(g.angle + g.look, Math.atan2(dy, dx))) > fov) return 0;
-  if (!castle.sees(ex, ey, ez, sv.x, sv.y, cz) && !castle.sees(ex, ey, ez, sv.x, sv.y, sv.z + sv.head)) return 0;
+  if (!castle.sees(ex, ey, ez, sx, sy, cz) && !castle.sees(ex, ey, ez, sx, sy, sv.z + sv.head)) return 0;
   return 0.25 + 0.75 * (1 - d / range);
 }
 
@@ -245,6 +241,13 @@ export function updateOwnedGuards(ctx: ShinobiContext, dt: number): void {
       continue;
     }
     if (s.mode === GuardMode.Dead) continue;
+    if (l.seenAt === -1e9 && s.mode === GuardMode.Chase && s.target) {
+      // new to this peer mid-chase (its owner changed): carry on from where the last owner saw them, not from (0, 0)
+      l.seenId = s.target;
+      l.seenX = s.tx;
+      l.seenY = s.ty;
+      l.seenAt = now;
+    }
     const spec = GUARDS[s.kind];
 
     if (now >= l.nextCheckin) {
@@ -299,7 +302,7 @@ function perceive(ctx: ShinobiContext, g: GuardEntity, dt: number, alarm: boolea
   let strength = 0;
   const range = spec.sight * ALARM_SIGHT;
   for (const sv of world.query(s.x, s.y, range, Shinobi) as ShinobiEntity[]) {
-    const k = spotting(castle, s, { ...sv.render, x: sv.x, y: sv.y }, alarm);
+    const k = spotting(castle, s, s.x, s.y, sv.render, sv.x, sv.y, alarm);
     // the one it was after, if it still sees them at all
     if (k > 0 && (k > strength || (sv.id === l.seenId && strength < 0.9))) {
       best = sv;
@@ -409,6 +412,9 @@ function chase(ctx: ShinobiContext, g: GuardEntity, spec: GuardSpec, dt: number,
   }
   const tx = seeing ? target.x : l.seenX;
   const ty = seeing ? target.y : l.seenY;
+  // where they were last seen goes on the wire too, so a guard that changes owner mid-chase heads the right way
+  s.tx = tx;
+  s.ty = ty;
   const bearing = Math.atan2(ty - s.y, tx - s.x);
   s.look = 0;
   if (s.kind === GuardKind.Samurai) {

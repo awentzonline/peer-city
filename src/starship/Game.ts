@@ -158,8 +158,11 @@ export class Game {
         this.views.update(dt);
         this.seat.present(dt);
         rig.update(dt);
-        this.space.update(dt);
-        this.decks.update(dt);
+        // a station phone draws nothing in 3D: its panel is the page, so the scenes can rest
+        if ((this.seat.frontend as Frontend<unknown> & Draws).drawn().place !== 'none') {
+          this.space.update(dt);
+          this.decks.update(dt);
+        }
       },
     });
   }

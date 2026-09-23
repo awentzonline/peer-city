@@ -98,7 +98,7 @@ export class VrSettings {
   private placeInFront(): void {
     const mesh = this.view.mesh;
     const rig = this.rig;
-    rig.root.updateMatrixWorld();
+    rig.root.updateWorldMatrix(true, false);
     forward.copy(FORWARD).applyQuaternion(rig.headQuat);
     forward.y *= 0.3; // keep it roughly upright however you were looking
     forward.normalize();
@@ -110,7 +110,8 @@ export class VrSettings {
   /** Which row is at canvas height `y`, or -1. */
   private rowAt(y: number): number {
     const i = Math.floor((y - TOP) / ROW_H);
-    return i >= 0 && i < this.rows.length && this.rows[i].kind === 'toggle' ? i : -1;
+    const drawn = TOP + i * ROW_H + ROW_H <= H - 40; // `draw` skips rows past the bottom; so must the pointer
+    return i >= 0 && i < this.rows.length && drawn && this.rows[i].kind === 'toggle' ? i : -1;
   }
 
   private draw(): void {

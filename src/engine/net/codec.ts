@@ -69,6 +69,7 @@ export class ByteWriter {
 
   /** Unsigned LEB128, valid for integers up to 2^53. */
   varuint(v: number): this {
+    if (!(v >= 0 && v < 2 ** 53)) throw new RangeError(`varuint: ${v} is not an integer in [0, 2^53)`);
     this.ensure(8);
     while (v >= 0x80) {
       this.buf[this.length++] = (v % 0x80) | 0x80;

@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
@@ -31,5 +31,7 @@ export default defineConfig({
   },
   test: {
     include: ['tests/**/*.test.ts'],
+    // Several game tests simulate whole matches with rapier; under a full parallel run they take 3-7s.
+    testTimeout: 20_000,
   },
-} as any);
+});

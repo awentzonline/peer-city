@@ -43,10 +43,14 @@ export interface Frontend<Intent> {
 export class Seat<Intent, F extends Frontend<Intent> = Frontend<Intent>> {
   private current: F;
 
+  /** What built the current frontend, to fall back on if the next one fails to build. */
+  private make: () => F;
+
   constructor(
     readonly role: Role<Intent, F>,
     create: () => F,
   ) {
+    this.make = create;
     this.current = this.start(create);
   }
 
@@ -57,7 +61,14 @@ export class Seat<Intent, F extends Frontend<Intent> = Frontend<Intent>> {
   /** Switch platforms, e.g. when a headset session starts or ends. The old frontend is gone before the new one is built. */
   use(create: () => F): void {
     this.current.dispose();
-    this.current = this.start(create);
+    try {
+      this.current = this.start(create);
+      this.make = create;
+    } catch (err) {
+      // e.g. a headset frontend that throws: back to the one that worked, rather than stepping a disposed one
+      this.current = this.start(this.make);
+      throw err;
+    }
   }
 
   step(dt: number): void {
@@ -73,4 +84,20 @@ export class Seat<Intent, F extends Frontend<Intent> = Frontend<Intent>> {
     this.role.attach(frontend);
     return frontend;
   }
+}
+
+/**
+ * For a role only one player may hold (the Haunt, the Captain): among `all` of that role's entities, the one that
+ * outranks `me`, if any. Whoever took it first wins; taken in the same second, the lower id does, so every peer agrees.
+ * The one it returns is who `me` should yield to.
+ */
+export function seniorHolder<E extends { id: number; render: { since: number } }>(all: Iterable<E>, me: E): E | null {
+  let senior: E | null = null;
+  for (const e of all) {
+    if (e === me) continue;
+    const before = e.render.since < me.render.since || (e.render.since === me.render.since && e.id < me.id);
+    if (!before) continue;
+    if (!senior || e.render.since < senior.render.since || (e.render.since === senior.render.since && e.id < senior.id)) senior = e;
+  }
+  return senior;
 }

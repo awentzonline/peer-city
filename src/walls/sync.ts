@@ -1,6 +1,6 @@
 import { ByteReader, ByteWriter, fnv1a, type NetEntity, type NetWorld, type StateOf } from '@engine/index';
 import { Paint, Painter, WallAsk, WallDone, WallTile } from './defs';
-import { decodePoints, encodePoints, quantizePoint, type Brush, type Surface, type StrokePoint } from './wall';
+import { MAX_POINTS, decodePoints, encodePoints, quantizePoint, type Brush, type Surface, type StrokePoint } from './wall';
 
 export type PainterEntity = NetEntity<StateOf<typeof Painter>>;
 
@@ -70,10 +70,15 @@ export const SYNC_TUNING: SyncTuning = { settleMs: 5000, staleMs: 10000 };
 /** Strokes kept while waiting for a copy. A long wait on a busy wall drops the oldest. */
 const MAX_BUFFER = 50_000;
 
+/** How long a painter's points wait to go out together, ms: about a network tick. */
+const PAINT_BATCH_MS = 50;
+
 export class WallSync {
   /** Bumped whenever the walls change, for autosaving. */
   version = 0;
   private seq = 0;
+  /** Our stroke so far this tick, not yet painted or sent: points go out in batches, not an action a frame. */
+  private pending: { stroke: Stroke; since: number } | null = null;
   /** The last stroke of each painter's that's on our walls. */
   private seen = new Map<string, number>();
   /** Strokes that arrived while we had no copy, to paint again on top of the one that comes. */
@@ -129,16 +134,35 @@ export class WallSync {
   /** Paint a stroke of our own: onto our walls now, and out to everyone. Its points are rounded (in place) to what everyone else will get. */
   paint(surface: number, brush: Brush, color: number, pts: StrokePoint[], cont: boolean): void {
     for (const p of pts) quantizePoint(p);
-    const stroke: Stroke = { author: this.selfId, surface, brush, color, seq: ++this.seq, cont, pts };
+    const now = this.host.now();
+    const p = this.pending;
+    const last = p?.stroke.pts[p.stroke.pts.length - 1];
+    const joins = !!p && !!last && cont && pts.length === 2 && pts[0].x === last.x && pts[0].y === last.y;
+    if (p && joins && p.stroke.surface === surface && p.stroke.brush === brush && p.stroke.color === color && p.stroke.pts.length < MAX_POINTS) {
+      p.stroke.pts.push(pts[1]);
+    } else {
+      this.flushPaint();
+      this.pending = { stroke: { author: this.selfId, surface, brush, color, seq: ++this.seq, cont, pts: [...pts] }, since: now };
+    }
+    if (now - this.pending!.since >= PAINT_BATCH_MS) this.flushPaint();
+  }
+
+  /** Paint what's pending onto our walls, and send it. Local and remote strokes are then the same, speckle and all. */
+  private flushPaint(): void {
+    const p = this.pending;
+    if (!p) return;
+    this.pending = null;
+    const { stroke } = p;
     this.apply(stroke);
     if (!this.synced) this.keep(stroke);
-    this.host.world.send(Paint, { surface, brush, color, seq: stroke.seq, cont, pts: encodePoints(pts) }, { to: 'all', self: false });
+    this.host.world.send(Paint, { surface: stroke.surface, brush: stroke.brush, color: stroke.color, seq: stroke.seq, cont: stroke.cont, pts: encodePoints(stroke.pts) }, { to: 'all', self: false });
   }
 
   update(): void {
     const me = this.host.me();
     if (!me) return;
     const now = this.host.now();
+    if (this.pending && now - this.pending.since >= PAINT_BATCH_MS) this.flushPaint();
     const a = this.asking;
     if (a && now - a.heard > this.tuning.staleMs) {
       this.asking = null;

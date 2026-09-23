@@ -102,7 +102,9 @@ export class Voice {
   private readonly muted = new Set<string>();
   private mic: MediaStream | null = null;
   private micLevel: (() => number) | null = null;
-  private busy = false;
+  /** Opening or closing the microphone right now: the browser may be asking. Settles at where `wanted` last was. */
+  private pending: Promise<boolean> | null = null;
+  private wanted = false;
   private disposed = false;
   /** Null until the first room says whether this transport carries media at all. */
   private carriesMedia: boolean | null = null;
@@ -136,20 +138,29 @@ export class Voice {
    * Open the microphone or release it. Turning it off really does stop the tracks, so the browser's
    * recording light goes out: "off" means off, not "on but quiet".
    */
-  async setTalking(on: boolean): Promise<boolean> {
-    if (this.busy || on === this.talking) return this.talking;
-    this.busy = true;
-    try {
-      if (on) await this.openMic();
-      else this.closeMic();
-    } finally {
-      this.busy = false;
-    }
-    return this.talking;
+  setTalking(on: boolean): Promise<boolean> {
+    this.wanted = on;
+    // pressed again while the browser's still asking: the answer comes once the mic is where it was last asked to be
+    if (this.pending) return this.pending;
+    if (on === this.talking) return Promise.resolve(this.talking);
+    this.pending = (async () => {
+      try {
+        while (this.wanted !== this.talking) {
+          const before = this.talking;
+          if (this.wanted) await this.openMic();
+          else this.closeMic();
+          if (this.talking === before) break; // it couldn't (blocked, or no microphone): stop asking
+        }
+      } finally {
+        this.pending = null;
+      }
+      return this.talking;
+    })();
+    return this.pending;
   }
 
   toggleTalking(): Promise<boolean> {
-    return this.setTalking(!this.talking);
+    return this.setTalking(!(this.pending ? this.wanted : this.talking));
   }
 
   isMuted(peer: string): boolean {

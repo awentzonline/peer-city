@@ -75,7 +75,7 @@ export class CaptainRole implements Role<CaptainIntent, CaptainFrontend> {
 
   spawn(): void {
     const { ctx } = this;
-    ctx.captain = ctx.world.spawn(CaptainDef, { x: 48, y: 48, name: ctx.playerName }) as CaptainEntity;
+    ctx.captain = ctx.world.spawn(CaptainDef, { x: 48, y: 48, name: ctx.playerName, since: Math.floor(Date.now() / 1000) }) as CaptainEntity;
     ctx.world.setFocus(48, 48, 150);
   }
 

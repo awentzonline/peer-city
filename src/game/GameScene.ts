@@ -98,7 +98,7 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  update(_time: number, delta: number): void {
+  override update(_time: number, delta: number): void {
     this.step(Math.min(delta, 50) / 1000, true);
   }
 

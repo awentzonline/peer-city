@@ -81,8 +81,8 @@ export class StationScreen implements OfficerFrontend, Draws {
     return intent;
   }
 
-  present(): void {
-    this.panel.update(this.ctx.now);
+  present(dt: number): void {
+    this.panel.update(this.ctx.now, dt);
   }
 
   dispose(): void {
@@ -184,6 +184,7 @@ const SCREEN_KEYS: Record<string, Screen> = { Digit1: Screen.Forward, Digit2: Sc
  * change what's on screen, for everyone.
  */
 export class ViewerScreen implements OfficerFrontend, Draws {
+  private dt = 1 / 60;
   readonly cursor = true;
   private readonly intent = idleOfficerIntent(Station.Viewer);
   private readonly away: AwayCamera;
@@ -215,7 +216,7 @@ export class ViewerScreen implements OfficerFrontend, Draws {
   drawn(): Drawn {
     const mode = this.ctx.ship()?.render.screen ?? Screen.Forward;
     const aspect = window.innerWidth / Math.max(1, window.innerHeight);
-    if (mode === Screen.Away && this.away.aim(aspect, 1 / 60)) {
+    if (mode === Screen.Away && this.away.aim(aspect, this.dt)) {
       this.awayShown = true;
       return { place: 'deck', camera: this.away.camera, x: this.away.subject()!.x };
     }
@@ -235,7 +236,8 @@ export class ViewerScreen implements OfficerFrontend, Draws {
     return intent;
   }
 
-  present(): void {
+  present(dt: number): void {
+    this.dt = dt;
     const { ctx } = this;
     const ship = ctx.ship()?.render;
     const mode = ship?.screen ?? Screen.Forward;

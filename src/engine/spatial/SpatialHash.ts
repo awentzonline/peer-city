@@ -22,7 +22,13 @@ export class SpatialHash<T extends SpatialItem> {
   update(item: T, x: number, y: number): void {
     const k = this.key(Math.floor(x * this.inv), Math.floor(y * this.inv));
     if (item._cell === k) return;
-    if (item._cell !== -1) this.cells.get(item._cell)?.delete(item);
+    if (item._cell !== -1) {
+      const old = this.cells.get(item._cell);
+      if (old) {
+        old.delete(item);
+        if (old.size === 0) this.cells.delete(item._cell);
+      }
+    }
     let set = this.cells.get(k);
     if (!set) this.cells.set(k, (set = new Set()));
     set.add(item);

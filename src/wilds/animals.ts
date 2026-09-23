@@ -5,9 +5,13 @@ import { clamp, type AnimalEntity, type SurvivorEntity, type WildsContext } from
 import { Animal, AnimalKind, AnimalMode, Damage, Survivor } from './defs';
 import { WARM_RADIUS, fireNear } from './homestead';
 import { Ground } from './land';
+import type { NetEntity } from '@engine/index';
+
+/** Scratch for `world.query`, one per call site: filled each call, never kept. */
+const nearby1: NetEntity<any>[] = [];
+const nearby2: NetEntity<any>[] = [];
 
 interface AnimalLocal {
-  deadAt?: number;
   /** Keep running until then, from (fx, fy). */
   fleeUntil?: number;
   fx?: number;
@@ -84,7 +88,7 @@ export function noticeRange(ctx: WildsContext, a: AnimalEntity, sv: SurvivorEnti
 function noticed(ctx: WildsContext, a: AnimalEntity): SurvivorEntity | undefined {
   let best: SurvivorEntity | undefined;
   let bestD = Infinity;
-  for (const sv of ctx.world.query(a.state.x, a.state.y, animalSpec(a.state.kind).alert * RUNNING, Survivor)) {
+  for (const sv of ctx.world.query(a.state.x, a.state.y, animalSpec(a.state.kind).alert * RUNNING, Survivor, nearby1)) {
     if (sv.render.hp <= 0) continue;
     const d = Math.hypot(sv.x - a.state.x, sv.y - a.state.y);
     if (d < bestD && d < noticeRange(ctx, a, sv)) {
@@ -99,7 +103,7 @@ function noticed(ctx: WildsContext, a: AnimalEntity): SurvivorEntity | undefined
 function nearestSurvivor(ctx: WildsContext, a: AnimalEntity, r: number, accept: (s: SurvivorEntity) => boolean = () => true): [SurvivorEntity | undefined, number] {
   let best: SurvivorEntity | undefined;
   let bestD = r;
-  for (const s of ctx.world.query(a.state.x, a.state.y, r, Survivor)) {
+  for (const s of ctx.world.query(a.state.x, a.state.y, r, Survivor, nearby2)) {
     if (s.render.hp <= 0 || !accept(s)) continue;
     const d = Math.hypot(s.x - a.state.x, s.y - a.state.y);
     if (d < bestD) {
@@ -125,8 +129,10 @@ export function updateOwnedAnimals(ctx: WildsContext, dt: number): void {
     const spec = animalSpec(s.kind);
 
     if (s.mode === AnimalMode.Dead) {
-      l.deadAt ??= now;
-      if (now - l.deadAt > CARCASS_MS || (s.meat === 0 && now - l.deadAt > 4000)) world.despawn(a);
+      if (s.gone <= 0) s.gone = CARCASS_MS / 1000; // just died
+      if (s.meat === 0) s.gone = Math.min(s.gone, 4); // picked clean: soon gone
+      s.gone -= dt;
+      if (s.gone <= 0) world.despawn(a);
       continue;
     }
 

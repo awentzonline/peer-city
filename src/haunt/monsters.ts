@@ -143,6 +143,8 @@ export function updateOwnedMonsters(ctx: HauntContext, dt: number): void {
   for (const m of world.owned(Monster)) {
     const s = m.state;
     const l = MonsterMind.of(m);
+    // new to this peer mid-hunt (its owner changed): keep after them rather than giving up on a clock that never started
+    if (!l.sawAt && s.mode === MonsterMode.Hunt && s.target) l.sawAt = now;
     if (!round || round.phase !== Phase.Hunt || s.round !== round.round) {
       world.despawn(m);
       continue;

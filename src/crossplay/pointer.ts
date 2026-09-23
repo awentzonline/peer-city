@@ -68,7 +68,6 @@ export class HandPointer {
    * points at, or null. Hands not listed show nothing.
    */
   update(surfaces: readonly Surface[], hands: readonly XRHand[]): (Point | null)[] {
-    this.rig.root.updateMatrixWorld();
     const out = hands.map((hand) => this.aim(hand, surfaces));
     [this.rig.left, this.rig.right].forEach((hand, i) => {
       const at = hands.indexOf(hand);
@@ -102,7 +101,7 @@ export class HandPointer {
 
   private aim(hand: XRHand, surfaces: readonly Surface[]): Point | null {
     if (!hand.connected) return null;
-    hand.object.updateMatrixWorld();
+    hand.object.updateWorldMatrix(true, false);
     const m = hand.object.matrixWorld;
     dir.copy(FORWARD).transformDirection(m);
     const from = origin.setFromMatrixPosition(m).addScaledVector(dir, -BACK);

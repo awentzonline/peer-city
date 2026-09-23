@@ -34,7 +34,7 @@ export class Torso {
     if (Math.abs(d) > TWIST) this.yaw += d - Math.sign(d) * TWIST;
     this.object.rotation.set(0, this.yaw, 0);
     this.object.position.copy(rig.headLocal).add(v.set(0, -NECK_DROP, NECK_BACK).applyAxisAngle(UP, this.yaw));
-    rig.root.updateMatrixWorld();
+    this.object.updateWorldMatrix(true, false); // for `contains`, without recomposing everything under the rig
   }
 
   dispose(): void {

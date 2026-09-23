@@ -17,18 +17,21 @@ export class DesktopInput {
   readonly pointer = { x: 0, y: 0, inside: false };
   private readonly downs = new Map<number, { x: number; y: number }>();
 
+  private readonly ac = new AbortController();
+
   constructor(private readonly el: HTMLElement) {
+    const { signal } = this.ac;
     window.addEventListener('keydown', (e) => {
       if (e.target instanceof HTMLInputElement) return;
       if (!e.repeat) this.edges.add(e.code);
       this.held.add(e.code);
       if (e.code === 'Space' || e.code === 'Tab' || e.code.startsWith('Arrow')) e.preventDefault();
-    });
-    window.addEventListener('keyup', (e) => this.held.delete(e.code));
+    }, { signal });
+    window.addEventListener('keyup', (e) => this.held.delete(e.code), { signal });
     window.addEventListener('blur', () => {
       this.held.clear();
       this.buttons = 0;
-    });
+    }, { signal });
     el.addEventListener('mousedown', (e) => {
       this.pointer.x = e.clientX;
       this.pointer.y = e.clientY;
@@ -40,8 +43,8 @@ export class DesktopInput {
       this.buttons |= 1 << e.button;
       this.edges.add(`Mouse${e.button}`);
       this.downs.set(e.button, { x: e.clientX, y: e.clientY });
-    });
-    window.addEventListener('mouseup', (e) => (this.buttons &= ~(1 << e.button)));
+    }, { signal });
+    window.addEventListener('mouseup', (e) => (this.buttons &= ~(1 << e.button)), { signal });
     document.addEventListener('mousemove', (e) => {
       this.pointer.x = e.clientX;
       this.pointer.y = e.clientY;
@@ -49,21 +52,21 @@ export class DesktopInput {
       if (!this.locked && this.capture) return;
       this.mdx += e.movementX;
       this.mdy += e.movementY;
-    });
-    document.documentElement.addEventListener('mouseleave', () => (this.pointer.inside = false));
+    }, { signal });
+    document.documentElement.addEventListener('mouseleave', () => (this.pointer.inside = false), { signal });
     document.addEventListener(
       'wheel',
       (e) => {
         if ((this.locked || !this.capture) && e.deltaY) this.wheelSteps += Math.sign(e.deltaY);
       },
-      { passive: true },
+      { passive: true, signal },
     );
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === this.el;
       if (!this.locked) this.buttons = 0;
       this.onLockChange?.(this.locked);
-    });
-    el.addEventListener('contextmenu', (e) => e.preventDefault());
+    }, { signal });
+    el.addEventListener('contextmenu', (e) => e.preventDefault(), { signal });
   }
 
   /** Whether the mouse is captured to look around (true) or left free as a pointer (false). */
@@ -126,5 +129,11 @@ export class DesktopInput {
   endFrame(): void {
     this.edges.clear();
     this.wheelSteps = 0;
+  }
+
+  /** Let go of the page's events (and the mouse, if captured). */
+  dispose(): void {
+    this.ac.abort();
+    if (this.locked) document.exitPointerLock();
   }
 }

@@ -36,6 +36,11 @@ export class XRHand {
     this.buttons = mask;
   }
 
+  /** End of a tick: a press has been seen. Without this a tick with no XR frame (frames stalled) would see it again. */
+  endFrame(): void {
+    this.prevButtons = this.buttons;
+  }
+
   down(b: number): boolean {
     return (this.buttons & (1 << b)) !== 0;
   }
@@ -170,7 +175,7 @@ export class Rig {
     if (this.mode === 'desktop') {
       v.copy(this.camera.position);
     } else {
-      this.root.updateMatrixWorld();
+      this.root.updateWorldMatrix(true, false);
       v.copy(this.headLocal).applyMatrix4(this.root.matrixWorld);
     }
     out.x = v.x;
@@ -197,7 +202,7 @@ export class Rig {
 
   /** World position of a point in a controller's space, and of a direction in it: by default, where the controller points. */
   handPose(hand: XRHand, local: THREE.Vector3, pos: Vec3, dir: Vec3, forward: THREE.Vector3 = FORWARD): void {
-    this.root.updateMatrixWorld();
+    hand.object.updateWorldMatrix(true, false); // the hand and what it hangs from, not everything under the rig
     const m = hand.object.matrixWorld;
     v.copy(local).applyMatrix4(m);
     pos.x = v.x;

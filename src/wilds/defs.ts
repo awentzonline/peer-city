@@ -50,6 +50,7 @@ export const Animal = defineEntity({
     tx: t.fixed(0.5), // where it's wandering to
     ty: t.fixed(0.5),
     meat: t.uint(8), // portions still on a carcass
+    gone: t.fixed(0.1, 0, 'none'), // dead: seconds until the carcass is cleared (on the wire so it doesn't restart with a new owner)
   },
   migratable: true,
   cullDistance: 150,

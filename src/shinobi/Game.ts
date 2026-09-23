@@ -1,6 +1,6 @@
 import { EntityViews, type NetWorld } from '@engine/index';
 import type { Launch } from '../crossplay/lobby';
-import type { Frontend, Seat } from '../crossplay/role';
+import { seniorHolder, type Frontend, type Seat } from '../crossplay/role';
 import { Shell } from '../crossplay/shell';
 import { registerActions } from './actions';
 import { CaptainRole, type CaptainFrontend } from './captain';
@@ -8,8 +8,8 @@ import { DesktopCaptain } from './captainDesktop';
 import { TouchCaptain } from './captainTouch';
 import { VrCaptain } from './captainVr';
 import { Paths, type Castle } from './castle';
-import type { ShinobiContext } from './context';
-import { Shinobi as ShinobiDef } from './defs';
+import type { CaptainEntity, ShinobiContext } from './context';
+import { Captain as CaptainDef, Shinobi as ShinobiDef } from './defs';
 import { DesktopShinobi } from './desktop';
 import { Effects } from './effects';
 import { Flights } from './flights';
@@ -47,9 +47,11 @@ export class Game {
   private readonly extraViews: { update(dt: number): void };
   private readonly scenery: Scenery;
   private nextFirefly = 0;
+  private readonly hud: Hud;
 
   constructor(deps: GameDeps) {
     const { world, castle, hud, sfx, launch } = deps;
+    this.hud = hud;
     const role = (this.role = launch.role === 'captain' ? 'captain' : 'shinobi');
     const shell = (this.shell = new Shell({
       world,
@@ -115,6 +117,10 @@ export class Game {
       simulate: (dt, now) => {
         ctx.now = now;
         shell.receive(now);
+        if (ctx.captain) {
+          const first = seniorHolder(world.all(CaptainDef) as ReadonlySet<CaptainEntity>, ctx.captain);
+          if (first) this.yieldRole(first.render.name, 'shinobi', 'the Captain');
+        }
         (this.seat as Seat<unknown, Frontend<unknown>>).step(dt);
         stepRules(ctx, this.keeper, dt, now);
       },
@@ -171,5 +177,19 @@ export class Game {
 
   dispose(): void {
     this.shell.dispose();
+  }
+
+  /** Only one player can be the Captain. Someone was first: bow out, and come back in through the lobby as shinobi. */
+  private yieldRole(holder: string, as: RoleName, what: string): void {
+    const { ctx, hud } = this;
+    if (!ctx.captain) return;
+    ctx.world.despawn(ctx.captain);
+    ctx.captain = null;
+    hud.message(`${holder} is already ${what} tonight. Back to the lobby: you can play as a ${as}.`);
+    window.setTimeout(() => {
+      const url = new URL(location.href);
+      url.searchParams.set('role', as);
+      location.assign(url);
+    }, 4000);
   }
 }

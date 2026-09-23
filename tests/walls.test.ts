@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { NetWorld } from '../src/engine/net/world';
-import { ACTIONS, ENTITIES, Painter } from '../src/walls/defs';
+import { ACTIONS, ENTITIES, Paint, Painter } from '../src/walls/defs';
 import { MemoryWalls } from '../src/walls/store';
 import { WallSync, capture, decodeSeen, encodeSeen, type PainterEntity } from '../src/walls/sync';
 import { Brush, PX_PER_M, Surface, TILE, decodePoints, encodePoints, quantizePoint, type StrokePoint } from '../src/walls/wall';
@@ -168,8 +168,12 @@ describe('Sharing walls', () => {
     expect(bob.sync.synced).toBe(true);
     expect(same(ann.surfaces, bob.surfaces)).toBe(true);
 
-    // cat arrives while both keep painting
+    // cat arrives while both keep painting; ann's spray, a pair of points a frame, goes out in batches, not a send a frame
     const cat = peer(net, 'cat');
+    let paints = 0;
+    bob.world.onAction(Paint, (_, from) => {
+      if (from.from === 'ann') paints++;
+    });
     let frame = 0;
     await run(net, [ann, bob, cat], 3000, () => {
       frame++;
@@ -178,6 +182,8 @@ describe('Sharing walls', () => {
       if (frame % 3 === 0) bob.sync.paint(3, Brush.Marker, RED, line(frame, 20, frame + 30, 120, 4, 2, 1), false);
     });
     await run(net, [ann, bob, cat], 1500);
+    expect(paints).toBeGreaterThan(0);
+    expect(paints).toBeLessThanOrEqual(frame); // at most one a tick, however many points a frame paints
     expect(cat.sync.synced).toBe(true);
     expect(cat.me.state.wall).toBe(ann.me.state.wall);
     expect(same(ann.surfaces, cat.surfaces)).toBe(true);

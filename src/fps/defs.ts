@@ -59,6 +59,7 @@ export const Car = defineEntity({
     nd: t.uint(8, 255), // chosen exit direction at next intersection
     target: t.ref(), // police chase target
     siren: t.bool(),
+    gone: t.fixed(0.1, 0, 'none'), // wrecked: seconds until it's cleared (on the wire so it doesn't restart with a new owner)
   },
   migratable: true,
   priority: 2,
@@ -86,6 +87,7 @@ export const Ped = defineEntity({
     ty: t.uint(16),
     cop: t.bool(),
     target: t.ref(), // player an officer is after (in the schema so pursuit survives migration)
+    gone: t.fixed(0.1, 0, 'none'), // dead: seconds until the body's cleared (on the wire so it doesn't restart with a new owner)
   },
   migratable: true,
   cullDistance: 190,

@@ -305,7 +305,10 @@ export class DeckView {
         v.ring.rotation.set(Math.sin(v.t * 2) * 0.3, v.t * 3, 0);
         if (v.shots !== e.render.shots) v.shots = e.render.shots;
       },
-      destroy: (v) => this.unplace(v.root),
+      destroy: (v) => {
+        this.unplace(v.root);
+        v.glow.material.dispose(); // the geometries are shared (`cached`); the sprite's material is this one's
+      },
     });
 
     views.register(Fault, {
@@ -353,7 +356,10 @@ export class DeckView {
         v.root.position.set(e.x, e.render.z + Math.sin(v.t * 2) * 0.05, e.y);
         v.gem.rotation.y = v.t * 1.5;
       },
-      destroy: (v) => this.unplace(v.root),
+      destroy: (v) => {
+        this.unplace(v.root);
+        v.glow.material.dispose();
+      },
     });
   }
 

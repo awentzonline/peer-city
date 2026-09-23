@@ -71,6 +71,8 @@ export class DiveKeeper {
   private nextGoblin = 0;
   private nextBreach = 0;
   private chunkWait = 0;
+  /** The dive this peer is running, so timers kept here (not in the schema) are reseeded when it takes one over. */
+  private running: SewerEntity | null = null;
 
   constructor(private readonly ctx: SewerContext) {
     const { start } = ctx.map;
@@ -85,9 +87,20 @@ export class DiveKeeper {
     const e = this.one.update(now);
     if (!e?.mine) {
       this.chunkWait = now + CHUNK_WAIT_MS;
+      this.running = null;
       return;
     }
+    if (this.running !== e) this.takeOver(e, now);
     this.run(e, dt, now);
+  }
+
+  /** Ours now (made here, or its last owner left): start the clocks that aren't on the wire from now, not from 0. */
+  private takeOver(e: SewerEntity, now: number): void {
+    this.running = e;
+    this.nextSurge = now + rand(SURGE_GAP[0], SURGE_GAP[1]) * 1000;
+    this.surgeUntil = now + SURGE_SECONDS * 1000; // a surge already on runs its course from here
+    this.nextGoblin = now + GOBLIN_MS;
+    this.nextBreach = now + 500;
   }
 
   private run(e: SewerEntity, dt: number, now: number): void {

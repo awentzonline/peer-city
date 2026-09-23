@@ -30,6 +30,10 @@ export class Stage {
    */
   render: ((renderer: THREE.WebGLRenderer) => void) | null = null;
   private last = performance.now();
+  private readonly ac = new AbortController();
+  private stopBeat: (() => void) | null = null;
+  private onSessionStart: (() => void) | null = null;
+  private onSessionEnd: (() => void) | null = null;
 
   static async vrSupported(): Promise<boolean> {
     try {
@@ -47,7 +51,7 @@ export class Stage {
     container.appendChild(this.renderer.domElement);
     this.rig = new Rig(this.scene, window.innerWidth / window.innerHeight);
     this.input = new DesktopInput(this.renderer.domElement);
-    window.addEventListener('resize', () => this.resize());
+    window.addEventListener('resize', () => this.resize(), { signal: this.ac.signal });
   }
 
   get presenting(): boolean {
@@ -56,14 +60,17 @@ export class Stage {
 
   /** Start simulating and drawing. */
   run(loop: StageLoop): void {
-    this.renderer.xr.addEventListener('sessionstart', () => {
+    this.onSessionStart = () => {
       if (document.pointerLockElement) document.exitPointerLock();
       loop.platformChanged(true);
-    });
-    this.renderer.xr.addEventListener('sessionend', () => {
+    };
+    this.onSessionEnd = () => {
       this.rig.floorY = 0;
+      this.resize(); // the window may have changed shape while the headset had the camera
       loop.platformChanged(false);
-    });
+    };
+    this.renderer.xr.addEventListener('sessionstart', this.onSessionStart);
+    this.renderer.xr.addEventListener('sessionend', this.onSessionEnd);
 
     const tick = (maxMs: number, visible: boolean) => {
       const now = performance.now();
@@ -71,13 +78,15 @@ export class Stage {
       this.last = now;
       loop.step(dt, visible);
       this.input.endFrame();
+      this.rig.left.endFrame();
+      this.rig.right.endFrame();
     };
 
     // Browsers stop animation frames in background tabs. A peer that stops ticking would freeze the NPCs
     // it owns for everyone nearby, and after a few quiet seconds its own player drops out of their worlds,
     // so whenever frames stop coming, keep simulating on a timer. The page's own timers get throttled
     // to once a second in the background, and to once a minute after a while; a worker's don't.
-    onBeat(() => {
+    this.stopBeat = onBeat(() => {
       if (performance.now() - this.last >= STALLED_MS) tick(250, false);
     }, 100);
 
@@ -104,6 +113,20 @@ export class Stage {
     await this.renderer.xr.setSession(session);
   }
 
+  /** Stop ticking and drawing, and let go of the page: listeners, the background timer, the input, the WebGL context. */
+  dispose(): void {
+    this.ac.abort();
+    this.stopBeat?.();
+    this.stopBeat = null;
+    this.renderer.setAnimationLoop(null);
+    if (this.onSessionStart) this.renderer.xr.removeEventListener('sessionstart', this.onSessionStart);
+    if (this.onSessionEnd) this.renderer.xr.removeEventListener('sessionend', this.onSessionEnd);
+    this.onSessionStart = this.onSessionEnd = null;
+    this.input.dispose();
+    this.renderer.dispose();
+    this.renderer.domElement.remove();
+  }
+
   private resize(): void {
     if (this.presenting) return;
     this.rig.camera.aspect = window.innerWidth / window.innerHeight;
@@ -117,12 +140,18 @@ export function errorText(err: unknown): string {
 }
 
 /** Call `fn` every `ms`, from a worker's timer where the browser allows one (so a background tab isn't throttled), else the page's. */
-function onBeat(fn: () => void, ms: number): void {
+function onBeat(fn: () => void, ms: number): () => void {
   try {
     const url = URL.createObjectURL(new Blob([`setInterval(() => postMessage(0), ${ms});`], { type: 'text/javascript' }));
-    // the URL stays: the worker loads it asynchronously
-    new Worker(url).onmessage = fn;
+    // the URL stays until the worker's stopped: it loads it asynchronously
+    const worker = new Worker(url);
+    worker.onmessage = fn;
+    return () => {
+      worker.terminate();
+      URL.revokeObjectURL(url);
+    };
   } catch {
-    window.setInterval(fn, ms);
+    const id = window.setInterval(fn, ms);
+    return () => window.clearInterval(id);
   }
 }

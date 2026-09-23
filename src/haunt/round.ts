@@ -46,6 +46,8 @@ export function tally(world: NetWorld, round: number): Tally {
 export class RoundKeeper {
   private readonly one: Singleton<typeof Round>;
   private nextHouse = 0;
+  /** The round this peer is running, so `nextHouse` (not on the wire) is reseeded when it takes one over. */
+  private running: RoundEntity | null = null;
 
   constructor(private readonly ctx: HauntContext) {
     this.one = new Singleton(ctx.world, Round, { init: () => ({ x: START.x, y: START.y + 30, phase: Phase.Waiting, round: 1, timer: WAIT_SECONDS, needed: SOCKETS.length }) });
@@ -57,7 +59,15 @@ export class RoundKeeper {
 
   update(dt: number, now: number): void {
     const round = this.one.update(now);
-    if (round?.mine) this.run(round, dt);
+    if (!round?.mine) {
+      this.running = null;
+      return;
+    }
+    if (this.running !== round) {
+      this.running = round;
+      this.nextHouse = now + HOUSE_MS;
+    }
+    this.run(round, dt);
   }
 
   private run(round: RoundEntity, dt: number): void {

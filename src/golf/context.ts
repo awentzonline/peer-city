@@ -17,6 +17,8 @@ export type MatchEntity = NetEntity<StateOf<typeof Match>>;
 
 /** Shared services for Peer Golf's systems. No device in here (see crossplay/role.ts). */
 export interface GolfContext {
+  /** Where the rules get their randomness (spawn spots, skins); tests seed it. Default `Math.random`. */
+  rnd?: () => number;
   world: NetWorld;
   course: Course;
   carts: CartWorld;

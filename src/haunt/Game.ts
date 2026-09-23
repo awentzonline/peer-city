@@ -1,11 +1,11 @@
 import { EntityViews, type NetWorld } from '@engine/index';
 import type { Launch } from '../crossplay/lobby';
 import { Platform } from '../crossplay/platform';
-import type { Frontend, Seat } from '../crossplay/role';
+import { seniorHolder, type Frontend, type Seat } from '../crossplay/role';
 import { Shell } from '../crossplay/shell';
 import { bodySpeakers, type Speaker } from '../crossplay/voice';
 import { registerActions } from './actions';
-import type { HauntContext, Vec3 } from './context';
+import type { HauntContext, HauntEntity, Vec3 } from './context';
 import { Haunt as HauntDef, Survivor as SurvivorDef } from './defs';
 import { DesktopSurvivor } from './desktop';
 import { Effects } from './effects';
@@ -47,9 +47,11 @@ export class Game {
   private readonly views: EntityViews;
   private readonly extraViews: { update(dt: number): void };
   private readonly scenery: Scenery;
+  private readonly hud: Hud;
 
   constructor(deps: GameDeps) {
     const { world, manor, hud, sfx, launch } = deps;
+    this.hud = hud;
     const role = (this.role = launch.role === 'haunt' ? 'haunt' : 'survivor');
     const shell = (this.shell = new Shell({
       world,
@@ -123,6 +125,10 @@ export class Game {
       simulate: (dt, now) => {
         ctx.now = now;
         shell.receive(now);
+        if (ctx.haunt) {
+          const first = seniorHolder(world.all(HauntDef) as ReadonlySet<HauntEntity>, ctx.haunt);
+          if (first) this.yieldRole(first.render.name, 'survivor', 'the house');
+        }
         (this.seat as Seat<unknown, Frontend<unknown>>).step(dt);
         stepRules(ctx, this.keeper, dt, now);
       },
@@ -166,6 +172,21 @@ export class Game {
   dispose(): void {
     this.shell.dispose();
   }
+
+  /** Only one player can be the house. Someone was first: bow out, and come back in through the lobby as survivor. */
+  private yieldRole(holder: string, as: RoleName, what: string): void {
+    const { ctx, hud } = this;
+    if (!ctx.haunt) return;
+    ctx.world.despawn(ctx.haunt);
+    ctx.haunt = null;
+    hud.message(`${holder} is already ${what} tonight. Back to the lobby: you can play as a ${as}.`);
+    window.setTimeout(() => {
+      const url = new URL(location.href);
+      url.searchParams.set('role', as);
+      location.assign(url);
+    }, 4000);
+  }
+
 }
 
 /**

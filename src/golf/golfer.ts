@@ -10,6 +10,13 @@ import { Ball as BallDef, BallMode, Cart, Feed, Golfer as GolferDef, Knock, Nois
 import type { GolfIntent } from './intent';
 import { TOOLS, clubTool, meter, type ClubTool, type Use } from './kit';
 import { maxStrokes, scoreName, unfinishedScore } from './match';
+import type { NetEntity } from '@engine/index';
+
+/** Scratch for `world.query`, one per call site: filled each call, never kept. */
+const nearby1: NetEntity<any>[] = [];
+const nearby2: NetEntity<any>[] = [];
+const nearby3: NetEntity<any>[] = [];
+const nearby4: NetEntity<any>[] = [];
 
 /** How the golfer's rules reach back to the device playing it. */
 export interface GolferBody extends AvatarBody {
@@ -179,11 +186,12 @@ export class Golfer extends Avatar<GolfIntent, GolferBody, ClubTool> implements 
     const { ctx } = this;
     const { barn } = ctx.course;
     // between the clubhouse and the back of the cart barn
-    const back = -5.5 + (Math.random() - 0.5) * 2;
-    const across = (Math.random() - 0.5) * 16;
+    const rnd = ctx.rnd ?? Math.random;
+    const back = -5.5 + (rnd() - 0.5) * 2;
+    const across = (rnd() - 0.5) * 16;
     const x = barn.x + Math.cos(barn.heading) * back - Math.sin(barn.heading) * across;
     const y = barn.y + Math.sin(barn.heading) * back + Math.cos(barn.heading) * across;
-    const skin = Math.floor(Math.random() * 30);
+    const skin = Math.floor(rnd() * 30);
     ctx.me = ctx.world.spawn(GolferDef, { x, y, name: ctx.playerName, skin, card: new Uint8Array(HOLES) });
     ctx.ball = ctx.world.spawn(BallDef, { x, y, z: ctx.course.heightAt(x, y), golfer: ctx.me.id, mode: BallMode.Out, color: skin });
     ctx.me.state.ball = ctx.ball.id;
@@ -398,7 +406,7 @@ export class Golfer extends Avatar<GolfIntent, GolferBody, ClubTool> implements 
     const sim = this.sim;
     const speed = Math.hypot(sim.vx, sim.vy, sim.vz);
     if (speed < FORE_SPEED) return;
-    for (const g of ctx.world.query(sim.x, sim.y, 0.6, GolferDef) as Iterable<GolferEntity>) {
+    for (const g of ctx.world.query(sim.x, sim.y, 0.6, GolferDef, nearby1) as Iterable<GolferEntity>) {
       if (g === this.me || g.render.down || g.render.cart || this.fored.has(g.id)) continue;
       const feet = ctx.course.heightAt(g.x, g.y) + g.render.z;
       if (sim.z < feet || sim.z > feet + g.render.head + 0.2) continue;
@@ -549,7 +557,7 @@ export class Golfer extends Avatar<GolfIntent, GolferBody, ClubTool> implements 
     const feet = this.feetZ();
     let hit: GolferEntity | null = null;
     let best = Infinity;
-    for (const g of ctx.world.query(s.x, s.y, MELEE_REACH + 1, GolferDef) as Iterable<GolferEntity>) {
+    for (const g of ctx.world.query(s.x, s.y, MELEE_REACH + 1, GolferDef, nearby2) as Iterable<GolferEntity>) {
       if (g === this.me || g.render.down) continue;
       const dx = g.x - s.x;
       const dy = g.y - s.y;
@@ -598,7 +606,7 @@ export class Golfer extends Avatar<GolfIntent, GolferBody, ClubTool> implements 
     }
 
     if (speed < BODY_SWING_SPEED || this.now < swing.next) return;
-    for (const g of ctx.world.query(to.x, to.y, 1.2, GolferDef) as Iterable<GolferEntity>) {
+    for (const g of ctx.world.query(to.x, to.y, 1.2, GolferDef, nearby3) as Iterable<GolferEntity>) {
       if (g === this.me || g.render.down) continue;
       const feet = ctx.course.heightAt(g.x, g.y) + g.render.z;
       if (Math.hypot(to.x - g.x, to.y - g.y) > 0.38 || to.z < feet || to.z > feet + g.render.head + 0.25) continue;
@@ -666,7 +674,7 @@ export class Golfer extends Avatar<GolfIntent, GolferBody, ClubTool> implements 
     const s = this.me!.state;
     let best: CartEntity | null = null;
     let bestD = BOARD_REACH;
-    for (const cart of world.query(s.x, s.y, BOARD_REACH + 1, Cart) as Iterable<CartEntity>) {
+    for (const cart of world.query(s.x, s.y, BOARD_REACH + 1, Cart, nearby4) as Iterable<CartEntity>) {
       const d = Math.hypot(cart.x - s.x, cart.y - s.y);
       if (d < bestD && !driverOf(this.ctx, cart)) {
         best = cart;

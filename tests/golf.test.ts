@@ -14,6 +14,7 @@ import { Golfer, type GolferBody } from '../src/golf/golfer';
 import { idleGolfIntent, type GolfIntent } from '../src/golf/intent';
 import { IRON, METER_FALL, METER_RISE, meter as meterFor } from '../src/golf/kit';
 import { MatchKeeper, maxStrokes, standings, toPar, unfinishedScore } from '../src/golf/match';
+import { mulberry32 } from '../src/engine/net/hash';
 import { Sim } from './harness';
 
 const course = new Course(20260917);
@@ -73,6 +74,8 @@ function player(net: Sim, id: string, name: string): Player {
     match: () => keeper.match,
     playerName: name,
     now: net.now,
+    // seeded, so where each golfer starts (and so whether a cart's in easy reach) is the same every run
+    rnd: mulberry32(id.charCodeAt(0) * 7919 + 17),
   };
   const golfer = new Golfer(ctx);
   const body = new TestBody();

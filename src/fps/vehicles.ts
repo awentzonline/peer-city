@@ -4,6 +4,12 @@ import { angleDiff, clamp, type CarEntity, type GameContext, type PlayerEntity }
 import { Car, CarKind, CarMode, Damage, DamageCause, Explosion, Horn, Ped, PedMode, Player } from './defs';
 import { deployOfficers } from './police';
 import { carExtents, carSpec } from './specs';
+import type { NetEntity } from '@engine/index';
+
+/** Scratch for `world.query`, one per call site: filled each call, never kept. */
+const nearby1: NetEntity<any>[] = [];
+const nearby2: NetEntity<any>[] = [];
+const nearby3: NetEntity<any>[] = [];
 
 export interface DriveInput {
   throttle: number; // -1..1
@@ -17,7 +23,6 @@ interface CarLocal {
   hits?: Map<number, number>;
   stuck?: number;
   pushUntil?: number;
-  wreckedAt?: number;
   lastAttacker?: number;
   nextHonk?: number;
   avoid?: number;
@@ -147,7 +152,7 @@ function collideWithEntities(ctx: GameContext, car: CarEntity): void {
   const sn = Math.sin(s.angle);
   const attacker = s.mode === CarMode.Driven ? s.driver : 0;
 
-  for (const e of ctx.world.query(s.x, s.y, 8)) {
+  for (const e of ctx.world.query(s.x, s.y, 8, undefined, nearby1)) {
     if (e === car) continue;
     if (e.def === Car) {
       const other = e as CarEntity;
@@ -209,9 +214,8 @@ export function wreckCar(ctx: GameContext, car: CarEntity): void {
   s.siren = false;
   s.speed = 0;
   l.vx = l.vy = 0;
-  l.wreckedAt = ctx.now;
   ctx.world.send(Explosion, { x: s.x, y: s.y }, { to: 'near', x: s.x, y: s.y, radius: 400 });
-  for (const e of ctx.world.query(s.x, s.y, 11)) {
+  for (const e of ctx.world.query(s.x, s.y, 11, undefined, nearby2)) {
     if (e === car) continue;
     const alive =
       e.def === Car
@@ -274,8 +278,9 @@ export function updateOwnedCars(ctx: GameContext, dt: number): void {
         if (Math.abs(l.vx!) + Math.abs(l.vy!) > 0.2) moveCar(ctx, car, dt);
         else s.speed = 0;
         if (s.mode === CarMode.Wrecked) {
-          l.wreckedAt ??= ctx.now;
-          if (ctx.now - l.wreckedAt > 18000 && !car.held) world.despawn(car);
+          if (s.gone <= 0) s.gone = 18; // just wrecked
+          s.gone -= dt;
+          if (s.gone <= 0 && !car.held) world.despawn(car);
         }
         break;
       }
@@ -289,7 +294,7 @@ function clearanceAhead(ctx: GameContext, car: CarEntity, range: number): number
   const c = Math.cos(s.angle);
   const sn = Math.sin(s.angle);
   let free = range;
-  for (const e of ctx.world.query(s.x + c * range * 0.5, s.y + sn * range * 0.5, range * 0.5 + 3)) {
+  for (const e of ctx.world.query(s.x + c * range * 0.5, s.y + sn * range * 0.5, range * 0.5 + 3, undefined, nearby3)) {
     if (e === car) continue;
     if (e.def === Ped && (e.state as { mode: number }).mode === PedMode.Dead) continue;
     if (e.def === Player && ((e.state as { car: number }).car !== 0 || (e.state as { hp: number }).hp === 0)) continue;

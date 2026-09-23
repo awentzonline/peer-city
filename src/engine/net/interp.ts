@@ -29,6 +29,8 @@ export class InterpBuffer {
   /** Ring slot of the oldest sample. */
   private head = 0;
   private n = 0;
+  /** How far apart this entity's samples have been coming, ms: a far-off sender throttles, and that's not a pause. */
+  private typicalGap = 0;
 
   constructor(
     private readonly kinds: InterpKind[],
@@ -49,6 +51,7 @@ export class InterpBuffer {
   clear(): void {
     this.head = 0;
     this.n = 0;
+    this.typicalGap = 0;
   }
 
   push(time: number, vals: ArrayLike<number>, bridgeGapMs: number): void {
@@ -61,12 +64,15 @@ export class InterpBuffer {
         this.writeValues(last, vals);
         return;
       }
-      // After a pause (entity was idle, or far-LOD throttled) hold the previous
-      // value until just before this sample rather than easing across the gap.
-      if (time - lastT > bridgeGapMs * 2) {
+      // After a pause (the entity was idle) hold the previous value until just before this sample rather than
+      // easing across the gap. A sender far away sends less often; its steady, longer gaps are not pauses.
+      const gap = time - lastT;
+      if (gap > Math.max(bridgeGapMs * 2, this.typicalGap * 2.5)) {
         const s = this.append(time - bridgeGapMs, 1);
         const w = this.width;
         this.values.copyWithin(s * w, last * w, last * w + w);
+      } else {
+        this.typicalGap = this.typicalGap ? this.typicalGap * 0.7 + gap * 0.3 : gap;
       }
     }
     this.writeValues(this.append(time, 0), vals);

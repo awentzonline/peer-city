@@ -109,7 +109,7 @@ export function registerViews(ctx: WallsContext, views: EntityViews, scene: THRE
 
 /** The walls' paint: a textured quad per tile, re-uploaded only when that tile changes. */
 class WallViews {
-  private readonly tiles: { surface: Surface; textures: THREE.DataTexture[] }[] = [];
+  private readonly tiles: { surface: Surface; textures: THREE.DataTexture[]; pending: Set<number>; uploaded: number[] }[] = [];
   private readonly dirty: number[] = [];
 
   constructor(scene: THREE.Scene, surfaces: readonly Surface[]) {
@@ -133,13 +133,18 @@ class WallViews {
         mesh.updateMatrix();
         scene.add(mesh);
       }
-      this.tiles.push({ surface, textures });
+      this.tiles.push({ surface, textures, pending: new Set(), uploaded: new Array<number>(surface.tileCount).fill(-Infinity) });
     }
   }
 
-  update(): void {
-    for (const { surface, textures } of this.tiles) {
-      for (const t of surface.takeDirty(this.dirty)) {
+  update(now = performance.now()): void {
+    for (const { surface, textures, pending, uploaded } of this.tiles) {
+      for (const t of surface.takeDirty(this.dirty)) pending.add(t);
+      for (const t of pending) {
+        // a tile under a running spray is dirty every frame; uploading it (mipmaps and all) that often costs more than it shows
+        if (now - uploaded[t] < TILE_UPLOAD_MS) continue;
+        pending.delete(t);
+        uploaded[t] = now;
         const r = surface.tileRect(t);
         const tex = textures[t];
         const out = tex.image.data as Uint8Array;
@@ -152,6 +157,9 @@ class WallViews {
     }
   }
 }
+
+/** How often a changing tile's texture goes to the GPU at most, ms. */
+const TILE_UPLOAD_MS = 80;
 
 /** A wall face's axes in the scene: right along it, up, and out of it. */
 function faceBasis(s: Surface): THREE.Matrix4 {

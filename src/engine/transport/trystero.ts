@@ -126,11 +126,13 @@ export class TrysteroTransport implements Transport {
 
   join(roomId: string): TransportRoom {
     const entry = this.entries.get(roomId) ?? this.open(roomId);
+    // Looked up per call, like `send`: after a blackout `recover()` swaps in a fresh room under the same id.
     const media: RoomMedia = {
       addStream: (stream, peerId) => {
-        for (const p of entry.room.addStream(stream, { target: peerId })) p.catch(() => {});
+        const room = this.entries.get(roomId)?.room;
+        if (room) for (const p of room.addStream(stream, { target: peerId })) p.catch(() => {});
       },
-      removeStream: (stream, peerId) => entry.room.removeStream(stream, { target: peerId }),
+      removeStream: (stream, peerId) => this.entries.get(roomId)?.room.removeStream(stream, { target: peerId }),
       onPeerStream: () => {},
     };
     const handle: Handle = {

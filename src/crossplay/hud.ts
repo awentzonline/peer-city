@@ -95,9 +95,13 @@ export class HudBase {
   hitMarker(kind: 'hit' | 'head' = 'hit'): void {
     const el = this.crosshairEl;
     if (!el) return;
-    el.classList.remove('hit', 'head');
-    void el.offsetWidth; // restart the animation
-    el.classList.add(kind);
+    // restart a flash of the same kind in place; reading layout to restart it would cost a frame's worth of time a hit
+    if (el.classList.contains(kind)) {
+      for (const a of el.getAnimations()) a.currentTime = 0;
+    } else {
+      el.classList.remove('hit', 'head');
+      el.classList.add(kind);
+    }
     clearTimeout(this.hitTimer);
     this.hitTimer = window.setTimeout(() => el.classList.remove('hit', 'head'), 180);
   }

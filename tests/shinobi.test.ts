@@ -345,6 +345,43 @@ describe('The watch', () => {
     expect(a.ctx.me!.state.hp).toBeLessThan(MAX_HP);
   });
 
+  it('keeps chasing after the peer running the guards leaves, heading where the intruder was last seen', () => {
+    const net = new Sim();
+    const a = peer(net, 'a', 'shinobi');
+    const b = peer(net, 'b', 'shinobi');
+    startNight(net, [a, b]);
+    run(net, [a, b], 1000);
+    // one peer runs the whole watch; the other is the intruder
+    const owner = [a, b].find((p) => guards(p).some((g) => g.mine))!;
+    const victim = owner === a ? b : a;
+    const post = guards(owner).find((g) => g.mine && g.state.home === POST_HOME + 2)!;
+    clearAllBut(owner, post);
+    const gs = post.state;
+    place(victim, gs.x + Math.cos(gs.angle) * 3, gs.y + Math.sin(gs.angle) * 3, gs.angle + Math.PI);
+    place(owner, 90, 90, 0);
+    let chased = false;
+    run(net, [a, b], 6000, () => {
+      if (gs.mode === GuardMode.Chase && gs.target === victim.ctx.me!.id) chased = true;
+    });
+    expect(chased).toBe(true);
+
+    // the intruder slips out of sight as the guards' peer drops: the guard's memory of where they were must travel with it
+    const seen = victim.world.getAs(Guard, post.id)! as GuardEntity;
+    const lastX = victim.ctx.me!.state.x;
+    const lastY = victim.ctx.me!.state.y;
+    place(victim, 90, 90, 0);
+    victim.ctx.me!.state.mode = ShinobiMode.Alive;
+    net.remove(owner.world);
+    let corner = false;
+    run(net, [victim], 5000, () => {
+      victim.ctx.me!.state.hp = MAX_HP;
+      if (seen.mine && Math.hypot(seen.state.tx - 1.5, seen.state.ty - 1.5) < 4) corner = true;
+    });
+    expect(seen.mine).toBe(true);
+    expect(corner).toBe(false);
+    expect(Math.hypot(seen.state.tx - lastX, seen.state.ty - lastY)).toBeLessThan(8);
+  });
+
   it("doesn't keep shouting about the same intruder, and the lord's samurai don't flip-flop at the end of their leash", () => {
     const net = new Sim();
     const a = peer(net, 'a', 'shinobi');

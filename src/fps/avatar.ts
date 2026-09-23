@@ -10,6 +10,12 @@ import { CUFF_RANGE, spawnOfficer } from './police';
 import { PED_SKINS, carExtents, carSpec } from './specs';
 import type { Tool, Toolbox } from './tool';
 import { driveCar } from './vehicles';
+import type { NetEntity } from '@engine/index';
+
+/** Scratch for `world.query`, one per call site: filled each call, never kept. */
+const nearby1: NetEntity<any>[] = [];
+const nearby2: NetEntity<any>[] = [];
+const nearby3: NetEntity<any>[] = [];
 
 const ARREST_MS = 3000;
 
@@ -169,7 +175,7 @@ export class AvatarSim extends Avatar<AvatarIntent, AvatarBody, Tool> implements
   }
 
   private pushOutOfCars(p: { x: number; y: number }): void {
-    for (const car of this.ctx.world.query(p.x, p.y, 4, Car)) {
+    for (const car of this.ctx.world.query(p.x, p.y, 4, Car, nearby1)) {
       const { hl, hw } = carExtents(car.state.kind);
       const c = Math.cos(car.render.angle);
       const sn = Math.sin(car.render.angle);
@@ -230,7 +236,7 @@ export class AvatarSim extends Avatar<AvatarIntent, AvatarBody, Tool> implements
     const s = this.me!.state;
     let best: CarEntity | undefined;
     let bestD = 4.5;
-    for (const car of this.ctx.world.query(s.x, s.y, 6, Car)) {
+    for (const car of this.ctx.world.query(s.x, s.y, 6, Car, nearby2)) {
       if (car.state.mode === CarMode.Wrecked) continue;
       if (car.state.mode === CarMode.Driven && car.state.driver !== 0) continue;
       const d = Math.hypot(car.x - s.x, car.y - s.y);
@@ -318,7 +324,7 @@ export class AvatarSim extends Avatar<AvatarIntent, AvatarBody, Tool> implements
   private collectPickups(): void {
     const { ctx } = this;
     const me = this.me!;
-    for (const pk of ctx.world.query(me.state.x, me.state.y, 1.3, Pickup)) {
+    for (const pk of ctx.world.query(me.state.x, me.state.y, 1.3, Pickup, nearby3)) {
       if (this.collecting.has(pk.id)) continue;
       // leave tools you have no room for, or for more of their charges
       if (pk.state.kind === PickupKind.Tool) {

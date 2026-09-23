@@ -169,6 +169,8 @@ export interface NetStats {
   claims: number;
   /** Cumulative times another peer's stronger claim overrode ours. */
   conflicts: number;
+  /** Cumulative handoffs this peer took back, having heard nothing from the peer it handed to. */
+  reclaims: number;
 }
 
 /**
@@ -188,6 +190,14 @@ export interface NetStats {
  * radius, as field-level deltas against what that peer last received (channels
  * are reliable + ordered), throttled by distance and capped per tick.
  */
+/** Whether epoch `a` is later than `b`, with the u16 wrapping round: an entity that changes hands 65k times keeps working. */
+/** How long after handing an entity over to wait for a word from its new owner before taking it back, ms. */
+const HANDOFF_ACK_MS = 2000;
+
+export function newerEpoch(a: number, b: number): boolean {
+  return a !== b && ((a - b) & 0xffff) < 0x8000;
+}
+
 export class NetWorld {
   readonly selfId: string;
   /** What the world talks over. Side channels (see crossplay/voice.ts) can open their own rooms on it. */
@@ -235,6 +245,8 @@ export class NetWorld {
   private readonly actionHandlers = new Map<number, Set<(p: any, ctx: ActionContext) => void>>();
   private readonly transferPolicies = new Map<number, TransferPolicy>();
   private readonly pendingRequests = new Map<number, PendingRequest>();
+  /** Each registered type's index on the wire. Per world: two worlds with different lists don't trip over each other. */
+  private readonly typeIds = new Map<object, number>();
   private inbox: { data: Uint8Array; peer: string }[] = [];
   private localActions: { def: ActionDef<any>; payload: any }[] = [];
 
@@ -273,6 +285,7 @@ export class NetWorld {
     handoffs: 0,
     claims: 0,
     conflicts: 0,
+    reclaims: 0,
   };
 
   constructor(opts: NetWorldOptions) {
@@ -282,8 +295,8 @@ export class NetWorld {
     this.defs = opts.entities;
     this.actionDefs = opts.actions ?? [];
     if (this.defs.length > 255 || this.actionDefs.length > 255) throw new Error('At most 255 entity and action types');
-    this.defs.forEach((d, i) => (d.typeId = i));
-    this.actionDefs.forEach((d, i) => (d.typeId = i));
+    this.defs.forEach((d, i) => this.typeIds.set(d, i));
+    this.actionDefs.forEach((d, i) => this.typeIds.set(d, i));
     this.byType = this.defs.map(() => new Set());
     this.ownedByType = this.defs.map(() => new Set());
     this.remoteByType = this.defs.map(() => new Set());
@@ -346,7 +359,8 @@ export class NetWorld {
 
   spawn<S extends Shape>(def: EntityDef<S>, init: Partial<Infer<S>> = {}, opts: { held?: boolean } = {}): NetEntity<Infer<S>> {
     this.assertDef(def);
-    const state = Object.assign(def.layout.defaults(), init) as Infer<S>;
+    const state = def.layout.defaults() as Infer<S>;
+    for (const k in init) if (init[k] !== undefined) (state as any)[k] = init[k];
     const e = new NetEntity<Infer<S>>(this.nextId(), def, this.selfId, 1, true, state);
     e.held = opts.held ?? false;
     this.addEntity(e);
@@ -383,7 +397,7 @@ export class NetWorld {
 
   /** Every known entity of a type (owned and remote). Don't mutate the set. */
   all<S extends Shape>(def: EntityDef<S>): ReadonlySet<NetEntity<Infer<S>>> {
-    return this.byType[def.typeId] as Set<NetEntity<Infer<S>>>;
+    return this.byType[this.tid(def)] as Set<NetEntity<Infer<S>>>;
   }
 
   /**
@@ -391,12 +405,12 @@ export class NetWorld {
    * system updates. Don't mutate the set. Spawning while iterating visits the new entity too.
    */
   owned<S extends Shape>(def: EntityDef<S>): ReadonlySet<NetEntity<Infer<S>>> {
-    return this.ownedByType[def.typeId] as Set<NetEntity<Infer<S>>>;
+    return this.ownedByType[this.tid(def)] as Set<NetEntity<Infer<S>>>;
   }
 
   /** The entities of a type other peers own, which this peer only receives and draws. Don't mutate the set. */
   remote<S extends Shape>(def: EntityDef<S>): ReadonlySet<NetEntity<Infer<S>>> {
-    return this.remoteByType[def.typeId] as Set<NetEntity<Infer<S>>>;
+    return this.remoteByType[this.tid(def)] as Set<NetEntity<Infer<S>>>;
   }
 
   get entityCount(): number {
@@ -405,6 +419,7 @@ export class NetWorld {
 
   /** Entities within `r` of a point (by rendered position), optionally of one type. */
   query<S extends Shape>(x: number, y: number, r: number, def?: EntityDef<S>, out: NetEntity<Infer<S>>[] = []): NetEntity<Infer<S>>[] {
+    out.length = 0; // filled afresh: pass the same array each frame and nothing is allocated
     const buf = this.spatial.queryRadius(x, y, r, this.queryBuf);
     const r2 = r * r;
     for (const e of buf) {
@@ -496,7 +511,7 @@ export class NetWorld {
 
   /** Decide whether to grant ownership requests for a type. Default: grant unless held. */
   setTransferPolicy<S extends Shape>(def: EntityDef<S>, policy: (e: NetEntity<Infer<S>>, requester: string) => boolean): void {
-    this.transferPolicies.set(def.typeId, policy as TransferPolicy);
+    this.transferPolicies.set(this.tid(def), policy as TransferPolicy);
   }
 
   on<K extends keyof WorldEvents>(event: K, fn: WorldEvents[K]): () => void {
@@ -505,8 +520,8 @@ export class NetWorld {
   }
 
   onAction<S extends Shape>(def: ActionDef<S>, fn: (payload: Infer<S>, ctx: ActionContext) => void): () => void {
-    let set = this.actionHandlers.get(def.typeId);
-    if (!set) this.actionHandlers.set(def.typeId, (set = new Set()));
+    let set = this.actionHandlers.get(this.tid(def));
+    if (!set) this.actionHandlers.set(this.tid(def), (set = new Set()));
     set.add(fn);
     return () => set!.delete(fn);
   }
@@ -516,7 +531,7 @@ export class NetWorld {
    * network tick. Local handlers (when targeted) run during the next update().
    */
   send<S extends Shape>(def: ActionDef<S>, payload: Infer<S>, target: ActionTarget): void {
-    if (this.actionDefs[def.typeId] !== def) throw new Error(`Action "${def.name}" is not registered`);
+    this.tid(def);
     const w = this.scratch.reset();
     def.layout.writeMasked(w, def.layout.quantizeInto(payload, []), def.layout.allMask);
     const body = w.finish();
@@ -679,13 +694,24 @@ export class NetWorld {
     if (now >= this.nextWatchdog) {
       this.nextWatchdog = now + 1000;
       for (const e of this.allRemote) {
+        if (e._awaitingOwner && now - e._awaitingOwner > HANDOFF_ACK_MS) {
+          e._awaitingOwner = 0;
+          // We handed it over and have heard nothing back. If they're reachable and would be sending it to us
+          // (we're in its interest), the handoff was lost on the way: take it back rather than let it go stale.
+          const ours = this.hasFocus && dist2(e.stateX, e.stateY, this.focusX, this.focusY) <= this.interestRadius * this.interestRadius;
+          if (ours && this.peers.has(e.owner) && this.mesh.canSend(e.owner)) {
+            this.takeOwnership(e, (e.epoch + 1) & 0xffff, e.owner, false);
+            this.stats.reclaims++;
+            continue;
+          }
+        }
         if (e._orphanSince) {
           if (this.peers.has(e.owner)) {
             e._orphanSince = 0;
           } else if (now - e._orphanSince > 1500) {
             // Nobody claimed it (peers' views of the zone disagreed). Claim it ourselves;
             // if several holders do, the (epoch, peerId) tie-break plus YIELD converges.
-            this.takeOwnership(e, Math.min(e.epoch + 1, 0xffff), e.owner, false);
+            this.takeOwnership(e, (e.epoch + 1) & 0xffff, e.owner, false);
             this.stats.claims++;
             continue;
           } else {
@@ -913,7 +939,7 @@ export class NetWorld {
   }
 
   private writeEntity(w: ByteWriter, e: NetEntity<any>, q: Quantized[], mask: number, flags: number): void {
-    w.u8(MSG_ENTITY).id48(e.id).u8(e.def.typeId).u8(flags);
+    w.u8(MSG_ENTITY).id48(e.id).u8(this.tid(e.def)).u8(flags);
     if (flags & F_FULL) w.u16(e.epoch);
     w.varuint(mask);
     e.def.layout.writeMasked(w, q, mask);
@@ -923,11 +949,12 @@ export class NetWorld {
     const peer = this.peers.get(peerId);
     if (!peer) return;
     if (origin !== undefined) route |= ROUTE_ORIGIN;
-    peer.out.u8(MSG_ACTION).u8(def.typeId).u8(route);
+    peer.out.u8(MSG_ACTION).u8(this.tid(def)).u8(route);
     if (route & ROUTE_OWNER) peer.out.id48(entityId).u8(ttl);
     if (origin !== undefined) peer.out.string(origin);
     peer.out.bytes(body);
-    if (peer.out.length > 16000) this.flush(peer, this.nowMs);
+    // only while they're reachable: `flush` drops what it can't send, and the tick parks the buffer otherwise
+    if (peer.out.length > 16000 && this.mesh.canSend(peer.id)) this.flush(peer, this.nowMs);
   }
 
   private flush(peer: RemotePeer, now: number): void {
@@ -948,10 +975,11 @@ export class NetWorld {
   private handoff(e: NetEntity<any>, to: string, held: boolean): boolean {
     const peer = this.peers.get(to);
     if (!peer || !this.mesh.canSend(to) || !e.mine) return false;
-    e.epoch = Math.min(e.epoch + 1, 0xffff);
+    e.epoch = (e.epoch + 1) & 0xffff;
     const q = this.quantize(e, true);
     this.writeEntity(peer.out, e, q, e.def.layout.allMask, F_FULL | F_HANDOFF | (held ? F_HELD : 0));
     this.loseOwnership(e, to);
+    e._awaitingOwner = this.nowMs;
     this.stats.handoffs++;
     return true;
   }
@@ -963,8 +991,8 @@ export class NetWorld {
     e._handoffTo = null;
     this.allOwned.delete(e);
     this.allRemote.add(e);
-    this.ownedByType[e.def.typeId].delete(e);
-    this.remoteByType[e.def.typeId].add(e);
+    this.ownedByType[this.tid(e.def)].delete(e);
+    this.remoteByType[this.tid(e.def)].add(e);
     e.render = { ...e.state };
     e._buf?.clear();
     this.pushSample(e, this.nowMs);
@@ -981,14 +1009,26 @@ export class NetWorld {
     e._handoffTo = null;
     this.allRemote.delete(e);
     this.allOwned.add(e);
-    this.remoteByType[e.def.typeId].delete(e);
-    this.ownedByType[e.def.typeId].add(e);
+    this.remoteByType[this.tid(e.def)].delete(e);
+    this.ownedByType[this.tid(e.def)].add(e);
     e.render = e.state;
     e._buf?.clear();
     e._gainTick = this.tickNo;
     e._orphanSince = 0;
+    e._awaitingOwner = 0;
     this.emit('ownershipGained', e, from);
     this.resolveRequestsFor(e.id, true);
+  }
+
+  private hasRequestFor(entityId: number): boolean {
+    for (const req of this.pendingRequests.values()) if (req.entityId === entityId) return true;
+    return false;
+  }
+
+  private tid(def: { name: string }): number {
+    const id = this.typeIds.get(def);
+    if (id === undefined) throw new Error(`"${def.name}" is not registered with this NetWorld`);
+    return id;
   }
 
   private resolveRequestsFor(entityId: number, ok: boolean): void {
@@ -1021,7 +1061,7 @@ export class NetWorld {
       const zk = this.zoneKey(e.stateX, e.stateY);
       const winner = rendezvous(this.cellKey(e), this.zoneCandidates(zk));
       if (winner === this.selfId) {
-        this.takeOwnership(e, Math.min(e.epoch + 1, 0xffff), id, false);
+        this.takeOwnership(e, (e.epoch + 1) & 0xffff, id, false);
         this.stats.claims++;
       } else {
         // the winner should claim it (higher epoch); if not, the watchdog falls back
@@ -1071,7 +1111,7 @@ export class NetWorld {
             const epoch = r.u16();
             const reason = r.u8();
             const e = this.entities.get(id);
-            if (e && !e.mine && (e.owner === from || epoch > e.epoch)) {
+            if (e && !e.mine && (e.owner === from || newerEpoch(epoch, e.epoch))) {
               this.removeLocal(e, reason === REMOVE_DESTROYED ? 'destroyed' : 'out-of-interest');
             }
             break;
@@ -1085,7 +1125,7 @@ export class NetWorld {
             const id = r.id48();
             const reqId = r.u32();
             const e = this.entities.get(id);
-            const policy = e ? this.transferPolicies.get(e.def.typeId) : undefined;
+            const policy = e ? this.transferPolicies.get(this.tid(e.def)) : undefined;
             const ok = !!e && e.mine && e.alive && (policy ? policy(e, from) : !e.held) && this.handoff(e, from, true);
             peer.out.u8(MSG_OWN_REPLY).id48(id).u32(reqId).u8(ok ? 1 : 0);
             break;
@@ -1115,7 +1155,7 @@ export class NetWorld {
             const epoch = r.u16();
             const owner = r.string();
             const e = this.entities.get(id);
-            if (e && e.mine && owner !== this.selfId && (epoch > e.epoch || (epoch === e.epoch && owner < this.selfId))) {
+            if (e && e.mine && owner !== this.selfId && (newerEpoch(epoch, e.epoch) || (epoch === e.epoch && owner < this.selfId))) {
               this.loseOwnership(e, owner);
               e.epoch = epoch;
               this.stats.conflicts++;
@@ -1142,18 +1182,21 @@ export class NetWorld {
     let e = this.entities.get(id);
 
     if (flags & F_HANDOFF) {
+      // `held` only if we still have a request out for it: a grant that lands after the request timed out
+      // (or that nobody here asked for) must not pin the entity to this peer forever.
+      const held = !!(flags & F_HELD) && this.hasRequestFor(id);
       if (!e) {
         const state = def.layout.defaults();
         def.layout.readMaskedInto(r, mask, state);
         e = new NetEntity(id, def, this.selfId, epoch, true, state);
-        e.held = !!(flags & F_HELD);
+        e.held = held;
         e._gainTick = this.tickNo;
         this.addEntity(e);
         this.emit('ownershipGained', e, from);
         this.resolveRequestsFor(id, true);
-      } else if (epoch > e.epoch || (e.owner === from && epoch >= e.epoch)) {
+      } else if (newerEpoch(epoch, e.epoch) || (e.owner === from && !newerEpoch(e.epoch, epoch))) {
         def.layout.readMaskedInto(r, mask, e.state);
-        this.takeOwnership(e, epoch, from, !!(flags & F_HELD));
+        this.takeOwnership(e, epoch, from, held);
       } else {
         def.layout.readMaskedInto(r, mask, null);
       }
@@ -1170,7 +1213,7 @@ export class NetWorld {
         this.pushSample(e, localTime);
         return;
       }
-      const accept = epoch > e.epoch || (epoch === e.epoch && (e.owner === from || from < e.owner));
+      const accept = newerEpoch(epoch, e.epoch) || (epoch === e.epoch && (e.owner === from || from < e.owner));
       if (!accept) {
         def.layout.readMaskedInto(r, mask, null);
         // They think they own something with a weaker claim: correct them.
@@ -1181,6 +1224,9 @@ export class NetWorld {
       if (e.mine) {
         this.loseOwnership(e, from);
         this.stats.conflicts++;
+      } else if (e.owner !== from) {
+        // samples from the old owner are on its clock, not the new one's: don't blend across them
+        e._buf?.clear();
       }
       e.owner = from;
       e.epoch = epoch;
@@ -1193,6 +1239,7 @@ export class NetWorld {
 
     def.layout.readMaskedInto(r, mask, e.state);
     e._lastHeard = this.nowMs;
+    e._awaitingOwner = 0;
     this.pushSample(e, localTime);
   }
 
@@ -1225,7 +1272,7 @@ export class NetWorld {
   }
 
   private dispatch(def: ActionDef<any>, payload: unknown, from: string, local: boolean): void {
-    const handlers = this.actionHandlers.get(def.typeId);
+    const handlers = this.actionHandlers.get(this.tid(def));
     if (!handlers) return;
     const ctx: ActionContext = { from, local };
     for (const fn of handlers) {
@@ -1279,9 +1326,9 @@ export class NetWorld {
 
   private addEntity(e: NetEntity<any>): void {
     this.entities.set(e.id, e);
-    this.byType[e.def.typeId].add(e);
+    this.byType[this.tid(e.def)].add(e);
     (e.mine ? this.allOwned : this.allRemote).add(e);
-    (e.mine ? this.ownedByType : this.remoteByType)[e.def.typeId].add(e);
+    (e.mine ? this.ownedByType : this.remoteByType)[this.tid(e.def)].add(e);
     this.spatial.update(e, e.x, e.y);
     this.emit('entityAdded', e);
   }
@@ -1290,11 +1337,11 @@ export class NetWorld {
     if (!e.alive) return;
     e.alive = false;
     this.entities.delete(e.id);
-    this.byType[e.def.typeId].delete(e);
+    this.byType[this.tid(e.def)].delete(e);
     this.allOwned.delete(e);
     this.allRemote.delete(e);
-    this.ownedByType[e.def.typeId].delete(e);
-    this.remoteByType[e.def.typeId].delete(e);
+    this.ownedByType[this.tid(e.def)].delete(e);
+    this.remoteByType[this.tid(e.def)].delete(e);
     this.spatial.remove(e);
     if (e.mine) for (const p of this.peers.values()) p.sent.delete(e.id);
     this.resolveRequestsFor(e.id, false);
@@ -1320,7 +1367,7 @@ export class NetWorld {
   }
 
   private assertDef(def: EntityDef<any>): void {
-    if (this.defs[def.typeId] !== def) throw new Error(`Entity "${def.name}" is not registered with this NetWorld`);
+    this.tid(def);
   }
 
   private updateStats(now: number): void {

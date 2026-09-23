@@ -205,7 +205,7 @@ export function crewModel(skin: number): HumanRig {
 }
 
 /** A sentinel drone: a dark ball with a ring round it and a red eye. The eye looks +X. */
-export function sentinelModel(): { root: THREE.Group; eye: THREE.Mesh; ring: THREE.Mesh } {
+export function sentinelModel(): { root: THREE.Group; eye: THREE.Mesh; ring: THREE.Mesh; glow: THREE.Sprite } {
   const root = new THREE.Group();
   const body = new THREE.Mesh(
     cached('sentinel', () => merge([paint(new THREE.IcosahedronGeometry(0.34, 1), 0x2a2e38), box(0.1, 0.5, 0.1, 0, -0.35, 0, 0x3a3e48)])),
@@ -213,20 +213,22 @@ export function sentinelModel(): { root: THREE.Group; eye: THREE.Mesh; ring: THR
   );
   const ring = new THREE.Mesh(cached('sentinel-ring', () => paint(new THREE.TorusGeometry(0.52, 0.04, 6, 20).rotateX(Math.PI / 2), 0x6a7080)), SOLID);
   const eye = new THREE.Mesh(cached('sentinel-eye', () => paint(new THREE.SphereGeometry(0.1, 8, 6).translate(0.3, 0.02, 0), 0xff3a2a)), GLOW);
-  root.add(body, ring, eye, glowSprite(0xff3a2a, 0.5, 0.6));
+  const glow = glowSprite(0xff3a2a, 0.5, 0.6);
+  root.add(body, ring, eye, glow);
   (root.children[3] as THREE.Sprite).position.set(0.34, 0.02, 0);
-  return { root, eye, ring };
+  return { root, eye, ring, glow };
 }
 
 /** The relic: a turning golden octahedron in a glow. */
-export function relicModel(): { root: THREE.Group; gem: THREE.Mesh } {
+export function relicModel(): { root: THREE.Group; gem: THREE.Mesh; glow: THREE.Sprite } {
   const root = new THREE.Group();
   const gem = new THREE.Mesh(
     cached('relic', () => merge([paint(new THREE.OctahedronGeometry(0.22, 0).scale(1, 1.5, 1), 0xffd35a), paint(new THREE.TorusGeometry(0.3, 0.02, 4, 16), 0xfff0b0)])),
     GLOW,
   );
-  root.add(gem, glowSprite(0xffc84a, 1.4, 0.7));
-  return { root, gem };
+  const glow = glowSprite(0xffc84a, 1.4, 0.7);
+  root.add(gem, glow);
+  return { root, gem, glow };
 }
 
 export function torpedoCasing(): THREE.BufferGeometry {

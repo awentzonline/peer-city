@@ -153,6 +153,8 @@ export function onPad(c: CrewEntity): boolean {
 export class ShipKeeper {
   private readonly one: Singleton<typeof Ship>;
   private torpTimer = 0;
+  /** Mending the damage control team has done but not yet sent: per frame it's below `Mend.amount`'s precision. */
+  private mendOwed = 0;
 
   constructor(
     private readonly ctx: StarshipContext,
@@ -525,7 +527,13 @@ export class ShipKeeper {
       const sys = s.team as ShipSystem;
       let fault: FaultEntity | null = null;
       for (const f of faults) if (f.render.voyage === s.voyage && f.render.system === sys) fault = f;
-      if (fault) ctx.world.command(Mend, { target: fault.id, amount: dt / 14 });
+      if (fault) {
+        this.mendOwed += dt / 14;
+        if (this.mendOwed >= 0.05) {
+          ctx.world.command(Mend, { target: fault.id, amount: this.mendOwed });
+          this.mendOwed = 0;
+        }
+      }
       else if (health(s, sys) < 1) setHealth(s, sys, health(s, sys) + 0.006 * dt);
       else {
         s.team = 255;

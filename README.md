@@ -621,6 +621,7 @@ with its roof off and sends monsters after them.
 
 ```bash
 npm run dev    # http://localhost:5173/haunt.html (?role=haunt to go straight in as the Haunt)
+               # one Haunt a night: a second is sent back to the lobby to play a survivor
 ```
 
 **The night.** Survivors gather in the yard while a clock runs down, then four keys are hidden in the house. Three in
@@ -679,6 +680,7 @@ map, knowing only what those guards see and hear.
 
 ```bash
 npm run dev    # http://localhost:5173/shinobi.html (?role=captain to go straight in as the captain)
+               # one Captain a night: a second is sent back to the lobby to play a shinobi
 ```
 
 **The night.** Shinobi gather in the forest while a clock runs down; then the watch musters: patrols with lanterns, posts at

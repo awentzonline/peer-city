@@ -8,7 +8,7 @@ const RUN_SPEED = 5;
 export const PED_RADIUS = 0.35;
 
 /** What a pedestrian's owner keeps in mind about where it's going and what it's running from. */
-export const PedMind = defineLocal<{ dir?: number; fleeUntil?: number; fx?: number; fy?: number; deadAt?: number }>(() => ({}));
+export const PedMind = defineLocal<{ dir?: number; fleeUntil?: number; fx?: number; fy?: number }>(() => ({}));
 
 /** Axis-separated circle movement against the tile grid. Returns true if blocked. */
 export function moveCircle(city: City, s: { x: number; y: number }, dx: number, dy: number, r: number): boolean {
@@ -27,8 +27,9 @@ export function updateOwnedPeds(ctx: GameContext, dt: number): void {
     const l = PedMind.of(p);
 
     if (s.mode === PedMode.Dead) {
-      l.deadAt ??= now;
-      if (now - l.deadAt > 20000) world.despawn(p);
+      if (s.gone <= 0) s.gone = 20; // just died
+      s.gone -= dt;
+      if (s.gone <= 0) world.despawn(p);
       continue;
     }
 

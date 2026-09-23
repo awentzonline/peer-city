@@ -176,6 +176,9 @@ export class SpaceView {
       destroy: (v, e) => {
         v.root.removeFromParent();
         v.bracket.removeFromParent();
+        v.shield.geometry.dispose();
+        v.shield.material.dispose();
+        v.bracket.material.dispose();
         this.raiderViews.delete(e.id);
       },
     });
@@ -316,7 +319,8 @@ export class SpaceView {
       f.mesh.material.opacity = Math.max(0, 1 - f.age / f.life);
       if (f.age >= f.life) {
         f.mesh.removeFromParent();
-        f.mesh.geometry?.dispose();
+        // every Sprite shares one geometry inside three.js: disposing it would evict it for all of them
+        if (!(f.mesh instanceof THREE.Sprite)) f.mesh.geometry?.dispose();
         f.mesh.material.dispose();
         this.fading.splice(i, 1);
       }

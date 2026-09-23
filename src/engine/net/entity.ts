@@ -33,6 +33,7 @@ export class NetEntity<S = Record<string, any>> implements SpatialItem {
   /** @internal */ _handoffSince = 0;
   /** @internal */ _gainTick = -1000;
   /** @internal */ _orphanSince = 0;
+  /** @internal when we handed it off and haven't heard from the new owner since; 0 once we have */ _awaitingOwner = 0;
 
   private readonly xKey: string;
   private readonly yKey: string;

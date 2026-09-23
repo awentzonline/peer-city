@@ -303,6 +303,20 @@ function inCanopy(t: Tree, d: number, up: number): boolean {
 
 /** Where a shot would first come down, for an aiming guide: simulated on a copy, with no cup or trees. */
 export function carry(from: Vec3, club: Club, power: number, heading: number, lie: Lie, course: Course): Vec3 {
+  // the guide and the HUD ask for the same flight a few times a frame, and the full-swing one every frame while
+  // addressing: remember the last few rather than fly the ball again (up to 4800 steps each)
+  for (const c of carried) {
+    if (c.x === from.x && c.y === from.y && c.z === from.z && c.club === club && c.power === power && c.heading === heading && c.lie === lie && c.course === course) return c.end;
+  }
+  const end = flyCarry(from, club, power, heading, lie, course);
+  carried.push({ x: from.x, y: from.y, z: from.z, club, power, heading, lie, course, end });
+  if (carried.length > 4) carried.shift();
+  return end;
+}
+
+const carried: { x: number; y: number; z: number; club: Club; power: number; heading: number; lie: Lie; course: Course; end: Vec3 }[] = [];
+
+function flyCarry(from: Vec3, club: Club, power: number, heading: number, lie: Lie, course: Course): Vec3 {
   const b = ballAt(from.x, from.y, from.z + BALL_RADIUS * 0.5);
   strike(b, club, power, heading, lie);
   if (b.flight === Flight.Rolling) {

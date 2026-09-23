@@ -5,7 +5,7 @@ import { Platform } from '../src/crossplay/platform';
 import { registerActions } from '../src/derby/actions';
 import { Builder, type BuilderBody } from '../src/derby/builder';
 import type { DerbyContext, Vec3 } from '../src/derby/context';
-import { Course, FINISH, GARAGE, TOP } from '../src/derby/course';
+import { Course, FINISH, GARAGE, LENGTH, TOP } from '../src/derby/course';
 import { ACTIONS, ENTITIES, Phase, Racer, RacerMode } from '../src/derby/defs';
 import { idleDerbyIntent, type DerbyIntent } from '../src/derby/intent';
 import { PART_GUN, WRENCH, pickPart, rayBox } from '../src/derby/kit';
@@ -485,12 +485,15 @@ describe('Racing', () => {
     bob.intent.ready = true;
     run(net, [alice, bob], COUNTDOWN + 1);
     const r = alice.ctx.racer!;
-    // fling it sideways into the wall of the track
-    const p = course.pointAt(300, 0);
+    // bob's parked beside the runout, close enough to see it happen
+    const side = course.pointAt(LENGTH - 40, 8);
+    bob.builder.racer.body.place(side.x, side.y, side.z + 0.5, yawQuat(side.heading));
+    run(net, [alice, bob], 0.5);
+    // fling alice's down the runout into the wall of hay at the end
+    const p = course.pointAt(LENGTH - 12, 0);
     const body = alice.builder.racer.body;
-    body.place(p.x, p.y, p.z + 1, yawQuat(p.heading));
-    const left = { x: -Math.sin(p.heading), y: Math.cos(p.heading) };
-    body.body.setLinvel({ x: left.x * 45, y: left.y * 45, z: 0 }, true);
+    body.place(p.x, p.y, p.z + 0.5, yawQuat(p.heading));
+    body.body.setLinvel({ x: Math.cos(p.heading) * 45, y: Math.sin(p.heading) * 45, z: 0 }, true);
     run(net, [alice, bob], 1.5);
     const lost = designOf(r, false).keep.filter((k) => !k).length;
     expect(lost).toBeGreaterThan(0);
