@@ -31,7 +31,11 @@ function start(): void {
   playButton.disabled = true;
   const playerName = nameInput.value.trim().slice(0, 16) || 'Player';
   const mode = netSelect.value as 'online' | 'local';
-  const shard = roomInput.value.trim().replace(/[^\w-]/g, '').slice(0, 24) || 'downtown';
+  const shard =
+    roomInput.value
+      .trim()
+      .replace(/[^\w-]/g, '')
+      .slice(0, 24) || 'downtown';
   safeStorage('set', 'peer-city-name', playerName);
 
   const url = new URL(location.href);

@@ -37,7 +37,11 @@ const ENGINE_GLOW = 0x7ad8ff;
 export function shipModel(): THREE.Group {
   const group = new THREE.Group();
   const hull = cached('ship-hull', () => {
-    const bow = new THREE.ConeGeometry(6, 18, 4).rotateY(Math.PI / 4).rotateZ(-Math.PI / 2).scale(1, 0.55, 1).translate(19, 0, 0);
+    const bow = new THREE.ConeGeometry(6, 18, 4)
+      .rotateY(Math.PI / 4)
+      .rotateZ(-Math.PI / 2)
+      .scale(1, 0.55, 1)
+      .translate(19, 0, 0);
     return merge([
       paint(bow, HULL),
       box(22, 4.2, 12, 1, 0, 0, HULL),
@@ -85,9 +89,21 @@ export function raiderModel(kind: RaiderKind): THREE.Group {
   } else {
     const body = cached('raider-cruiser', () => {
       const parts = [
-        paint(new THREE.TorusGeometry(14, 3.5, 6, 14, Math.PI * 1.2).rotateX(Math.PI / 2).rotateY(Math.PI * 0.4).scale(1, 0.6, 1), 0x3a161c),
+        paint(
+          new THREE.TorusGeometry(14, 3.5, 6, 14, Math.PI * 1.2)
+            .rotateX(Math.PI / 2)
+            .rotateY(Math.PI * 0.4)
+            .scale(1, 0.6, 1),
+          0x3a161c,
+        ),
         box(26, 5, 7, -2, 0, 0, 0x4a1c22),
-        paint(new THREE.ConeGeometry(4, 12, 5).rotateZ(-Math.PI / 2).scale(1, 0.6, 1).translate(16, 0, 0), 0x5a2228),
+        paint(
+          new THREE.ConeGeometry(4, 12, 5)
+            .rotateZ(-Math.PI / 2)
+            .scale(1, 0.6, 1)
+            .translate(16, 0, 0),
+          0x5a2228,
+        ),
       ];
       for (let i = -2; i <= 2; i++) parts.push(paint(new THREE.ConeGeometry(0.8, 7, 4).translate(i * 5 - 2, 5, 0), 0x2a1216));
       return merge(parts);
@@ -150,7 +166,9 @@ export function planetModel(radius: number, biome: Biome, seed: number): THREE.G
     let n = 0;
     for (const w of waves) n += Math.sin(x * w.x * 2 + y * w.y * 2 + z * w.z * 2 + w.p);
     const t = THREE.MathUtils.clamp(0.5 + n * 0.14 + (biome === Biome.Ice ? Math.abs(y) * 0.5 : 0), 0, 1);
-    c.copy(a).lerp(b, t).toArray(colors, i * 3);
+    c.copy(a)
+      .lerp(b, t)
+      .toArray(colors, i * 3);
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   group.add(new THREE.Mesh(geo, SOLID));
@@ -200,7 +218,12 @@ export function crewModel(skin: number): HumanRig {
   const hair = [0x2a1a10, 0x5a3a20, 0xd8b060, 0x101010, 0x8a3a1a];
   const rig = buildHuman({ shirt: shirts[skin % 4], pants: 0x22262e, skin: skins[(skin * 3) % 5], hair: hair[(skin * 7) % 5], badge: 0xffd35a });
   // shoulders in the uniform's dark
-  rig.body.add(new THREE.Mesh(cached('crew-yoke', () => box(0.27, 0.12, 0.49, 0, 1.52, 0, 0x22262e)), SOLID));
+  rig.body.add(
+    new THREE.Mesh(
+      cached('crew-yoke', () => box(0.27, 0.12, 0.49, 0, 1.52, 0, 0x22262e)),
+      SOLID,
+    ),
+  );
   return rig;
 }
 
@@ -211,8 +234,14 @@ export function sentinelModel(): { root: THREE.Group; eye: THREE.Mesh; ring: THR
     cached('sentinel', () => merge([paint(new THREE.IcosahedronGeometry(0.34, 1), 0x2a2e38), box(0.1, 0.5, 0.1, 0, -0.35, 0, 0x3a3e48)])),
     SOLID,
   );
-  const ring = new THREE.Mesh(cached('sentinel-ring', () => paint(new THREE.TorusGeometry(0.52, 0.04, 6, 20).rotateX(Math.PI / 2), 0x6a7080)), SOLID);
-  const eye = new THREE.Mesh(cached('sentinel-eye', () => paint(new THREE.SphereGeometry(0.1, 8, 6).translate(0.3, 0.02, 0), 0xff3a2a)), GLOW);
+  const ring = new THREE.Mesh(
+    cached('sentinel-ring', () => paint(new THREE.TorusGeometry(0.52, 0.04, 6, 20).rotateX(Math.PI / 2), 0x6a7080)),
+    SOLID,
+  );
+  const eye = new THREE.Mesh(
+    cached('sentinel-eye', () => paint(new THREE.SphereGeometry(0.1, 8, 6).translate(0.3, 0.02, 0), 0xff3a2a)),
+    GLOW,
+  );
   const glow = glowSprite(0xff3a2a, 0.5, 0.6);
   root.add(body, ring, eye, glow);
   (root.children[3] as THREE.Sprite).position.set(0.34, 0.02, 0);
@@ -242,7 +271,10 @@ export function torpedoCasing(): THREE.BufferGeometry {
 }
 
 export function groundRing(inner: number, outer: number, color: number): THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial> {
-  const m = new THREE.Mesh(new THREE.RingGeometry(inner, outer, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+  const m = new THREE.Mesh(
+    new THREE.RingGeometry(inner, outer, 40).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide, fog: false }),
+  );
   m.renderOrder = 3;
   return m;
 }

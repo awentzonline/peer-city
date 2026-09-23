@@ -75,13 +75,7 @@ export class Game {
     this.rules = { builder, keeper: this.keeper, proxies: new RacerProxies(ctx) };
     registerActions(ctx, builder);
     this.views = new EntityViews(world);
-    this.extraViews = registerViews(
-      ctx,
-      this.views,
-      scene,
-      { showSelf: () => this.seat.frontend.showSelf, showDriver: () => this.seat.frontend.showDriver },
-      builder,
-    );
+    this.extraViews = registerViews(ctx, this.views, scene, { showSelf: () => this.seat.frontend.showSelf, showDriver: () => this.seat.frontend.showDriver }, builder);
 
     world.on('peerJoined', () => hud.message('Another builder arrived'));
     builder.spawn();

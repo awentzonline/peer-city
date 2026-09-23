@@ -150,7 +150,17 @@ export class DeckView {
     this.interior.add(emitter);
 
     // the torpedo rack and tubes
-    this.interior.add(new THREE.Mesh(merge([box(2, 0.1, 0.9, RACK.x, 0.3, RACK.y, 0x4a5262), box(2, 0.1, 0.9, RACK.x, 1.0, RACK.y, 0x4a5262), box(0.08, 1.6, 0.9, RACK.x - 1, 0.8, RACK.y, 0x3a404c), box(0.08, 1.6, 0.9, RACK.x + 1, 0.8, RACK.y, 0x3a404c)]), SOLID));
+    this.interior.add(
+      new THREE.Mesh(
+        merge([
+          box(2, 0.1, 0.9, RACK.x, 0.3, RACK.y, 0x4a5262),
+          box(2, 0.1, 0.9, RACK.x, 1.0, RACK.y, 0x4a5262),
+          box(0.08, 1.6, 0.9, RACK.x - 1, 0.8, RACK.y, 0x3a404c),
+          box(0.08, 1.6, 0.9, RACK.x + 1, 0.8, RACK.y, 0x3a404c),
+        ]),
+        SOLID,
+      ),
+    );
     for (let i = 0; i < 10; i++) {
       const m = new THREE.Mesh(torpedoCasing(), SOLID);
       m.rotation.y = Math.PI / 2;
@@ -159,7 +169,12 @@ export class DeckView {
       this.interior.add(m);
     }
     TUBES.forEach((tube) => {
-      this.interior.add(new THREE.Mesh(merge([paint(new THREE.CylinderGeometry(0.32, 0.32, 0.7, 14).rotateZ(Math.PI / 2).translate(tube.x + 0.3, 1, tube.y), 0x2a2e38), box(0.4, 1, 0.9, tube.x + 0.45, 0.5, tube.y, 0x4a5262)]), SOLID));
+      this.interior.add(
+        new THREE.Mesh(
+          merge([paint(new THREE.CylinderGeometry(0.32, 0.32, 0.7, 14).rotateZ(Math.PI / 2).translate(tube.x + 0.3, 1, tube.y), 0x2a2e38), box(0.4, 1, 0.9, tube.x + 0.45, 0.5, tube.y, 0x4a5262)]),
+          SOLID,
+        ),
+      );
       const light = new THREE.MeshBasicMaterial({ color: 0x5aff7a });
       const ring = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.04, 6, 16).rotateY(Math.PI / 2), light);
       ring.position.set(tube.x - 0.06, 1, tube.y);
@@ -179,13 +194,30 @@ export class DeckView {
     };
     machine(
       ShipSystem.Engines,
-      merge([paint(new THREE.CylinderGeometry(0.9, 1, 0.4, 16).translate(0, 0.2, 0), 0x4a5262), paint(new THREE.CylinderGeometry(0.9, 1, 0.4, 16).translate(0, WALL_HEIGHT - 0.2, 0), 0x4a5262), ...[0, 1, 2, 3].map((k) => box(0.08, WALL_HEIGHT, 0.08, Math.cos((k * Math.PI) / 2) * 0.75, WALL_HEIGHT / 2, Math.sin((k * Math.PI) / 2) * 0.75, 0x8a929e))]),
+      merge([
+        paint(new THREE.CylinderGeometry(0.9, 1, 0.4, 16).translate(0, 0.2, 0), 0x4a5262),
+        paint(new THREE.CylinderGeometry(0.9, 1, 0.4, 16).translate(0, WALL_HEIGHT - 0.2, 0), 0x4a5262),
+        ...[0, 1, 2, 3].map((k) => box(0.08, WALL_HEIGHT, 0.08, Math.cos((k * Math.PI) / 2) * 0.75, WALL_HEIGHT / 2, Math.sin((k * Math.PI) / 2) * 0.75, 0x8a929e)),
+      ]),
       new THREE.CylinderGeometry(0.45, 0.45, WALL_HEIGHT - 0.8, 16).translate(0, WALL_HEIGHT / 2, 0),
       0x6ab8ff,
     );
     machine(ShipSystem.Weapons, merge([box(1.6, 1.3, 1.2, 0, 0.65, 0, 0x4a5262)]), new THREE.BoxGeometry(1.2, 0.5, 0.05).translate(0, 1.0, -0.62), 0xff6a4a);
-    machine(ShipSystem.Shields, merge([paint(new THREE.CylinderGeometry(0.8, 0.9, 0.8, 12).translate(0, 0.4, 0), 0x4a5262), paint(new THREE.TorusGeometry(0.75, 0.05, 6, 20).rotateX(Math.PI / 2).translate(0, 1.5, 0), 0x8a929e)]), new THREE.SphereGeometry(0.5, 16, 12).translate(0, 1.5, 0), 0x6aff9a);
-    machine(ShipSystem.Sensors, merge([box(0.3, 1.2, 0.3, 0, 0.6, 0, 0x4a5262), paint(new THREE.SphereGeometry(0.9, 16, 8, 0, Math.PI * 2, 0, 1.1).rotateX(0.5).translate(0, 1.2, 0), 0x9aa2ae)]), new THREE.SphereGeometry(0.14, 8, 6).translate(0, 1.9, 0.3), 0xc88aff);
+    machine(
+      ShipSystem.Shields,
+      merge([
+        paint(new THREE.CylinderGeometry(0.8, 0.9, 0.8, 12).translate(0, 0.4, 0), 0x4a5262),
+        paint(new THREE.TorusGeometry(0.75, 0.05, 6, 20).rotateX(Math.PI / 2).translate(0, 1.5, 0), 0x8a929e),
+      ]),
+      new THREE.SphereGeometry(0.5, 16, 12).translate(0, 1.5, 0),
+      0x6aff9a,
+    );
+    machine(
+      ShipSystem.Sensors,
+      merge([box(0.3, 1.2, 0.3, 0, 0.6, 0, 0x4a5262), paint(new THREE.SphereGeometry(0.9, 16, 8, 0, Math.PI * 2, 0, 1.1).rotateX(0.5).translate(0, 1.2, 0), 0x9aa2ae)]),
+      new THREE.SphereGeometry(0.14, 8, 6).translate(0, 1.9, 0.3),
+      0xc88aff,
+    );
   }
 
   private buildSites(): void {
@@ -207,13 +239,24 @@ export class DeckView {
         const z = pos.getZ(i);
         const edge = Math.max(Math.abs(x), Math.abs(z)) - SITE_SIZE / 2;
         if (edge > 1) pos.setY(i, edge * 0.35 + rand() * 1.5);
-        c.copy(base).multiplyScalar(0.85 + rand() * 0.3).toArray(col, i * 3);
+        c.copy(base)
+          .multiplyScalar(0.85 + rand() * 0.3)
+          .toArray(col, i * 3);
       }
       ground.setAttribute('color', new THREE.BufferAttribute(col, 3));
       ground.computeVertexNormals();
       ground.translate(cx, 0, cy);
       const parts: THREE.BufferGeometry[] = [ground];
-      for (const r of site.rocks) parts.push(paint(new THREE.DodecahedronGeometry(r.r, 0).scale(1, 0.7, 1).rotateY(rand() * 6).translate(r.x, r.r * 0.3, r.y), new THREE.Color(colors.low).multiplyScalar(0.9 + rand() * 0.3).getHex()));
+      for (const r of site.rocks)
+        parts.push(
+          paint(
+            new THREE.DodecahedronGeometry(r.r, 0)
+              .scale(1, 0.7, 1)
+              .rotateY(rand() * 6)
+              .translate(r.x, r.r * 0.3, r.y),
+            new THREE.Color(colors.low).multiplyScalar(0.9 + rand() * 0.3).getHex(),
+          ),
+        );
       for (const p of site.pillars) {
         const h = 1.5 + rand() * 2.5;
         parts.push(box(1, h, 1, p.x, h / 2, p.y, 0xb8b0a0), box(1.2, 0.3, 1.2, p.x, h, p.y, 0xa8a090));
@@ -282,7 +325,21 @@ export class DeckView {
           const hy = e.y + s.hy;
           const sp = 5;
           for (let i = 0; i < 3; i++) {
-            this.smoke.emit({ x: hx + Math.cos(heading) * 0.35, y: hy + Math.sin(heading) * 0.35, z: s.z + s.hz, vx: Math.cos(heading) * Math.cos(pitch) * sp + rand(-0.6, 0.6), vy: Math.sin(heading) * Math.cos(pitch) * sp + rand(-0.6, 0.6), vz: Math.sin(pitch) * sp + rand(-0.5, 0.5), life: rand(0.4, 0.8), s0: 0.1, s1: 0.8, c0: [0.95, 0.97, 1, 0.7], c1: [0.9, 0.92, 0.95, 0], gravity: 1, drag: 3 });
+            this.smoke.emit({
+              x: hx + Math.cos(heading) * 0.35,
+              y: hy + Math.sin(heading) * 0.35,
+              z: s.z + s.hz,
+              vx: Math.cos(heading) * Math.cos(pitch) * sp + rand(-0.6, 0.6),
+              vy: Math.sin(heading) * Math.cos(pitch) * sp + rand(-0.6, 0.6),
+              vz: Math.sin(pitch) * sp + rand(-0.5, 0.5),
+              life: rand(0.4, 0.8),
+              s0: 0.1,
+              s1: 0.8,
+              c0: [0.95, 0.97, 1, 0.7],
+              c1: [0.9, 0.92, 0.95, 0],
+              gravity: 1,
+              drag: 3,
+            });
           }
         }
       },
@@ -326,16 +383,46 @@ export class DeckView {
         if (v.fire) {
           v.glow.scale.setScalar((1.6 + Math.sin(v.t * 13) * 0.2) * size);
           for (let i = 0; i < 2; i++) {
-            this.sparks.emit({ x: e.x + rand(-0.3, 0.3) * size, y: e.y + rand(-0.3, 0.3) * size, z: f.z + 0.1, vx: rand(-0.2, 0.2), vy: rand(-0.2, 0.2), vz: rand(1, 2.2), life: rand(0.35, 0.7), s0: 0.45 * size, s1: 0.05, c0: [1, 0.75, 0.25, 0.9], c1: [1, 0.2, 0.05, 0], gravity: 0, drag: 1 });
+            this.sparks.emit({
+              x: e.x + rand(-0.3, 0.3) * size,
+              y: e.y + rand(-0.3, 0.3) * size,
+              z: f.z + 0.1,
+              vx: rand(-0.2, 0.2),
+              vy: rand(-0.2, 0.2),
+              vz: rand(1, 2.2),
+              life: rand(0.35, 0.7),
+              s0: 0.45 * size,
+              s1: 0.05,
+              c0: [1, 0.75, 0.25, 0.9],
+              c1: [1, 0.2, 0.05, 0],
+              gravity: 0,
+              drag: 1,
+            });
           }
-          if (Math.random() < 0.3) this.smoke.emit({ x: e.x, y: e.y, z: f.z + 1, vx: 0, vy: 0, vz: 0.8, life: 2, s0: 0.3, s1: 1.2, c0: [0.2, 0.2, 0.22, 0.4], c1: [0.1, 0.1, 0.1, 0], gravity: -0.2, drag: 0.5 });
+          if (Math.random() < 0.3)
+            this.smoke.emit({ x: e.x, y: e.y, z: f.z + 1, vx: 0, vy: 0, vz: 0.8, life: 2, s0: 0.3, s1: 1.2, c0: [0.2, 0.2, 0.22, 0.4], c1: [0.1, 0.1, 0.1, 0], gravity: -0.2, drag: 0.5 });
         } else {
           const on = Math.sin(v.t * 31) > 0.2 || Math.random() < 0.1;
           v.glow.material.opacity = on ? 0.9 : 0.1;
           v.glow.scale.setScalar(0.9 * size);
           if (v.t > v.next) {
             v.next = v.t + rand(0.1, 0.6);
-            for (let i = 0; i < 10; i++) this.sparks.emit({ x: e.x, y: e.y, z: f.z, vx: rand(-2, 2), vy: rand(-2, 2), vz: rand(-0.5, 2.5), life: rand(0.2, 0.6), s0: 0.06, s1: 0.02, c0: [0.7, 0.9, 1, 1], c1: [1, 0.8, 0.3, 0], gravity: 9, drag: 0.5 });
+            for (let i = 0; i < 10; i++)
+              this.sparks.emit({
+                x: e.x,
+                y: e.y,
+                z: f.z,
+                vx: rand(-2, 2),
+                vy: rand(-2, 2),
+                vz: rand(-0.5, 2.5),
+                life: rand(0.2, 0.6),
+                s0: 0.06,
+                s1: 0.02,
+                c0: [0.7, 0.9, 1, 1],
+                c1: [1, 0.8, 0.3, 0],
+                gravity: 9,
+                drag: 0.5,
+              });
           }
         }
       },
@@ -393,7 +480,21 @@ export class DeckView {
     this.scene.add(mesh);
     this.fading.push({ mesh, age: 0, life: phaser ? 0.18 : 0.25 });
     for (let i = 0; i < (p.hit ? 14 : 5); i++) {
-      this.sparks.emit({ x: p.tx, y: p.ty, z: p.tz, vx: rand(-2, 2), vy: rand(-2, 2), vz: rand(-1, 3), life: rand(0.15, 0.4), s0: 0.08, s1: 0.02, c0: phaser ? [1, 0.8, 0.4, 1] : [1, 0.4, 0.3, 1], c1: [1, 0.2, 0.1, 0], gravity: 6, drag: 1 });
+      this.sparks.emit({
+        x: p.tx,
+        y: p.ty,
+        z: p.tz,
+        vx: rand(-2, 2),
+        vy: rand(-2, 2),
+        vz: rand(-1, 3),
+        life: rand(0.15, 0.4),
+        s0: 0.08,
+        s1: 0.02,
+        c0: phaser ? [1, 0.8, 0.4, 1] : [1, 0.4, 0.3, 1],
+        c1: [1, 0.2, 0.1, 0],
+        gravity: 6,
+        drag: 1,
+      });
     }
   }
 
@@ -403,14 +504,74 @@ export class DeckView {
         this.shimmer = 1.2;
         break;
       case Sound.Wreck:
-        for (let i = 0; i < 40; i++) this.sparks.emit({ x: p.x, y: p.y, z: p.z, vx: rand(-4, 4), vy: rand(-4, 4), vz: rand(-1, 5), life: rand(0.3, 0.9), s0: 0.15, s1: 0.02, c0: [1, 0.7, 0.3, 1], c1: [1, 0.2, 0, 0], gravity: 9, drag: 0.6 });
-        for (let i = 0; i < 12; i++) this.smoke.emit({ x: p.x, y: p.y, z: p.z, vx: rand(-1, 1), vy: rand(-1, 1), vz: rand(0, 1.5), life: rand(1, 2), s0: 0.3, s1: 1.2, c0: [0.25, 0.25, 0.28, 0.6], c1: [0.1, 0.1, 0.1, 0], gravity: 0, drag: 1 });
+        for (let i = 0; i < 40; i++)
+          this.sparks.emit({
+            x: p.x,
+            y: p.y,
+            z: p.z,
+            vx: rand(-4, 4),
+            vy: rand(-4, 4),
+            vz: rand(-1, 5),
+            life: rand(0.3, 0.9),
+            s0: 0.15,
+            s1: 0.02,
+            c0: [1, 0.7, 0.3, 1],
+            c1: [1, 0.2, 0, 0],
+            gravity: 9,
+            drag: 0.6,
+          });
+        for (let i = 0; i < 12; i++)
+          this.smoke.emit({
+            x: p.x,
+            y: p.y,
+            z: p.z,
+            vx: rand(-1, 1),
+            vy: rand(-1, 1),
+            vz: rand(0, 1.5),
+            life: rand(1, 2),
+            s0: 0.3,
+            s1: 1.2,
+            c0: [0.25, 0.25, 0.28, 0.6],
+            c1: [0.1, 0.1, 0.1, 0],
+            gravity: 0,
+            drag: 1,
+          });
         break;
       case Sound.Repair:
-        for (let i = 0; i < 8; i++) this.sparks.emit({ x: p.x, y: p.y, z: p.z, vx: rand(-1.5, 1.5), vy: rand(-1.5, 1.5), vz: rand(0, 2), life: rand(0.2, 0.4), s0: 0.05, s1: 0.01, c0: [1, 0.9, 0.5, 1], c1: [1, 0.5, 0.1, 0], gravity: 8, drag: 0.5 });
+        for (let i = 0; i < 8; i++)
+          this.sparks.emit({
+            x: p.x,
+            y: p.y,
+            z: p.z,
+            vx: rand(-1.5, 1.5),
+            vy: rand(-1.5, 1.5),
+            vz: rand(0, 2),
+            life: rand(0.2, 0.4),
+            s0: 0.05,
+            s1: 0.01,
+            c0: [1, 0.9, 0.5, 1],
+            c1: [1, 0.5, 0.1, 0],
+            gravity: 8,
+            drag: 0.5,
+          });
         break;
       case Sound.Relic:
-        for (let i = 0; i < 24; i++) this.sparks.emit({ x: p.x, y: p.y, z: p.z, vx: rand(-1, 1), vy: rand(-1, 1), vz: rand(0, 2), life: rand(0.5, 1), s0: 0.12, s1: 0, c0: [1, 0.85, 0.4, 1], c1: [1, 0.7, 0.2, 0], gravity: 0, drag: 1 });
+        for (let i = 0; i < 24; i++)
+          this.sparks.emit({
+            x: p.x,
+            y: p.y,
+            z: p.z,
+            vx: rand(-1, 1),
+            vy: rand(-1, 1),
+            vz: rand(0, 2),
+            life: rand(0.5, 1),
+            s0: 0.12,
+            s1: 0,
+            c0: [1, 0.85, 0.4, 1],
+            c1: [1, 0.7, 0.2, 0],
+            gravity: 0,
+            drag: 1,
+          });
         break;
     }
   }
@@ -420,7 +581,21 @@ export class DeckView {
     for (let i = 0; i < 70; i++) {
       const a = rand(0, Math.PI * 2);
       const r = rand(0, 0.45);
-      this.sparks.emit({ x: x + Math.cos(a) * r, y: y + Math.sin(a) * r, z: rand(0, 2), vx: 0, vy: 0, vz: rand(-0.3, 0.3), life: rand(0.5, 1.4), s0: rand(0.04, 0.12), s1: 0, c0: [0.7, 0.9, 1, 1], c1: [0.4, 0.7, 1, 0], gravity: 0, drag: 0 });
+      this.sparks.emit({
+        x: x + Math.cos(a) * r,
+        y: y + Math.sin(a) * r,
+        z: rand(0, 2),
+        vx: 0,
+        vy: 0,
+        vz: rand(-0.3, 0.3),
+        life: rand(0.5, 1.4),
+        s0: rand(0.04, 0.12),
+        s1: 0,
+        c0: [0.7, 0.9, 1, 1],
+        c1: [0.4, 0.7, 1, 0],
+        gravity: 0,
+        drag: 0,
+      });
     }
   }
 
@@ -498,7 +673,21 @@ export class DeckView {
     if (beaming > 0 && Math.random() < 0.8) {
       const a = rand(0, Math.PI * 2);
       const r = rand(0, PAD.radius);
-      this.sparks.emit({ x: PAD.x + Math.cos(a) * r, y: PAD.y + Math.sin(a) * r, z: rand(0.1, 2.8), vx: 0, vy: 0, vz: rand(-0.5, 0.5), life: 0.6, s0: 0.08, s1: 0, c0: [0.6, 0.9, 1, 1], c1: [0.4, 0.7, 1, 0], gravity: 0, drag: 0 });
+      this.sparks.emit({
+        x: PAD.x + Math.cos(a) * r,
+        y: PAD.y + Math.sin(a) * r,
+        z: rand(0.1, 2.8),
+        vx: 0,
+        vy: 0,
+        vz: rand(-0.5, 0.5),
+        life: 0.6,
+        s0: 0.08,
+        s1: 0,
+        c0: [0.6, 0.9, 1, 1],
+        c1: [0.4, 0.7, 1, 0],
+        gravity: 0,
+        drag: 0,
+      });
     }
   }
 

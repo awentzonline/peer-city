@@ -385,10 +385,19 @@ export class Physics {
     ground(RAPIER.ColliderDesc.cuboid(gw, gh, 2).setTranslation((GARAGE.x0 + GARAGE.x1) / 2, (GARAGE.y0 + GARAGE.y1) / 2, TOP - 2));
     // a wall of hay at the bottom of the runout
     const end = course.pointAt(LENGTH - 2, 0);
-    ground(RAPIER.ColliderDesc.cuboid(1, 40, 3).setTranslation(end.x, end.y, end.z + 2).setRotation(yawQuat(end.heading)).setRestitution(0.3));
+    ground(
+      RAPIER.ColliderDesc.cuboid(1, 40, 3)
+        .setTranslation(end.x, end.y, end.z + 2)
+        .setRotation(yawQuat(end.heading))
+        .setRestitution(0.3),
+    );
     const upright = { x: Math.SQRT1_2, y: 0, z: 0, w: Math.SQRT1_2 }; // cylinders stand along y; turn them onto z
     for (const tree of course.trees) {
-      ground(RAPIER.ColliderDesc.cylinder(tree.height / 2, tree.radius).setTranslation(tree.x, tree.y, tree.z + tree.height / 2).setRotation(upright));
+      ground(
+        RAPIER.ColliderDesc.cylinder(tree.height / 2, tree.radius)
+          .setTranslation(tree.x, tree.y, tree.z + tree.height / 2)
+          .setRotation(upright),
+      );
     }
   }
 
@@ -413,15 +422,18 @@ export class Physics {
   throwPart(kind: PartKind, dir: Dir, at: Vec3, q: Quat, velocity: Vec3): void {
     const spin = () => (Math.random() - 0.5) * 8;
     const body = this.world.createRigidBody(
-      RAPIER.RigidBodyDesc.dynamic()
-        .setTranslation(at.x, at.y, at.z)
-        .setRotation(q)
-        .setLinvel(velocity.x, velocity.y, velocity.z)
-        .setAngvel({ x: spin(), y: spin(), z: spin() }),
+      RAPIER.RigidBodyDesc.dynamic().setTranslation(at.x, at.y, at.z).setRotation(q).setLinvel(velocity.x, velocity.y, velocity.z).setAngvel({ x: spin(), y: spin(), z: spin() }),
     );
     const spec = PARTS[kind];
     const shape = spec.wheel ? RAPIER.ColliderDesc.cylinder(spec.wheel.width / 2, spec.wheel.radius) : RAPIER.ColliderDesc.cuboid(CELL / 2, CELL / 2, CELL / 2);
-    this.world.createCollider(shape.setMass(Math.min(spec.mass, 20)).setRestitution(0.3).setFriction(0.6).setCollisionGroups(groups(DEBRIS, WORLD | DEBRIS)), body);
+    this.world.createCollider(
+      shape
+        .setMass(Math.min(spec.mass, 20))
+        .setRestitution(0.3)
+        .setFriction(0.6)
+        .setCollisionGroups(groups(DEBRIS, WORLD | DEBRIS)),
+      body,
+    );
     this.debris.push({ body, kind, dir, until: this.time + DEBRIS_SECONDS + Math.random() * 3 });
     while (this.debris.length > 80) this.world.removeRigidBody(this.debris.shift()!.body);
   }

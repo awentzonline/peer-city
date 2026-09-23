@@ -162,7 +162,15 @@ export class Flights {
     const { world, round } = this.ctx;
     world.send(Noise, { kind: Sound.Clatter, x: f.x, y: f.y, z: f.z, a: f.kind }, { to: 'all' });
     if (f.kind === Weapon.Arrow) return;
-    world.spawn(Blade, { x: f.x, y: f.y, z: Math.max(0.03, f.z), kind: f.kind, yaw: Math.atan2(f.vy, f.vx), pitch: Math.asin(Math.max(-1, Math.min(1, f.vz / Math.max(0.01, Math.hypot(f.vx, f.vy, f.vz))))), round: round()?.state.round ?? 0 });
+    world.spawn(Blade, {
+      x: f.x,
+      y: f.y,
+      z: Math.max(0.03, f.z),
+      kind: f.kind,
+      yaw: Math.atan2(f.vy, f.vx),
+      pitch: Math.asin(Math.max(-1, Math.min(1, f.vz / Math.max(0.01, Math.hypot(f.vx, f.vy, f.vz))))),
+      round: round()?.state.round ?? 0,
+    });
   }
 }
 

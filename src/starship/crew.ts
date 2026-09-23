@@ -66,12 +66,7 @@ export const SEAT_BACK = 1;
 const LADEN = 0.6;
 
 /** Something in reach to do, for the hints and the buttons. */
-export type Nearby =
-  | { kind: 'rack' }
-  | { kind: 'tube'; index: number; loaded: boolean }
-  | { kind: 'relic'; relic: RelicEntity }
-  | { kind: 'console'; console: ConsoleSpot }
-  | null;
+export type Nearby = { kind: 'rack' } | { kind: 'tube'; index: number; loaded: boolean } | { kind: 'relic'; relic: RelicEntity } | { kind: 'console'; console: ConsoleSpot } | null;
 
 /**
  * The player as crew: an avatar on the ship's decks, or down on a planet. Hands-on work the stations can't do: fix

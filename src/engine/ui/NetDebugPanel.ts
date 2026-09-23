@@ -50,7 +50,9 @@ export class NetDebugPanel {
       `handoffs ${s.handoffs}  claims ${s.claims}  conflicts ${s.conflicts}`,
       f ? `focus ${f.x.toFixed(0)},${f.y.toFixed(0)}  r=${f.radius}` : 'focus -',
       this.relays(),
-    ].filter((l) => l !== '').join('\n');
+    ]
+      .filter((l) => l !== '')
+      .join('\n');
   }
 
   /** Discovery health, where the transport tracks it: no open relay means no new peer can find us. */

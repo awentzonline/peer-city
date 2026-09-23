@@ -213,12 +213,7 @@ class Axe extends WildTool {
 export const AXE = new Axe({
   name: 'Axe',
   model: {
-    build: () =>
-      merge([
-        box(0.035, 0.04, 0.72, 0, 0, -0.26, WOOD_HANDLE),
-        box(0.03, 0.09, 0.12, 0, -0.02, -0.64, 0x5c6168),
-        box(0.012, 0.16, 0.1, 0, -0.08, -0.64, 0xb9c0c8),
-      ]),
+    build: () => merge([box(0.035, 0.04, 0.72, 0, 0, -0.26, WOOD_HANDLE), box(0.03, 0.09, 0.12, 0, -0.02, -0.64, 0x5c6168), box(0.012, 0.16, 0.1, 0, -0.08, -0.64, 0xb9c0c8)]),
     length: 0.74,
   },
   grip: { tip: [0, -0.02, -0.64], pitch: 1.05 },
@@ -386,12 +381,7 @@ export const ARROWS = new Arrows({
   name: 'Arrows',
   model: {
     build: () =>
-      merge([
-        box(0.012, 0.012, 0.68, 0, 0, 0.34, 0xc8a878),
-        box(0.02, 0.03, 0.06, 0, 0, 0.03, 0x4a4f55),
-        box(0.004, 0.05, 0.1, 0, 0.02, 0.64, 0xe8e2d0),
-        box(0.05, 0.004, 0.1, 0, 0, 0.64, 0xb03a2e),
-      ]),
+      merge([box(0.012, 0.012, 0.68, 0, 0, 0.34, 0xc8a878), box(0.02, 0.03, 0.06, 0, 0, 0.03, 0x4a4f55), box(0.004, 0.05, 0.1, 0, 0.02, 0.64, 0xe8e2d0), box(0.05, 0.004, 0.1, 0, 0, 0.64, 0xb03a2e)]),
     length: ARROW_LENGTH,
   },
   grip: { tip: [0, 0, -ARROW_LENGTH + 0.03] },

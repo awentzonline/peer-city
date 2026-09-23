@@ -54,14 +54,7 @@ const tip = new THREE.Vector3();
 const camPos = new THREE.Vector3();
 const tq = new THREE.Quaternion();
 
-export function registerViews(
-  ctx: HauntContext,
-  views: EntityViews,
-  scene: THREE.Scene,
-  rig: Rig,
-  local: LocalView,
-  haunt: HauntRole | null,
-): { update(dt: number): void } {
+export function registerViews(ctx: HauntContext, views: EntityViews, scene: THREE.Scene, rig: Rig, local: LocalView, haunt: HauntRole | null): { update(dt: number): void } {
   const beams: Beam[] = [];
   const spots: THREE.SpotLight[] = [];
   for (let i = 0; i < SPOTS; i++) {
@@ -76,7 +69,10 @@ export function registerViews(
     create: (e): SurvivorView => {
       const model = survivorModel(e.state.skin);
       model.body.rotation.order = 'YXZ';
-      const beam = new THREE.Mesh(beamGeometry(BEAM_RANGE * 0.8, BEAM_HALF_ANGLE), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.09, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+      const beam = new THREE.Mesh(
+        beamGeometry(BEAM_RANGE * 0.8, BEAM_HALF_ANGLE),
+        new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.09, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
+      );
       beam.visible = false;
       const marker = groundRing(0.55, 0.75, 0xff4a3a);
       marker.visible = false;

@@ -173,7 +173,16 @@ export class Ragdolls {
         this.scene.add(mesh);
         const a = Math.random() * Math.PI * 2;
         const s = 2 + Math.random() * 5;
-        set.pieces.push(this.addBody(mesh, { x: x + Math.cos(a) * 0.2, y: y + Math.sin(a) * 0.2, z: z + 0.5 + Math.random() * 0.5 }, { x: 0, y: 0, z: 0, w: 1 }, [0.1, 0.07, 0.08], { x: Math.cos(a) * s, y: Math.sin(a) * s, z: 2 + Math.random() * 4 }, 0.9));
+        set.pieces.push(
+          this.addBody(
+            mesh,
+            { x: x + Math.cos(a) * 0.2, y: y + Math.sin(a) * 0.2, z: z + 0.5 + Math.random() * 0.5 },
+            { x: 0, y: 0, z: 0, w: 1 },
+            [0.1, 0.07, 0.08],
+            { x: Math.cos(a) * s, y: Math.sin(a) * s, z: 2 + Math.random() * 4 },
+            0.9,
+          ),
+        );
       }
     }
     this.push(set);

@@ -116,7 +116,7 @@ export class Scenery {
     ctx.font = '32px Trebuchet MS, sans-serif';
     if (!lines.length) {
       ctx.fillStyle = '#c8d6c0';
-      ctx.fillText("Everyone plays the same hole at once.", 512, 250);
+      ctx.fillText('Everyone plays the same hole at once.', 512, 250);
       ctx.fillText('Club your friends. Steal their cart.', 512, 300);
     }
     lines.forEach((l, i) => {
@@ -280,7 +280,13 @@ export class Scenery {
       box(d, 7.5, w, 0, 0.75, 0, wall),
       box(d + 0.3, 0.4, w + 0.3, 0, 0.5, 0, 0x8e8a80),
       // a pitched roof
-      paint(new THREE.CylinderGeometry(0.01, d * 0.72, 2.6, 4, 1).rotateY(Math.PI / 4).scale(1, 1, (w + 1.2) / (d * 1.02)).translate(0, 5.8, 0), 0x7a3b2e),
+      paint(
+        new THREE.CylinderGeometry(0.01, d * 0.72, 2.6, 4, 1)
+          .rotateY(Math.PI / 4)
+          .scale(1, 1, (w + 1.2) / (d * 1.02))
+          .translate(0, 5.8, 0),
+        0x7a3b2e,
+      ),
       // a door and windows on the front, either side of the board
       box(0.1, 2.3, 1.5, d / 2 + 0.03, 1.15, w * 0.27, 0x5d4037),
       ...[-0.4, 0.4].map((f) => box(0.1, 1.3, 2.2, d / 2 + 0.03, 1.9, w * f, 0x74b9ff)),

@@ -140,7 +140,10 @@ export function registerViews(ctx: ShinobiContext, views: EntityViews, scene: TH
       icon.visible = false;
       icon.renderOrder = 20;
       model.root.add(icon);
-      const fan = new THREE.Mesh(fanGeometry(spec.sight * 0.55, spec.fov), new THREE.MeshBasicMaterial({ vertexColors: true, color: 0xbfd4ff, transparent: true, opacity: 0.22, depthWrite: false, fog: false, side: THREE.DoubleSide }));
+      const fan = new THREE.Mesh(
+        fanGeometry(spec.sight * 0.55, spec.fov),
+        new THREE.MeshBasicMaterial({ vertexColors: true, color: 0xbfd4ff, transparent: true, opacity: 0.22, depthWrite: false, fog: false, side: THREE.DoubleSide }),
+      );
       fan.visible = false;
       fan.renderOrder = 3;
       const ring = groundRing(0.55, 0.75, 0x6ad0ff);
@@ -150,7 +153,9 @@ export function registerViews(ctx: ShinobiContext, views: EntityViews, scene: TH
       cross.renderOrder = 21;
       const pool = lightPool(HAND_LANTERN * 0.8, 0xffa850, 0.22);
       pool.visible = false;
-      const badge = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: BADGES[kind], blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, depthTest: false, fog: false }));
+      const badge = new THREE.Sprite(
+        new THREE.SpriteMaterial({ map: glowTexture(), color: BADGES[kind], blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, depthTest: false, fog: false }),
+      );
       badge.renderOrder = 19;
       badge.visible = false;
       scene.add(model.root, fan, ring, cross, pool, badge);

@@ -105,6 +105,8 @@ export abstract class Avatar<I extends AvatarIntent = AvatarIntent, B extends Av
   private readonly aim: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly grip: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly moveVel = { x: 0, y: 0 };
+  /** A point to try moves on before the state takes them, so a frame allocates nothing. */
+  private readonly scratch = { x: 0, y: 0 };
 
   constructor(tools: Toolbox<T>) {
     this.inventory = new Inventory(tools);
@@ -205,7 +207,9 @@ export abstract class Avatar<I extends AvatarIntent = AvatarIntent, B extends Av
     if (dx * dx + dy * dy > 9) {
       this.shift(s.x - head.x, s.y - head.y); // first frame, or tracking jumped
     } else {
-      const p = { x: s.x, y: s.y };
+      const p = this.scratch;
+      p.x = s.x;
+      p.y = s.y;
       this.move(p, dx, dy);
       this.collide(p, 0);
       this.shift(p.x - head.x, p.y - head.y);
@@ -224,7 +228,9 @@ export abstract class Avatar<I extends AvatarIntent = AvatarIntent, B extends Av
       vel.x += ((c * forward - sn * strafe) * k - vel.x) * blend;
       vel.y += ((sn * forward + c * strafe) * k - vel.y) * blend;
       if (dt > 0 && Math.abs(vel.x) + Math.abs(vel.y) > 0.01) {
-        const p = { x: s.x, y: s.y };
+        const p = this.scratch;
+        p.x = s.x;
+        p.y = s.y;
         this.move(p, vel.x * dt, vel.y * dt);
         // sliding along a wall keeps only the speed along it
         vel.x = (p.x - s.x) / dt;
@@ -277,7 +283,9 @@ export abstract class Avatar<I extends AvatarIntent = AvatarIntent, B extends Av
   /** Knockback from a hit. */
   nudge(dx: number, dy: number): void {
     const s = this.me!.state;
-    const p = { x: s.x, y: s.y };
+    const p = this.scratch;
+    p.x = s.x;
+    p.y = s.y;
     this.move(p, dx, dy);
     this.shift(p.x - s.x, p.y - s.y);
     s.x = p.x;

@@ -2,26 +2,7 @@ import { SpatialAudio } from '../crossplay/audio';
 import type { Vec3 } from './context';
 
 export type SoundName =
-  | 'chop'
-  | 'fell'
-  | 'swish'
-  | 'hit'
-  | 'hurt'
-  | 'bite'
-  | 'howl'
-  | 'twang'
-  | 'draw'
-  | 'thunk'
-  | 'till'
-  | 'sow'
-  | 'harvest'
-  | 'eat'
-  | 'sizzle'
-  | 'ignite'
-  | 'crackle'
-  | 'pickup'
-  | 'switch'
-  | 'died';
+  'chop' | 'fell' | 'swish' | 'hit' | 'hurt' | 'bite' | 'howl' | 'twang' | 'draw' | 'thunk' | 'till' | 'sow' | 'harvest' | 'eat' | 'sizzle' | 'ignite' | 'crackle' | 'pickup' | 'switch' | 'died';
 
 const RANGE: Partial<Record<SoundName, number>> = { fell: 160, howl: 260, chop: 90, twang: 70, crackle: 18, sizzle: 12 };
 

@@ -227,9 +227,7 @@ export class AvatarSim extends Avatar<AvatarIntent, AvatarBody, Tool> implements
 
   private beingCuffed(): boolean {
     const me = this.me!;
-    return this.ctx.world
-      .query(me.state.x, me.state.y, CUFF_RANGE + 1, Ped)
-      .some((c) => c.state.cop && c.state.mode === PedMode.Attack && c.state.target === me.id);
+    return this.ctx.world.query(me.state.x, me.state.y, CUFF_RANGE + 1, Ped).some((c) => c.state.cop && c.state.mode === PedMode.Attack && c.state.target === me.id);
   }
 
   private nearestEnterableCar(): CarEntity | undefined {

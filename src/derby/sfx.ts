@@ -1,22 +1,7 @@
 import { SpatialAudio } from '../crossplay/audio';
 import type { Vec3 } from './context';
 
-export type SoundName =
-  | 'place'
-  | 'unbolt'
-  | 'nope'
-  | 'switch'
-  | 'ready'
-  | 'beep'
-  | 'go'
-  | 'crunch'
-  | 'pop'
-  | 'reset'
-  | 'boost'
-  | 'rumble'
-  | 'wind'
-  | 'finish'
-  | 'bump';
+export type SoundName = 'place' | 'unbolt' | 'nope' | 'switch' | 'ready' | 'beep' | 'go' | 'crunch' | 'pop' | 'reset' | 'boost' | 'rumble' | 'wind' | 'finish' | 'bump';
 
 const RANGE: Partial<Record<SoundName, number>> = { crunch: 120, boost: 90, go: 400, finish: 200, rumble: 40, wind: 1 };
 

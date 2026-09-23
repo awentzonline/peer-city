@@ -145,10 +145,7 @@ export class City {
     const i = y * this.w + x;
     const isRoof = tile >= ROOF_BASE;
     this.solid[i] = isRoof || tile === Tile.Water || tile === Tile.Tree ? 1 : 0;
-    this.walkable[i] =
-      tile === Tile.Sidewalk || tile === Tile.CrossH || tile === Tile.CrossV || tile === Tile.Path || tile === Tile.Concrete || tile === Tile.Parking
-        ? 1
-        : 0;
+    this.walkable[i] = tile === Tile.Sidewalk || tile === Tile.CrossH || tile === Tile.CrossV || tile === Tile.Path || tile === Tile.Concrete || tile === Tile.Parking ? 1 : 0;
   }
 
   private fill(x: number, y: number, w: number, h: number, tile: number): void {

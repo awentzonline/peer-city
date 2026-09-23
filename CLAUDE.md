@@ -2,7 +2,7 @@
 
 Full architecture and per-game docs live in [README.md](README.md) — read the relevant
 section there before making non-trivial changes; this file is just a map so you know
-where to look and don't have to read all 53KB of it up front.
+where to look and don't have to read all 60KB+ of it up front (it has a table of contents).
 
 ## Setup
 
@@ -12,6 +12,9 @@ npm install
 npm run dev          # vite dev server, http://localhost:5173 (index of all games)
 npm test             # vitest: engine unit + multi-peer simulation tests
 npm run typecheck    # tsc --noEmit
+npm run lint         # eslint (typescript-eslint recommended, a few rules relaxed in eslint.config.js)
+npm run format       # prettier --write (200 columns, single quotes); CI runs format:check
+npm run check        # all of the above plus the tests, as CI runs them
 npm run sim -- --peers 200 --seconds 40   # headless scale test
 ```
 

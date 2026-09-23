@@ -51,7 +51,22 @@ export class Effects {
   burst(x: number, y: number, z: number, vx: number, vy: number, vz: number): void {
     this.gunk(x, y, z + 0.7, vx * 0.3, vy * 0.3, vz * 0.3, 90);
     for (let i = 0; i < 24; i++) {
-      this.muck.emit({ x: x + rand(-0.4, 0.4), y: y + rand(-0.4, 0.4), z: z + rand(0.3, 1.2), vx: rand(-0.6, 0.6), vy: rand(-0.6, 0.6), vz: rand(0.2, 0.9), life: rand(1.2, 2.4), s0: 0.3, s1: 1.1, c0: [0.3, 0.36, 0.12, 0.5], c1: [0.2, 0.24, 0.1, 0], gravity: 0, drag: 1, floor: 0 });
+      this.muck.emit({
+        x: x + rand(-0.4, 0.4),
+        y: y + rand(-0.4, 0.4),
+        z: z + rand(0.3, 1.2),
+        vx: rand(-0.6, 0.6),
+        vy: rand(-0.6, 0.6),
+        vz: rand(0.2, 0.9),
+        life: rand(1.2, 2.4),
+        s0: 0.3,
+        s1: 1.1,
+        c0: [0.3, 0.36, 0.12, 0.5],
+        c1: [0.2, 0.24, 0.1, 0],
+        gravity: 0,
+        drag: 1,
+        floor: 0,
+      });
     }
   }
 
@@ -67,7 +82,22 @@ export class Effects {
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2;
       const s = rand(0.5, 2) * size;
-      this.muck.emit({ x, y, z: Math.max(z, this.water), vx: Math.cos(a) * s, vy: Math.sin(a) * s, vz: rand(1, 3) * size, life: rand(0.4, 0.8), s0: 0.06, s1: 0.14, c0: [0.32, 0.3, 0.14, 0.9], c1: [0.24, 0.22, 0.1, 0], gravity: 9, drag: 0.5, floor: this.water });
+      this.muck.emit({
+        x,
+        y,
+        z: Math.max(z, this.water),
+        vx: Math.cos(a) * s,
+        vy: Math.sin(a) * s,
+        vz: rand(1, 3) * size,
+        life: rand(0.4, 0.8),
+        s0: 0.06,
+        s1: 0.14,
+        c0: [0.32, 0.3, 0.14, 0.9],
+        c1: [0.24, 0.22, 0.1, 0],
+        gravity: 9,
+        drag: 0.5,
+        floor: this.water,
+      });
     }
   }
 
@@ -98,9 +128,39 @@ export class Effects {
   blast(x: number, y: number, z: number, dx: number, dy: number, dz: number): void {
     for (let i = 0; i < 4; i++) {
       const a = Math.random() * Math.PI * 2;
-      this.muck.emit({ x, y, z, vx: -dx * rand(1, 3) + Math.cos(a) * rand(0.5, 2), vy: -dy * rand(1, 3) + Math.sin(a) * rand(0.5, 2), vz: -dz * rand(1, 3) + rand(0.5, 2.5), life: rand(0.5, 1), s0: 0.05, s1: 0.1, c0: [0.85, 0.8, 0.55, 1], c1: [0.7, 0.65, 0.4, 0], gravity: 9, drag: 0.5, floor: this.water });
+      this.muck.emit({
+        x,
+        y,
+        z,
+        vx: -dx * rand(1, 3) + Math.cos(a) * rand(0.5, 2),
+        vy: -dy * rand(1, 3) + Math.sin(a) * rand(0.5, 2),
+        vz: -dz * rand(1, 3) + rand(0.5, 2.5),
+        life: rand(0.5, 1),
+        s0: 0.05,
+        s1: 0.1,
+        c0: [0.85, 0.8, 0.55, 1],
+        c1: [0.7, 0.65, 0.4, 0],
+        gravity: 9,
+        drag: 0.5,
+        floor: this.water,
+      });
     }
-    this.glow.emit({ x, y, z, vx: rand(-0.5, 0.5), vy: rand(-0.5, 0.5), vz: rand(0, 0.8), life: 0.5, s0: 0.2, s1: 0.5, c0: [0.4, 0.45, 0.45, 0.35], c1: [0.3, 0.3, 0.3, 0], gravity: 0, drag: 1, floor: -10 });
+    this.glow.emit({
+      x,
+      y,
+      z,
+      vx: rand(-0.5, 0.5),
+      vy: rand(-0.5, 0.5),
+      vz: rand(0, 0.8),
+      life: 0.5,
+      s0: 0.2,
+      s1: 0.5,
+      c0: [0.4, 0.45, 0.45, 0.35],
+      c1: [0.3, 0.3, 0.3, 0],
+      gravity: 0,
+      drag: 1,
+      floor: -10,
+    });
   }
 
   /** Water pouring from a pipe mouth at (x, y, z) along (dx, dy): call every frame it pours. */
@@ -108,13 +168,43 @@ export class Effects {
     const n = Math.ceil(strength * 3);
     for (let i = 0; i < n; i++) {
       const s = rand(1, 2) * strength;
-      this.muck.emit({ x: x + rand(-0.08, 0.08), y: y + rand(-0.08, 0.08), z: z + rand(-0.05, 0.05), vx: dx * s, vy: dy * s, vz: rand(-0.2, 0.3), life: 1.2, s0: 0.1, s1: 0.2, c0: [0.3, 0.3, 0.16, 0.8], c1: [0.25, 0.25, 0.12, 0.3], gravity: 9, drag: 0.2, floor: this.water });
+      this.muck.emit({
+        x: x + rand(-0.08, 0.08),
+        y: y + rand(-0.08, 0.08),
+        z: z + rand(-0.05, 0.05),
+        vx: dx * s,
+        vy: dy * s,
+        vz: rand(-0.2, 0.3),
+        life: 1.2,
+        s0: 0.1,
+        s1: 0.2,
+        c0: [0.3, 0.3, 0.16, 0.8],
+        c1: [0.25, 0.25, 0.12, 0.3],
+        gravity: 9,
+        drag: 0.2,
+        floor: this.water,
+      });
     }
   }
 
   /** Steam hissing out of a valve as it turns. */
   steam(x: number, y: number, z: number): void {
-    this.glow.emit({ x: x + rand(-0.1, 0.1), y: y + rand(-0.1, 0.1), z, vx: rand(-0.3, 0.3), vy: rand(-0.3, 0.3), vz: rand(0.4, 1), life: rand(0.6, 1.1), s0: 0.1, s1: 0.5, c0: [0.35, 0.35, 0.33, 0.3], c1: [0.2, 0.2, 0.2, 0], gravity: 0, drag: 1, floor: -10 });
+    this.glow.emit({
+      x: x + rand(-0.1, 0.1),
+      y: y + rand(-0.1, 0.1),
+      z,
+      vx: rand(-0.3, 0.3),
+      vy: rand(-0.3, 0.3),
+      vz: rand(0.4, 1),
+      life: rand(0.6, 1.1),
+      s0: 0.1,
+      s1: 0.5,
+      c0: [0.35, 0.35, 0.33, 0.3],
+      c1: [0.2, 0.2, 0.2, 0],
+      gravity: 0,
+      drag: 1,
+      floor: -10,
+    });
   }
 
   /** A drip from the ceiling. */
@@ -127,13 +217,43 @@ export class Effects {
     for (let i = 0; i < 26; i++) {
       const a = Math.random() * Math.PI * 2;
       const s = rand(0.5, 2);
-      this.glow.emit({ x, y, z, vx: Math.cos(a) * s, vy: Math.sin(a) * s, vz: rand(0.5, 2.5), life: rand(0.5, 1), s0: 0.1, s1: 0.02, c0: [1, 0.9, 0.4, 1], c1: [1, 0.6, 0.1, 0], gravity: 3, drag: 1.5, floor: -10 });
+      this.glow.emit({
+        x,
+        y,
+        z,
+        vx: Math.cos(a) * s,
+        vy: Math.sin(a) * s,
+        vz: rand(0.5, 2.5),
+        life: rand(0.5, 1),
+        s0: 0.1,
+        s1: 0.02,
+        c0: [1, 0.9, 0.4, 1],
+        c1: [1, 0.6, 0.1, 0],
+        gravity: 3,
+        drag: 1.5,
+        floor: -10,
+      });
     }
   }
 
   /** A glint off loot you can see. */
   glint(x: number, y: number, z: number): void {
-    this.glow.emit({ x: x + rand(-0.1, 0.1), y: y + rand(-0.1, 0.1), z: z + rand(0, 0.2), vx: 0, vy: 0, vz: rand(0.1, 0.3), life: rand(0.5, 0.9), s0: 0.08, s1: 0.01, c0: [1, 0.9, 0.5, 1], c1: [1, 0.8, 0.3, 0], gravity: 0, drag: 0, floor: -10 });
+    this.glow.emit({
+      x: x + rand(-0.1, 0.1),
+      y: y + rand(-0.1, 0.1),
+      z: z + rand(0, 0.2),
+      vx: 0,
+      vy: 0,
+      vz: rand(0.1, 0.3),
+      life: rand(0.5, 0.9),
+      s0: 0.08,
+      s1: 0.01,
+      c0: [1, 0.9, 0.5, 1],
+      c1: [1, 0.8, 0.3, 0],
+      gravity: 0,
+      drag: 0,
+      floor: -10,
+    });
   }
 
   update(dt: number): void {

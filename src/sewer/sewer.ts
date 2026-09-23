@@ -1,4 +1,4 @@
-import { mulberry32 } from '@engine/index';
+import { FlowPaths, mulberry32 } from '@engine/index';
 
 /**
  * The sewer: a grid of one-meter cells every peer builds from the same seed, so nothing about the place itself goes
@@ -227,18 +227,6 @@ export class SewerMap {
   /** Whether no rock lies between two points. */
   sees(ax: number, ay: number, bx: number, by: number): boolean {
     return this.traverse(ax, ay, bx, by, (i, j) => !this.solid(i, j));
-  }
-
-  /** Whether a body of radius `r` could walk straight from a to b. */
-  clearWalk(ax: number, ay: number, bx: number, by: number, r: number): boolean {
-    const dx = bx - ax;
-    const dy = by - ay;
-    const len = Math.hypot(dx, dy);
-    const open = (i: number, j: number) => !this.solid(i, j) && !this.fatBlocked(i, j);
-    if (len < 1e-6) return open(Math.floor(ax), Math.floor(ay));
-    const ox = (-dy / len) * r;
-    const oy = (dx / len) * r;
-    return this.traverse(ax, ay, bx, by, open) && this.traverse(ax + ox, ay + oy, bx + ox, by + oy, open) && this.traverse(ax - ox, ay - oy, bx - ox, by - oy, open);
   }
 
   /** Whether the fatberg is in the way at a cell, as far as finding the way goes. */
@@ -584,95 +572,11 @@ export class SewerMap {
 export const FAT_LENGTH = 2.5;
 
 /**
- * Distance fields over the sewer, one per target cell, for goblins to find their way along. Cached, and remade when
- * they're a moment old since targets move.
+ * Ways along the sewer for goblins (see `FlowPaths`): fields are remade when they're a moment old, since the fat
+ * gives way.
  */
-export class Paths {
-  private readonly fields = new Map<number, { field: Uint16Array; at: number }>();
-  private readonly queue = new Int32Array(SIZE * SIZE);
-
-  constructor(
-    private readonly map: SewerMap,
-    private readonly maxAgeMs = 700,
-  ) {}
-
-  field(x: number, y: number, now: number): Uint16Array {
-    const target = this.map.nearestOpen(x, y);
-    const key = SewerMap.index(Math.floor(target.x), Math.floor(target.y));
-    const cached = this.fields.get(key);
-    if (cached && now - cached.at < this.maxAgeMs) return cached.field;
-    const field = cached?.field ?? new Uint16Array(SIZE * SIZE);
-    this.fill(field, key);
-    this.fields.delete(key);
-    this.fields.set(key, { field, at: now });
-    if (this.fields.size > 32) this.fields.delete(this.fields.keys().next().value!);
-    return field;
-  }
-
-  /** Where a body of radius `r` at (x, y) should head next on its way to (tx, ty), or null if it can't get there. */
-  next(x: number, y: number, tx: number, ty: number, r: number, now: number): Spot | null {
-    const { map } = this;
-    if (Math.hypot(tx - x, ty - y) < 12 && map.clearWalk(x, y, tx, ty, r)) return { x: tx, y: ty };
-    const field = this.field(tx, ty, now);
-    let i = Math.floor(x);
-    let j = Math.floor(y);
-    if (field[SewerMap.index(i, j)] === 0xffff) {
-      const open = map.nearestOpen(x, y);
-      i = Math.floor(open.x);
-      j = Math.floor(open.y);
-      if (field[SewerMap.index(i, j)] === 0xffff) return null;
-    }
-    let best: Spot | null = null;
-    for (let step = 0; step < 10; step++) {
-      const here = field[SewerMap.index(i, j)];
-      if (here === 0) break;
-      let ni = -1;
-      let nj = -1;
-      let low = here;
-      for (const [di, dj] of DIRS8) {
-        const ci = i + di;
-        const cj = j + dj;
-        if (ci < 0 || cj < 0 || ci >= SIZE || cj >= SIZE) continue;
-        if (di !== 0 && dj !== 0 && (map.solid(i + di, j) || map.solid(i, j + dj))) continue;
-        const v = field[SewerMap.index(ci, cj)];
-        if (v < low) {
-          low = v;
-          ni = ci;
-          nj = cj;
-        }
-      }
-      if (ni < 0) break;
-      i = ni;
-      j = nj;
-      const cx = i + 0.5;
-      const cy = j + 0.5;
-      if (step === 0 || map.clearWalk(x, y, cx, cy, r)) best = { x: cx, y: cy };
-      else break;
-    }
-    return best ?? { x: tx, y: ty };
-  }
-
-  private fill(field: Uint16Array, from: number): void {
-    const { map, queue } = this;
-    field.fill(0xffff);
-    let head = 0;
-    let tail = 0;
-    field[from] = 0;
-    queue[tail++] = from;
-    while (head < tail) {
-      const c = queue[head++];
-      const i = c % SIZE;
-      const j = (c - i) / SIZE;
-      const d = field[c] + 1;
-      for (let k = 0; k < 4; k++) {
-        const ni = i + DIRS8[k][0];
-        const nj = j + DIRS8[k][1];
-        if (map.solid(ni, nj) || map.fatBlocked(ni, nj)) continue;
-        const n = nj * SIZE + ni;
-        if (field[n] <= d) continue;
-        field[n] = d;
-        queue[tail++] = n;
-      }
-    }
+export class Paths extends FlowPaths {
+  constructor(map: SewerMap) {
+    super({ size: SIZE, open: (i, j) => !map.solid(i, j) && !map.fatBlocked(i, j), nearestOpen: (x, y) => map.nearestOpen(x, y) }, { maxAgeMs: 700 });
   }
 }

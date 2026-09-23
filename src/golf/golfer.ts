@@ -363,7 +363,8 @@ export class Golfer extends Avatar<GolfIntent, GolferBody, ClubTool> implements 
       case 'water':
       case 'out':
         b.strokes++;
-        if (event === 'water') ctx.world.send(Noise, { kind: Whack.Splash, x: at.x, y: at.y, z: ctx.course.pondAt(at.x, at.y)?.z ?? at.z, power: 1 }, { to: 'near', x: at.x, y: at.y, radius: 200, self: true });
+        if (event === 'water')
+          ctx.world.send(Noise, { kind: Whack.Splash, x: at.x, y: at.y, z: ctx.course.pondAt(at.x, at.y)?.z ?? at.z, power: 1 }, { to: 'near', x: at.x, y: at.y, radius: 200, self: true });
         ctx.hud.message(event === 'water' ? 'In the water: a stroke penalty, and play it again from where you were' : 'Out of bounds: a stroke penalty, and play it again');
         Object.assign(this.sim, ballAt(this.lastSpot.x, this.lastSpot.y, this.lastSpot.z));
         b.mode = BallMode.Rest;

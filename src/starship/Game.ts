@@ -136,7 +136,8 @@ export class Game {
         window.setTimeout(() => {
           const me = ctx.officer?.render.station;
           const others = [...world.all(OfficerDef)].filter((o) => o !== ctx.officer && o.render.station === me);
-          if (others.length && !launch.params.has('station')) hud.message(`${others.map((o) => o.render.name).join(', ')} is already at ${STATION_NAMES[me!].toLowerCase()}. Try ${STATION_NAMES[freeStation(ctx)].toLowerCase()}.`);
+          if (others.length && !launch.params.has('station'))
+            hud.message(`${others.map((o) => o.render.name).join(', ')} is already at ${STATION_NAMES[me!].toLowerCase()}. Try ${STATION_NAMES[freeStation(ctx)].toLowerCase()}.`);
         }, 4000);
       }
     }

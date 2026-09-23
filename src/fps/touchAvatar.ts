@@ -124,10 +124,7 @@ export class TouchAvatar implements AvatarFrontend {
     } else if (car && this.thirdPerson) {
       const a = car.state.angle;
       const back = Math.max(2, Math.min(8, ctx.city.raycast(car.state.x, car.state.y, a + Math.PI, 8) - 0.6));
-      rig.setDesktopChase(
-        { x: car.state.x - Math.cos(a) * back, y: car.state.y - Math.sin(a) * back, z: 3.2 },
-        { x: car.state.x + Math.cos(a) * 4, y: car.state.y + Math.sin(a) * 4, z: 1.2 },
-      );
+      rig.setDesktopChase({ x: car.state.x - Math.cos(a) * back, y: car.state.y - Math.sin(a) * back, z: 3.2 }, { x: car.state.x + Math.cos(a) * 4, y: car.state.y + Math.sin(a) * 4, z: 1.2 });
     } else {
       const e = sim.eyePosition(this.tmp);
       rig.setDesktopView(e.x, e.y, e.z, sim.heading, sim.pitch);

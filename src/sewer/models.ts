@@ -42,14 +42,24 @@ export function lordModel(skin: number): LordModel {
     badge: 0xd8d8d8,
   });
   // the lamp on the front of the hat
-  rig.head.add(new THREE.Mesh(cached('headlamp', () => merge([box(0.05, 0.06, 0.08, 0.15, 0.27, 0, 0x2a2a2a), box(0.01, 0.045, 0.06, 0.176, 0.27, 0, 0xfff4c8)])), SOLID));
+  rig.head.add(
+    new THREE.Mesh(
+      cached('headlamp', () => merge([box(0.05, 0.06, 0.08, 0.15, 0.27, 0, 0x2a2a2a), box(0.01, 0.045, 0.06, 0.176, 0.27, 0, 0xfff4c8)])),
+      SOLID,
+    ),
+  );
   const lamp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: 0xfff0c0, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false }));
   lamp.position.set(0.2, 0.27, 0);
   lamp.scale.setScalar(0.35);
   rig.head.add(lamp);
   // a lumpy sack slung on the back
   const sack = new THREE.Group();
-  sack.add(new THREE.Mesh(cached('sack', () => merge([paint(new THREE.SphereGeometry(0.22, 8, 6).scale(0.8, 1, 1), 0x8a6a3a), box(0.06, 0.1, 0.06, 0, 0.22, 0, 0x6a4a2a)])), SOLID));
+  sack.add(
+    new THREE.Mesh(
+      cached('sack', () => merge([paint(new THREE.SphereGeometry(0.22, 8, 6).scale(0.8, 1, 1), 0x8a6a3a), box(0.06, 0.1, 0.06, 0, 0.22, 0, 0x6a4a2a)])),
+      SOLID,
+    ),
+  );
   sack.position.set(-0.3, 1.2, 0);
   sack.visible = false;
   rig.body.add(sack);
@@ -147,9 +157,19 @@ function partGeometry(part: PartName, look: number): THREE.BufferGeometry {
         ]);
       case 'armL':
       case 'armR':
-        return merge([box(0.08, 0.42, 0.08, 0, 0.04, 0, skin), box(0.1, 0.08, 0.1, 0.01, -0.21, 0, dark), box(0.05, 0.02, 0.02, 0.06, -0.25, 0.03, 0xd8d0a0), box(0.05, 0.02, 0.02, 0.06, -0.25, -0.03, 0xd8d0a0)]);
+        return merge([
+          box(0.08, 0.42, 0.08, 0, 0.04, 0, skin),
+          box(0.1, 0.08, 0.1, 0.01, -0.21, 0, dark),
+          box(0.05, 0.02, 0.02, 0.06, -0.25, 0.03, 0xd8d0a0),
+          box(0.05, 0.02, 0.02, 0.06, -0.25, -0.03, 0xd8d0a0),
+        ]);
       default:
-        return merge([box(0.1, 0.44, 0.1, 0, 0.03, 0, skin), box(0.2, 0.06, 0.12, 0.05, -0.22, 0, dark), box(0.04, 0.02, 0.03, 0.16, -0.24, 0.04, 0xd8d0a0), box(0.04, 0.02, 0.03, 0.16, -0.24, -0.04, 0xd8d0a0)]);
+        return merge([
+          box(0.1, 0.44, 0.1, 0, 0.03, 0, skin),
+          box(0.2, 0.06, 0.12, 0.05, -0.22, 0, dark),
+          box(0.04, 0.02, 0.03, 0.16, -0.24, 0.04, 0xd8d0a0),
+          box(0.04, 0.02, 0.03, 0.16, -0.24, -0.04, 0xd8d0a0),
+        ]);
     }
   });
 }
@@ -225,7 +245,11 @@ export function lootGeometry(kind: LootKind): THREE.BufferGeometry {
       case LootKind.Ring:
         return merge([paint(new THREE.TorusGeometry(0.05, 0.014, 6, 16).rotateX(Math.PI / 2).translate(0, 0.02, 0), GOLD), box(0.03, 0.03, 0.03, 0.05, 0.03, 0, 0xd83aff)]);
       case LootKind.Watch:
-        return merge([paint(new THREE.CylinderGeometry(0.06, 0.06, 0.02, 14).translate(0, 0.02, 0), GOLD), paint(new THREE.CylinderGeometry(0.05, 0.05, 0.022, 14).translate(0, 0.022, 0), 0xf2ecd8), box(0.2, 0.008, 0.01, 0.12, 0.012, 0, GOLD_DARK)]);
+        return merge([
+          paint(new THREE.CylinderGeometry(0.06, 0.06, 0.02, 14).translate(0, 0.02, 0), GOLD),
+          paint(new THREE.CylinderGeometry(0.05, 0.05, 0.022, 14).translate(0, 0.022, 0), 0xf2ecd8),
+          box(0.2, 0.008, 0.01, 0.12, 0.012, 0, GOLD_DARK),
+        ]);
       case LootKind.Teeth:
         return merge([box(0.12, 0.03, 0.06, 0, 0.02, 0, 0xd87a8a), ...[-0.04, -0.013, 0.013, 0.04].map((x, i) => box(0.022, 0.03, 0.02, x, 0.045, 0.02, i === 1 ? GOLD : 0xf2ead0))]);
       case LootKind.Gem:

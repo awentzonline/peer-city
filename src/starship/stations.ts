@@ -1,29 +1,39 @@
-import { angleDiff, type CrewEntity, type RaiderEntity, type StarshipContext } from './context';
+import { type RaiderEntity, type StarshipContext } from './context';
 import { crewStations } from './crew';
-import { PAD } from './deck';
-import { Act, Beam, Crew, CrewMode, Fault, FaultKind, Phase, Raider, Relic, Screen, SCREENS, ShipSystem, Station, STATIONS, SYSTEMS, Warp } from './defs';
+import { Act, Beam, Fault, FaultKind, Phase, Raider, Screen, SCREENS, ShipSystem, Station, STATIONS, SYSTEMS, Warp } from './defs';
 import { act, type ConsoleAct } from './intent';
 import { STATION_COLORS, css } from './models';
 import { manning } from './officer';
 import { RAIDERS } from './raiders';
-import { engineeringScope, helmScope, phaseLine, planetStatus, scienceScope, tacticalScope, type Picked, type Scope } from './scopes';
 import {
-  DOCK_REACH,
-  MAX_PIPS,
-  MAX_TORPS,
-  ORBIT_REACH,
-  POWER_POOL,
-  SHIELD_MAX,
-  SYSTEM_NAMES,
-  WARP_MIN,
-  efficiency,
-  health,
-  phaserBlocked,
-  pips,
-  powerUsed,
-  sensorRange,
-  transporterBlocked,
-} from './ship';
+  autopilotBlocked,
+  awayCount,
+  beamBlocked,
+  beamingLine,
+  bearingOf,
+  dockBlocked,
+  dockLabel,
+  nextTarget,
+  onPadCount,
+  orbitBlocked,
+  orbitLabel,
+  phasersBlocked,
+  pipBlocked,
+  powerLine,
+  scanBlocked,
+  scanLabel,
+  scanningThis,
+  shieldsBlocked,
+  shieldsLabel,
+  targetOf,
+  torpedoBlocked,
+  warpBlocked,
+  warpFill,
+  warpLabel,
+  waypointLine,
+} from './rules';
+import { engineeringScope, helmScope, phaseLine, planetStatus, scienceScope, tacticalScope, type Picked, type Scope } from './scopes';
+import { MAX_PIPS, MAX_TORPS, SHIELD_MAX, SYSTEM_NAMES, efficiency, health, pips, transporterBlocked } from './ship';
 
 export const STATION_NAMES: Record<Station, string> = {
   [Station.Helm]: 'Helm',
@@ -164,7 +174,10 @@ export class StationPanel {
     shieldBox.append(el('span', '', 'SHIELDS'), this.shields.root);
     status.append(hullBox, shieldBox, this.alertEl);
     if (opts.chips) {
-      status.append(press('\u{1F3A4}', 'chip', () => opts.chips!.mic()), press('⚙', 'chip', () => opts.chips!.menu()));
+      status.append(
+        press('\u{1F3A4}', 'chip', () => opts.chips!.mic()),
+        press('⚙', 'chip', () => opts.chips!.menu()),
+      );
     }
     if (opts.leave) status.append(press('STAND UP', 'chip leave', () => opts.leave!()));
     top.appendChild(status);
@@ -437,19 +450,16 @@ export class StationPanel {
       }
       setText(dialLabel, `HEADING ${String(bearing(ship.heading)).padStart(3, '0')}°${ship.orbit ? ' · IN ORBIT' : ship.autopilot ? ' · AUTOPILOT' : ''}`);
       autopilot.classList.toggle('on', ship.autopilot);
-      autopilot.disabled = !ship.waypoint || ship.docked || ship.phase !== Phase.Underway;
-      const wd = Math.hypot(ship.wx - ship.x, ship.wy - ship.y);
-      setText(nav, ship.waypoint ? `WAYPOINT ${Math.round(wd)} u · ${ship.speed > 5 && ship.warp === Warp.Idle ? `ETA ${Math.round(wd / ship.speed)} s` : ship.warp === Warp.Warping ? 'AT WARP' : ''}` : 'No waypoint: tap the map');
-      warp.disabled = ship.phase !== Phase.Underway || ship.docked || (ship.warp === Warp.Idle && (!ship.waypoint || wd < WARP_MIN));
-      setText(warp, ship.warp === Warp.Charging ? `CHARGING ${Math.round(ship.warpT * 100)}%` : ship.warp === Warp.Warping ? 'AT WARP' : 'WARP');
-      warp.style.setProperty('--charge', `${ship.warp === Warp.Charging ? ship.warpT * 100 : ship.warp === Warp.Warping ? 100 : 0}%`);
-      const near = ctx.sector.nearestPlanet(ship.x, ship.y);
-      orbit.disabled = !ship.orbit && (near.surface > ORBIT_REACH || ship.docked || ship.phase !== Phase.Underway);
-      setText(orbit, ship.orbit ? 'BREAK ORBIT' : near.surface <= ORBIT_REACH ? `ORBIT ${near.planet.name.toUpperCase()}` : 'ORBIT');
+      autopilot.disabled = autopilotBlocked(ship);
+      setText(nav, waypointLine(ship, 'No waypoint: tap the map'));
+      warp.disabled = warpBlocked(ship);
+      setText(warp, warpLabel(ship));
+      warp.style.setProperty('--charge', `${warpFill(ship) * 100}%`);
+      orbit.disabled = orbitBlocked(ctx, ship);
+      setText(orbit, orbitLabel(ctx, ship));
       orbit.classList.toggle('on', !!ship.orbit);
-      const sb = Math.hypot(ctx.sector.starbase.x - ship.x, ctx.sector.starbase.y - ship.y);
-      dock.disabled = ship.phase === Phase.Over || (!ship.docked && sb > DOCK_REACH);
-      setText(dock, ship.phase === Phase.Briefing ? 'CAST OFF' : ship.docked ? 'UNDOCK' : 'DOCK');
+      dock.disabled = dockBlocked(ctx, ship);
+      setText(dock, dockLabel(ship));
       dock.classList.toggle('go', ship.phase === Phase.Briefing);
     };
   }
@@ -469,11 +479,8 @@ export class StationPanel {
     const tShields = meter();
     const next = press('NEXT TARGET', '', () => {
       const ship = ctx.ship()?.render;
-      if (!ship) return;
-      const list = ([...ctx.world.all(Raider)] as RaiderEntity[]).sort((a, b) => Math.hypot(a.x - ship.x, a.y - ship.y) - Math.hypot(b.x - ship.x, b.y - ship.y));
-      if (!list.length) return;
-      const i = list.findIndex((r) => r.id === ship.target);
-      this.send(act(Act.Target, 0, 0, list[(i + 1) % list.length].id));
+      const id = ship ? nextTarget(ctx, ship) : 0;
+      if (id) this.send(act(Act.Target, 0, 0, id));
     });
     card.append(tName, tInfo, labelled('HULL', tHull.root), labelled('SHIELDS', tShields.root), next);
 
@@ -500,14 +507,12 @@ export class StationPanel {
     this.tick = () => {
       const ship = ctx.ship()?.render;
       if (!ship) return;
-      const target = (ctx.world.getAs(Raider, ship.target) as RaiderEntity | undefined) ?? null;
+      const target = targetOf(ctx, ship);
       if (target) {
         const t = target.render;
         const spec = RAIDERS[t.kind];
         setText(tName, spec.name.toUpperCase());
-        const rel = Math.round((angleDiff(ship.heading, Math.atan2(target.y - ship.y, target.x - ship.x)) * 180) / Math.PI);
-        const side = Math.abs(rel) < 3 ? 'dead ahead' : `${Math.abs(rel)}° ${rel > 0 ? 'starboard' : 'port'}`;
-        setText(tInfo, `${Math.round(Math.hypot(target.x - ship.x, target.y - ship.y))} u · ${side}${t.scanned ? ' · HARMONICS KNOWN' : ''}`);
+        setText(tInfo, `${Math.round(Math.hypot(target.x - ship.x, target.y - ship.y))} u · ${bearingOf(ship, target)}${t.scanned ? ' · HARMONICS KNOWN' : ''}`);
         tHull.set(t.hp / spec.hp, '#ff7a5a');
         tShields.set(t.shields / spec.shields, '#5aff8a');
         card.classList.toggle('scanned', t.scanned);
@@ -517,17 +522,17 @@ export class StationPanel {
         tHull.set(0);
         tShields.set(0);
       }
-      const why = phaserBlocked(ship, target);
-      phasers.disabled = !!why || ship.phase !== Phase.Underway;
+      const why = phasersBlocked(ship, target);
+      phasers.disabled = !!why;
       phasers.style.setProperty('--charge', `${Math.round(ship.phaser * 100)}%`);
       setText(phaserNote, why ? `${why}${why === 'Charging' ? ` ${Math.round(ship.phaser * 100)}%` : ''}` : `READY · ${Math.round(ship.phaser * 100)}%`);
       tubeEls.forEach((e, i) => e.classList.toggle('loaded', (ship.tubes & (1 << i)) !== 0));
       setText(stock, `${ship.torps} of ${MAX_TORPS} in the rack${ship.tubes !== 3 && ship.torps > 0 ? ' · autoloading' : ''}`);
       loader.set(ship.loadT, '#ffb84a');
-      torpedo.disabled = !ship.tubes || ship.docked || ship.phase !== Phase.Underway;
+      torpedo.disabled = torpedoBlocked(ship);
       shieldsB.classList.toggle('on', ship.shieldsUp);
-      shieldsB.disabled = ship.docked && !ship.shieldsUp;
-      setText(shieldsB, ship.shieldsUp ? (ship.shields < SHIELD_MAX * 0.95 ? 'SHIELDS RAISING' : 'SHIELDS UP') : 'SHIELDS DOWN');
+      shieldsB.disabled = shieldsBlocked(ship);
+      setText(shieldsB, shieldsLabel(ship));
       shieldMeter.set(ship.shields / SHIELD_MAX, '#6ab8ff');
     };
   }
@@ -585,37 +590,38 @@ export class StationPanel {
       if (!ship) return;
       setText(zoomB, scope.zoomLabel!());
       const picked: Picked = scope.picked ?? null;
-      const scanningThis = picked && ('planet' in picked ? ship.scanPlanet === picked.planet + 1 : ship.scanning === picked.raider);
       if (!picked) {
         setText(name, 'NOTHING SELECTED');
         setText(info, 'Tap a planet or a raider on the map');
-        scan.disabled = true;
       } else if ('planet' in picked) {
         const p = ctx.sector.planets[picked.planet];
         const d = Math.max(0, Math.hypot(p.x - ship.x, p.y - ship.y) - p.radius);
         setText(name, p.name.toUpperCase());
         setText(info, `${Math.round(d)} u · ${planetStatus(ctx, ship, p.index)}`);
-        scan.disabled = d > sensorRange(ship) || ship.phase !== Phase.Underway;
       } else {
         const r = ctx.world.getAs(Raider, picked.raider) as RaiderEntity;
         setText(name, RAIDERS[r.render.kind].name.toUpperCase());
         setText(info, `${Math.round(Math.hypot(r.x - ship.x, r.y - ship.y))} u · ${r.render.scanned ? 'shield harmonics known: tactical does half again the damage' : 'unscanned'}`);
-        scan.disabled = r.render.scanned;
       }
-      setText(scan, scanningThis ? `SCANNING ${Math.round(ship.scanT * 100)}%` : 'SCAN');
-      scanMeter.set(scanningThis ? ship.scanT : 0, '#b48aff');
+      scan.disabled = scanBlocked(ctx, ship, picked);
+      setText(scan, scanLabel(ship, picked));
+      scanMeter.set(scanningThis(ship, picked) ? ship.scanT : 0, '#b48aff');
 
       const blocked = transporterBlocked(ship);
-      const pad = ([...ctx.world.all(Crew)] as CrewEntity[]).filter((c) => c.render.mode === CrewMode.Up && ctx.deck.onShip(c.x) && Math.hypot(c.x - PAD.x, c.y - PAD.y) <= PAD.radius).length;
       const planet = ship.orbit - 1;
-      const away = planet >= 0 ? ([...ctx.world.all(Crew)] as CrewEntity[]).filter((c) => !ctx.deck.onShip(c.x) && ctx.deck.siteAt(c.x) === planet).length : 0;
-      const relicThere = planet >= 0 && [...ctx.world.all(Relic)].some((r) => r.render.site === planet + 1 && !r.render.carrier);
       const busy = ship.beam !== Beam.Idle;
-      setText(tpStatus, busy ? `${['', 'Beaming down', 'Beaming up', 'Locking onto the relic through the interference'][ship.beam]}… ${Math.round(ship.beamT * 100)}%` : blocked ? `${blocked}${blocked === 'Shields are up' ? ': tactical must lower them' : blocked === 'Not in orbit' ? ': helm must take up orbit' : ''}` : `In orbit of ${ctx.sector.planets[planet].name} · ${pad} on the pad · ${away} on the surface`);
+      setText(
+        tpStatus,
+        busy
+          ? beamingLine(ship)
+          : blocked
+            ? `${blocked}${blocked === 'Shields are up' ? ': tactical must lower them' : blocked === 'Not in orbit' ? ': helm must take up orbit' : ''}`
+            : `In orbit of ${ctx.sector.planets[planet].name} · ${onPadCount(ctx)} on the pad · ${awayCount(ctx, planet)} on the surface`,
+      );
       beamMeter.set(ship.beamT, '#6ad0ff');
-      down.disabled = !!blocked || busy || !pad;
-      up.disabled = !!blocked || busy || !away;
-      relic.disabled = !!blocked || busy || !relicThere;
+      down.disabled = beamBlocked(ctx, ship, 'down');
+      up.disabled = beamBlocked(ctx, ship, 'up');
+      relic.disabled = beamBlocked(ctx, ship, 'relic');
       abort.disabled = !busy;
       screenButtons.forEach((b, i) => b.classList.toggle('on', ship.screen === SCREENS[i]));
     };
@@ -656,8 +662,7 @@ export class StationPanel {
     this.tick = () => {
       const ship = ctx.ship()?.render;
       if (!ship) return;
-      const used = powerUsed(ship);
-      setText(power, `POWER ${used} / ${POWER_POOL}${used < POWER_POOL ? ` · ${POWER_POOL - used} spare` : ''}`);
+      setText(power, powerLine(ship));
       const counts = new Map<ShipSystem, { fire: number; sparks: number }>();
       for (const f of ctx.world.all(Fault)) {
         const c = counts.get(f.render.system) ?? { fire: 0, sparks: 0 };
@@ -675,11 +680,16 @@ export class StationPanel {
         r.pipButtons.forEach((b, n) => {
           b.classList.toggle('lit', n > 0 && n <= p);
           b.classList.toggle('over', n > 2 && n <= p);
-          b.disabled = n > p && n - p > POWER_POOL - used;
+          b.disabled = pipBlocked(ship, r.sys, n);
         });
         r.team.classList.toggle('on', ship.team === r.sys);
       }
-      setText(note, ship.team !== 255 ? `Damage control team in the ${SYSTEM_NAMES[ship.team as ShipSystem].toLowerCase()} room. Crew with spanners work faster.` : 'Hull hits start fires and break things. Send the team, or crew.');
+      setText(
+        note,
+        ship.team !== 255
+          ? `Damage control team in the ${SYSTEM_NAMES[ship.team as ShipSystem].toLowerCase()} room. Crew with spanners work faster.`
+          : 'Hull hits start fires and break things. Send the team, or crew.',
+      );
     };
   }
 }
@@ -689,7 +699,6 @@ function labelled(text: string, child: HTMLElement): HTMLElement {
   row.append(el('span', '', text), child);
   return row;
 }
-
 
 /** A compass dial `size` across, drawn into the box at the context's origin: which way the ship points and is steering. */
 export function drawDial(g: CanvasRenderingContext2D, size: number, heading: number, course: number, auto: boolean): void {

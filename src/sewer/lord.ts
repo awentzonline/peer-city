@@ -163,7 +163,10 @@ export class LordRole extends Avatar<LordIntent, LordBody, SewerTool> implements
   private readonly grips: [Grip, Grip] = [grip(), grip()];
   private readonly wasGrabbing = [false, false];
   private readonly fistCool = [0, 0];
-  private readonly fling: [Vec3, Vec3] = [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }];
+  private readonly fling: [Vec3, Vec3] = [
+    { x: 0, y: 0, z: 0 },
+    { x: 0, y: 0, z: 0 },
+  ];
   private holdSide: Side | null = null;
   private tearBase = 0;
   private tearing = 0;
@@ -724,7 +727,7 @@ export class LordRole extends Avatar<LordIntent, LordBody, SewerTool> implements
     }
     this.valveAcc += amount;
     const sewer = this.ctx.sewer()?.render;
-    const open = sewer ? [sewer.v0, sewer.v1, sewer.v2, sewer.v3][valve] ?? 0 : 0;
+    const open = sewer ? ([sewer.v0, sewer.v1, sewer.v2, sewer.v3][valve] ?? 0) : 0;
     this.action = { kind: 'valve', progress: Math.min(1, open + this.valveAcc) };
   }
 
@@ -1144,4 +1147,3 @@ function gatherSpot(ctx: SewerContext): { x: number; y: number } {
 
 const eyeTmp: Vec3 = { x: 0, y: 0, z: 0 };
 const dirTmp: Vec3 = { x: 0, y: 0, z: 0 };
-

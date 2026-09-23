@@ -111,7 +111,13 @@ function cartGeometry(color: number): THREE.BufferGeometry {
     box(0.46, 0.16, hw * 2 - 0.14, DRIVER_SEAT.x, DRIVER_SEAT.z - 0.1, 0, shell),
     // wheel and column, in front of the driver
     paint(new THREE.CylinderGeometry(0.025, 0.025, 0.5, 6).rotateZ(-0.7).translate(0.42, 0.65, DRIVER_SEAT.y), trim),
-    paint(new THREE.TorusGeometry(0.16, 0.022, 6, 16).rotateY(Math.PI / 2).rotateZ(-0.7).translate(0.26, 0.82, DRIVER_SEAT.y), trim),
+    paint(
+      new THREE.TorusGeometry(0.16, 0.022, 6, 16)
+        .rotateY(Math.PI / 2)
+        .rotateZ(-0.7)
+        .translate(0.26, 0.82, DRIVER_SEAT.y),
+      trim,
+    ),
     // roof on four posts
     box(1.98, 0.07, hw * 2 + 0.1, -0.1, 1.56, 0, color),
     ...[0.74, -0.94].flatMap((x) => [box(0.05, 1.2, 0.05, x, 0.95, hw - 0.06, trim), box(0.05, 1.2, 0.05, x, 0.95, -hw + 0.06, trim)]),

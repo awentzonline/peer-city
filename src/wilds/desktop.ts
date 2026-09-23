@@ -98,10 +98,7 @@ export class DesktopSurvivor implements SurvivorFrontend {
     if (!alive) {
       this.deathOrbit += dt * 0.4;
       const ground = ctx.land.heightAt(s.x, s.y);
-      rig.setDesktopChase(
-        { x: s.x + Math.cos(this.deathOrbit) * 4, y: s.y + Math.sin(this.deathOrbit) * 4, z: ground + 3.5 },
-        { x: s.x, y: s.y, z: ground + 0.3 },
-      );
+      rig.setDesktopChase({ x: s.x + Math.cos(this.deathOrbit) * 4, y: s.y + Math.sin(this.deathOrbit) * 4, z: ground + 3.5 }, { x: s.x, y: s.y, z: ground + 0.3 });
     } else {
       const e = sim.eyePosition(this.tmp);
       rig.setDesktopView(e.x, e.y, e.z, sim.heading, sim.pitch);

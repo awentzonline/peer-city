@@ -63,7 +63,6 @@ export class Hud extends HudBase {
     this.setHint(hint);
     if (this.helpEl.innerHTML !== help) this.helpEl.innerHTML = help;
   }
-
 }
 
 export function hex(rgb: number): string {

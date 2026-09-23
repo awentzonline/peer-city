@@ -252,10 +252,12 @@ describe('Playing a hole together', () => {
         const pin = g.hole.pin;
         const d = Math.hypot(pin.x - g.sim.x, pin.y - g.sim.y);
         const club = g.club;
-        const full = Math.hypot(...(() => {
-          const c = carry(g.sim, club, 1, g.aimHeading, g.lie, course);
-          return [c.x - g.sim.x, c.y - g.sim.y];
-        })());
+        const full = Math.hypot(
+          ...(() => {
+            const c = carry(g.sim, club, 1, g.aimHeading, g.lie, course);
+            return [c.x - g.sim.x, c.y - g.sim.y];
+          })(),
+        );
         const want = club === Club.Putter ? Math.min(1, (d * 1.15 + 0.4) / 30) : Math.min(1, d / Math.max(1, full));
         if (bot.holding === 0) {
           bot.power = want;

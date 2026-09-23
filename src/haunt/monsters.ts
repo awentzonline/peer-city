@@ -1,7 +1,7 @@
-import { defineLocal } from '@engine/index';
-import { angleDiff, type HauntContext, type MonsterEntity, type SurvivorEntity } from './context';
+import { defineLocal, keepApart, turnToward, walkMemory, walkToward, wander, type WalkMemory, type Walkable, type WanderOptions } from '@engine/index';
+import { type HauntContext, type MonsterEntity, type SurvivorEntity } from './context';
 import { Feed, Hurt, Monster, MonsterKind, MonsterMode, Noise, Phase, Sound, Survivor, SurvivorMode } from './defs';
-import { PEDESTAL, SANCTUARY, type Manor } from './manor';
+import { PEDESTAL, SANCTUARY } from './manor';
 
 export interface MonsterSpec {
   name: string;
@@ -45,15 +45,11 @@ const SIGHT = 22;
 /** Nothing can be summoned this close to a survivor, m. */
 const TOO_CLOSE = 7;
 
-interface MonsterLocal {
+interface MonsterLocal extends WalkMemory {
   nextLook: number;
-  nextPath: number;
   nextStrike: number;
-  waypoint: { x: number; y: number } | null;
   /** Last saw its quarry at, ms. */
   sawAt: number;
-  /** Wandering: stand about until then. */
-  restUntil: number;
   /** Light: how strong it was, until when it lasts, and who's shining it (for running from). */
   litLevel: number;
   litUntil: number;
@@ -66,12 +62,10 @@ interface MonsterLocal {
 }
 
 export const MonsterMind = defineLocal<MonsterLocal>(() => ({
+  ...walkMemory(),
   nextLook: 0,
-  nextPath: 0,
   nextStrike: 0,
-  waypoint: null,
   sawAt: 0,
-  restUntil: 0,
   litLevel: 0,
   litUntil: 0,
   fleeUntil: 0,
@@ -194,7 +188,7 @@ export function updateOwnedMonsters(ctx: HauntContext, dt: number): void {
         else step(ctx, m, s.tx, s.ty, speed, dt, true);
         break;
       default:
-        wander(ctx, m, speed * 0.45, dt);
+        roam(ctx, m, speed * 0.45, dt);
     }
   }
   separate(ctx);
@@ -237,62 +231,38 @@ function look(ctx: HauntContext, m: MonsterEntity): void {
   }
 }
 
+/** The house as monsters walk it, and how they drift about the room they're in, once per context. */
+interface Ground {
+  ground: Walkable;
+  roam: WanderOptions;
+}
+const grounds = new WeakMap<HauntContext, Ground>();
+function groundOf(ctx: HauntContext): Ground {
+  let g = grounds.get(ctx);
+  if (!g) {
+    const { manor } = ctx;
+    g = {
+      ground: { paths: ctx.paths, move: (p, dx, dy, r) => manor.move(p, dx, dy, r), turnRate: 8 },
+      roam: { restMs: 1200, restJitterMs: 3500, range: 7, ok: (fx, fy, x, y) => manor.inGrounds(x, y) && !manor.solid(Math.floor(x), Math.floor(y)) && manor.sees(fx, fy, x, y) },
+    };
+    grounds.set(ctx, g);
+  }
+  return g;
+}
+
 /** Head for (tx, ty) at `speed`, round walls. */
 function step(ctx: HauntContext, m: MonsterEntity, tx: number, ty: number, speed: number, dt: number, path: boolean): void {
-  const { manor, paths, now } = ctx;
-  const s = m.state;
-  const l = MonsterMind.of(m);
-  const spec = MONSTERS[s.kind];
-  let gx = tx;
-  let gy = ty;
-  if (path) {
-    if (now >= l.nextPath || !l.waypoint) {
-      l.nextPath = now + 250 + Math.random() * 100;
-      l.waypoint = paths.next(s.x, s.y, tx, ty, spec.radius, now);
-    }
-    if (!l.waypoint) return;
-    gx = l.waypoint.x;
-    gy = l.waypoint.y;
-    if (Math.hypot(gx - s.x, gy - s.y) < 0.3) l.nextPath = 0;
-  }
-  const dx = gx - s.x;
-  const dy = gy - s.y;
-  const d = Math.hypot(dx, dy);
-  if (d < 0.05) return;
-  const k = Math.min(d, speed * dt) / d;
-  if (manor.move(s, dx * k, dy * k, spec.radius)) l.nextPath = 0;
-  face(m, Math.atan2(dy, dx), dt);
+  walkToward(groundOf(ctx).ground, m.state, MonsterMind.of(m), tx, ty, MONSTERS[m.state.kind].radius, speed, dt, ctx.now, path);
 }
 
 function face(m: MonsterEntity, angle: number, dt: number): void {
-  const s = m.state;
-  s.angle += angleDiff(s.angle, angle) * Math.min(1, dt * 8);
+  turnToward(m.state, angle, dt, 8);
 }
 
 /** Drift about the room it's in, stopping now and then. */
-function wander(ctx: HauntContext, m: MonsterEntity, speed: number, dt: number): void {
-  const s = m.state;
-  const l = MonsterMind.of(m);
-  if (ctx.now < l.restUntil) return;
-  if (Math.hypot(s.tx - s.x, s.ty - s.y) < 0.6) {
-    l.restUntil = ctx.now + 1200 + Math.random() * 3500;
-    const spot = openNear(ctx.manor, s.x, s.y, 7);
-    s.tx = spot.x;
-    s.ty = spot.y;
-    return;
-  }
-  step(ctx, m, s.tx, s.ty, speed, dt, true);
-}
-
-function openNear(manor: Manor, x: number, y: number, r: number): { x: number; y: number } {
-  for (let i = 0; i < 8; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const d = 2 + Math.random() * r;
-    const px = x + Math.cos(a) * d;
-    const py = y + Math.sin(a) * d;
-    if (manor.inGrounds(px, py) && !manor.solid(Math.floor(px), Math.floor(py)) && manor.sees(x, y, px, py)) return { x: Math.floor(px) + 0.5, y: Math.floor(py) + 0.5 };
-  }
-  return { x, y };
+function roam(ctx: HauntContext, m: MonsterEntity, speed: number, dt: number): void {
+  const { ground, roam } = groundOf(ctx);
+  wander(ground, m.state, MonsterMind.of(m), MONSTERS[m.state.kind].radius, speed, dt, ctx.now, roam);
 }
 
 function strike(ctx: HauntContext, m: MonsterEntity, target: SurvivorEntity): void {
@@ -309,22 +279,14 @@ function strike(ctx: HauntContext, m: MonsterEntity, target: SurvivorEntity): vo
 
 /** Keep monsters from standing in each other. */
 function separate(ctx: HauntContext): void {
-  const { world, manor } = ctx;
-  for (const m of world.owned(Monster)) {
-    const s = m.state;
-    if (s.mode === MonsterMode.Dead) continue;
-    const r = MONSTERS[s.kind].radius;
-    for (const o of world.query(s.x, s.y, 1.2, Monster) as MonsterEntity[]) {
-      if (o === m || o.render.mode === MonsterMode.Dead) continue;
-      const min = r + MONSTERS[o.render.kind].radius;
-      const dx = s.x - o.x;
-      const dy = s.y - o.y;
-      const d = Math.hypot(dx, dy);
-      if (d >= min || d < 1e-4) continue;
-      const push = (min - d) * 0.5;
-      manor.move(s, (dx / d) * push, (dy / d) * push, r);
-    }
-  }
+  const { world } = ctx;
+  keepApart(
+    groundOf(ctx).ground,
+    world.owned(Monster) as ReadonlySet<MonsterEntity>,
+    (x, y, r) => world.query(x, y, r, Monster) as MonsterEntity[],
+    (m) => MONSTERS[m.render.kind].radius,
+    (m) => m.render.mode !== MonsterMode.Dead,
+  );
 }
 
 /**

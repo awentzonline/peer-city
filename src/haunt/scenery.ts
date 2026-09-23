@@ -184,7 +184,8 @@ export class Scenery {
         const [a, b] = FLOORS[kind];
         let c = kind === RoomKind.Hall ? ((i + j) % 2 ? a : b) : jitter((j + (i >> 1)) % 2 ? a : b, rnd, 0.08);
         // a rug in the middle of bedrooms and the parlour
-        if (room && (kind === RoomKind.Bedroom || kind === RoomKind.Parlour) && i > room.x0 + 1 && i < room.x1 - 1 && j > room.y0 + 1 && j < room.y1 - 1) c = (i === room.x0 + 2 || i === room.x1 - 2 || j === room.y0 + 2 || j === room.y1 - 2) ? 0x8a6a3a : 0x5a1f24;
+        if (room && (kind === RoomKind.Bedroom || kind === RoomKind.Parlour) && i > room.x0 + 1 && i < room.x1 - 1 && j > room.y0 + 1 && j < room.y1 - 1)
+          c = i === room.x0 + 2 || i === room.x1 - 2 || j === room.y0 + 2 || j === room.y1 - 2 ? 0x8a6a3a : 0x5a1f24;
         parts.push(paint(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(i + 0.5, 0.01, j + 0.5), c));
       }
     }
@@ -285,7 +286,7 @@ export class Scenery {
         const x = sign * -(0.12 + k * 0.25);
         parts.push(box(0.05, 2.3, 0.05, x, 1.15, 0, IRON), box(0.03, 0.2, 0.03, x, 2.4, 0, IRON));
       }
-      parts.push(box(half, 0.08, 0.07, sign * -half / 2, 0.35, 0, IRON), box(half, 0.08, 0.07, sign * -half / 2, 1.95, 0, IRON));
+      parts.push(box(half, 0.08, 0.07, (sign * -half) / 2, 0.35, 0, IRON), box(half, 0.08, 0.07, (sign * -half) / 2, 1.95, 0, IRON));
       g.add(new THREE.Mesh(merge(parts), SOLID));
       this.scene.add(g);
       return g;
@@ -312,7 +313,11 @@ export class Scenery {
             const len = 1 + rnd() * 1.6;
             const a = rnd() * Math.PI * 2;
             const at = h * (0.45 + rnd() * 0.45);
-            const g = new THREE.CylinderGeometry(0.03, 0.08, len, 4).translate(0, len / 2, 0).rotateZ(0.7 + rnd() * 0.6).rotateY(a).translate(x, at, y);
+            const g = new THREE.CylinderGeometry(0.03, 0.08, len, 4)
+              .translate(0, len / 2, 0)
+              .rotateZ(0.7 + rnd() * 0.6)
+              .rotateY(a)
+              .translate(x, at, y);
             parts.push(paint(g, 0x2a211b));
           }
         } else if (t === Tile.Grave) {
@@ -366,7 +371,11 @@ export class Scenery {
             parts.push(box(1, 1.1, 1, x, 0.55, y, 0x111013), box(0.2, 0.05, 0.9, x + 0.45, 0.8, y, 0xd8d2c2));
             break;
           case Piece.Statue:
-            parts.push(box(0.8, 0.5, 0.8, x, 0.25, y, 0x6a6660), paint(new THREE.CylinderGeometry(0.18, 0.25, 1.6, 7).translate(x, 1.3, y), 0x8a857c), paint(new THREE.SphereGeometry(0.2, 7, 6).translate(x, 2.25, y), 0x8a857c));
+            parts.push(
+              box(0.8, 0.5, 0.8, x, 0.25, y, 0x6a6660),
+              paint(new THREE.CylinderGeometry(0.18, 0.25, 1.6, 7).translate(x, 1.3, y), 0x8a857c),
+              paint(new THREE.SphereGeometry(0.2, 7, 6).translate(x, 2.25, y), 0x8a857c),
+            );
             break;
           case Piece.Couch:
             parts.push(box(0.95, 0.45, 0.95, x, 0.23, y, 0x4a2430), box(0.95, 0.5, 0.25, x, 0.7, y - 0.35, 0x3e1e28));
@@ -385,7 +394,9 @@ export class Scenery {
     parts.push(box(2, 0.3, 2, cx, 0.15, cy, 0x4d4843), box(1.5, 0.75, 1.5, cx, 0.65, cy, 0x6a6560), box(1.9, 0.12, 1.9, cx, 1.05, cy, 0x57524c));
     for (const s of SOCKETS) {
       parts.push(paint(new THREE.CylinderGeometry(0.18, 0.12, 0.08, 10).translate(s.x, 1.12, s.y), 0x2a2622));
-      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: 0xffc94a, blending: THREE.AdditiveBlending, transparent: true, opacity: 0.12, depthWrite: false, fog: false }));
+      const glow = new THREE.Sprite(
+        new THREE.SpriteMaterial({ map: glowTexture(), color: 0xffc94a, blending: THREE.AdditiveBlending, transparent: true, opacity: 0.12, depthWrite: false, fog: false }),
+      );
       glow.position.set(s.x, 1.3, s.y);
       glow.scale.setScalar(0.9);
       this.sockets.push(glow);

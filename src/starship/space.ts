@@ -197,7 +197,23 @@ export class SpaceView {
     this.scene.add(mesh);
     this.fading.push({ mesh, age: 0, life: phaser ? 0.45 : 0.3 });
     if (p.hit) {
-      for (let i = 0; i < 16; i++) this.sparks.emit({ x: p.tx, y: p.ty, z: 0, vx: rand(-40, 40), vy: rand(-40, 40), vz: rand(-40, 40), life: rand(0.2, 0.5), s0: 6, s1: 1, c0: phaser ? [1, 0.8, 0.4, 1] : [0.5, 1, 0.4, 1], c1: [1, 0.3, 0.1, 0], gravity: 0, drag: 2, floor: -1e9 });
+      for (let i = 0; i < 16; i++)
+        this.sparks.emit({
+          x: p.tx,
+          y: p.ty,
+          z: 0,
+          vx: rand(-40, 40),
+          vy: rand(-40, 40),
+          vz: rand(-40, 40),
+          life: rand(0.2, 0.5),
+          s0: 6,
+          s1: 1,
+          c0: phaser ? [1, 0.8, 0.4, 1] : [0.5, 1, 0.4, 1],
+          c1: [1, 0.3, 0.1, 0],
+          gravity: 0,
+          drag: 2,
+          floor: -1e9,
+        });
       const v = [...this.ctx.world.all(Raider)].find((r) => Math.hypot(r.x - p.tx, r.y - p.ty) < 30);
       if (v) {
         const view = this.raiderViews.get(v.id);
@@ -214,10 +230,40 @@ export class SpaceView {
       const b = rand(-1, 1);
       const sp = rand(0.2, 1) * size * 2.4;
       const r = Math.sqrt(1 - b * b);
-      this.sparks.emit({ x: p.x, y: p.y, z: 0, vx: Math.cos(a) * r * sp, vy: Math.sin(a) * r * sp, vz: b * sp, life: rand(0.4, 1.4), s0: size * rand(0.3, 0.8), s1: size * 0.1, c0: [1, rand(0.6, 0.95), 0.4, 1], c1: [1, 0.2, 0.05, 0], gravity: 0, drag: 1.2, floor: -1e9 });
+      this.sparks.emit({
+        x: p.x,
+        y: p.y,
+        z: 0,
+        vx: Math.cos(a) * r * sp,
+        vy: Math.sin(a) * r * sp,
+        vz: b * sp,
+        life: rand(0.4, 1.4),
+        s0: size * rand(0.3, 0.8),
+        s1: size * 0.1,
+        c0: [1, rand(0.6, 0.95), 0.4, 1],
+        c1: [1, 0.2, 0.05, 0],
+        gravity: 0,
+        drag: 1.2,
+        floor: -1e9,
+      });
     }
     for (let i = 0; i < n / 4; i++) {
-      this.smoke.emit({ x: p.x, y: p.y, z: 0, vx: rand(-1, 1) * size, vy: rand(-1, 1) * size, vz: rand(-1, 1) * size, life: rand(1.5, 3), s0: size * 0.5, s1: size * 1.6, c0: [0.3, 0.28, 0.3, 0.6], c1: [0.1, 0.1, 0.12, 0], gravity: 0, drag: 0.8, floor: -1e9 });
+      this.smoke.emit({
+        x: p.x,
+        y: p.y,
+        z: 0,
+        vx: rand(-1, 1) * size,
+        vy: rand(-1, 1) * size,
+        vz: rand(-1, 1) * size,
+        life: rand(1.5, 3),
+        s0: size * 0.5,
+        s1: size * 1.6,
+        c0: [0.3, 0.28, 0.3, 0.6],
+        c1: [0.1, 0.1, 0.12, 0],
+        gravity: 0,
+        drag: 0.8,
+        floor: -1e9,
+      });
     }
     const flash = glowSprite(0xffe0a0, size * 6, 1);
     flash.position.set(p.x, 0, p.y);
@@ -235,7 +281,23 @@ export class SpaceView {
     if (p.shielded || ship.render.shields > 0) v.shield.material.opacity = 0.5;
     if (!p.shielded) {
       const a = Math.atan2(p.y - ship.y, p.x - ship.x);
-      for (let i = 0; i < 20; i++) this.sparks.emit({ x: ship.x + Math.cos(a) * 12, y: ship.y + Math.sin(a) * 8, z: rand(-2, 4), vx: rand(-30, 30), vy: rand(-30, 30), vz: rand(-20, 30), life: rand(0.3, 0.8), s0: 4, s1: 0.5, c0: [1, 0.8, 0.3, 1], c1: [1, 0.2, 0, 0], gravity: 0, drag: 1.5, floor: -1e9 });
+      for (let i = 0; i < 20; i++)
+        this.sparks.emit({
+          x: ship.x + Math.cos(a) * 12,
+          y: ship.y + Math.sin(a) * 8,
+          z: rand(-2, 4),
+          vx: rand(-30, 30),
+          vy: rand(-30, 30),
+          vz: rand(-20, 30),
+          life: rand(0.3, 0.8),
+          s0: 4,
+          s1: 0.5,
+          c0: [1, 0.8, 0.3, 1],
+          c1: [1, 0.2, 0, 0],
+          gravity: 0,
+          drag: 1.5,
+          floor: -1e9,
+        });
     }
   }
 
@@ -337,7 +399,22 @@ export class SpaceView {
       }
       s.position.set(f.x, 0, f.y);
       s.scale.setScalar(20 + Math.sin(this.t * 30 + f.id) * 5);
-      this.sparks.emit({ x: f.x, y: f.y, z: 0, vx: 0, vy: 0, vz: 0, life: 0.3, s0: 8, s1: 1, c0: f.hostile ? [0.4, 1, 0.3, 0.7] : [1, 0.4, 0.2, 0.7], c1: [1, 0.2, 0.1, 0], gravity: 0, drag: 0, floor: -1e9 });
+      this.sparks.emit({
+        x: f.x,
+        y: f.y,
+        z: 0,
+        vx: 0,
+        vy: 0,
+        vz: 0,
+        life: 0.3,
+        s0: 8,
+        s1: 1,
+        c0: f.hostile ? [0.4, 1, 0.3, 0.7] : [1, 0.4, 0.2, 0.7],
+        c1: [1, 0.2, 0.1, 0],
+        gravity: 0,
+        drag: 0,
+        floor: -1e9,
+      });
     }
     for (const [id, s] of this.torps) {
       if (live.has(id)) continue;

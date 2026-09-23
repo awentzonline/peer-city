@@ -335,7 +335,7 @@ export function defineEntity<S extends Shape>(opts: EntityOptions<S>): EntityDef
     interpKinds: interpIdx.map((i) => (layout.types[i].interp === 'none' ? 'linear' : layout.types[i].interp)),
     snapDistance: opts.snapDistance ?? 250,
     maxExtrapolateMs: opts.maxExtrapolateMs ?? 150,
-    cullDistance: opts.cullDistance ?? Infinity
+    cullDistance: opts.cullDistance ?? Infinity,
   };
 }
 

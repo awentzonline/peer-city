@@ -130,16 +130,8 @@ function buildingMesh(city: City): THREE.Mesh {
 function treeMeshes(city: City): THREE.InstancedMesh[] {
   const spots: [number, number][] = [];
   for (let ty = 0; ty < city.h; ty++) for (let tx = 0; tx < city.w; tx++) if (city.tileAt(tx, ty) === Tile.Tree) spots.push([tx, ty]);
-  const trunk = new THREE.InstancedMesh(
-    new THREE.CylinderGeometry(0.16, 0.24, 2.6, 6).translate(0, 1.3, 0),
-    new THREE.MeshLambertMaterial({ color: 0x6b4a2b }),
-    spots.length,
-  );
-  const canopy = new THREE.InstancedMesh(
-    new THREE.IcosahedronGeometry(1.7, 0).translate(0, 3.7, 0),
-    new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true }),
-    spots.length,
-  );
+  const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.16, 0.24, 2.6, 6).translate(0, 1.3, 0), new THREE.MeshLambertMaterial({ color: 0x6b4a2b }), spots.length);
+  const canopy = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1.7, 0).translate(0, 3.7, 0), new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true }), spots.length);
   const rnd = mulberry32(city.seed ^ 0x7ee5);
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();

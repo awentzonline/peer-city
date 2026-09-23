@@ -341,10 +341,15 @@ export class ShinobiRole extends Avatar<ShinobiIntent, ShinobiBody, NinjaTool> i
     const pull = this.pull;
     const holding =
       canClimb &&
-      this.hands2.update(intent.hands, (p) => castle.holdable(p), pull, (side) => {
-        this.vz = 0;
-        this.body.gripped(side);
-      });
+      this.hands2.update(
+        intent.hands,
+        (p) => castle.holdable(p),
+        pull,
+        (side) => {
+          this.vz = 0;
+          this.body.gripped(side);
+        },
+      );
     this.wallAhead = false;
     if (holding) {
       // the body moves round the hands: the play space with it, so the head's where it was in the room

@@ -53,7 +53,13 @@ export function registerViews(ctx: WildsContext, views: EntityViews, scene: THRE
   views.register(Survivor, {
     create: (e): SurvivorView => {
       const k = e.state.skin;
-      const rig = buildHuman({ shirt: SHIRTS[k % SHIRTS.length], pants: PANTS[(k * 5) % PANTS.length], skin: SKINS[(k * 7) % SKINS.length], hair: HAIR[(k * 3) % HAIR.length], hat: k % 3 === 0 ? 0x5a4630 : undefined });
+      const rig = buildHuman({
+        shirt: SHIRTS[k % SHIRTS.length],
+        pants: PANTS[(k * 5) % PANTS.length],
+        skin: SKINS[(k * 7) % SKINS.length],
+        hair: HAIR[(k * 3) % HAIR.length],
+        hat: k % 3 === 0 ? 0x5a4630 : undefined,
+      });
       scene.add(rig.root);
       return { ...bodyView(rig, e.x, e.y), name: '', string: new BowString(scene) };
     },

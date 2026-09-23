@@ -90,9 +90,7 @@ export function openLobby<T = undefined>(opts: LobbyOptions<T>): Promise<Launch<
 
   void Stage.vrSupported().then((ok) => {
     vrButton.disabled = !ok;
-    vrNote.textContent = ok
-      ? opts.headsetNote
-      : (opts.noHeadsetNote ?? 'No VR headset detected. Open this page in a WebXR browser (e.g. Meta Quest Browser) to play in VR.');
+    vrNote.textContent = ok ? opts.headsetNote : (opts.noHeadsetNote ?? 'No VR headset detected. Open this page in a WebXR browser (e.g. Meta Quest Browser) to play in VR.');
   });
 
   return new Promise((resolve) => {
@@ -108,7 +106,11 @@ export function openLobby<T = undefined>(opts: LobbyOptions<T>): Promise<Launch<
 
       const playerName = nameInput.value.trim().slice(0, 16) || opts.namePrefix;
       const mode: NetMode = netSelect.value === 'local' ? 'local' : 'online';
-      const shard = roomInput.value.trim().replace(/[^\w-]/g, '').slice(0, 24) || opts.shard;
+      const shard =
+        roomInput.value
+          .trim()
+          .replace(/[^\w-]/g, '')
+          .slice(0, 24) || opts.shard;
       storage('set', opts.nameKey, playerName);
       const role = pick(document.body.dataset.role ?? null);
       if (roles.length) storage('set', roleKey, role);

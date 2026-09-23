@@ -106,7 +106,10 @@ export class Game {
         this.views,
         scene,
         rig,
-        { showSelf: () => (this.seat as Seat<SurvivorIntent, SurvivorFrontend>).frontend.showSelf, showOwnBeam: () => (this.seat as Seat<SurvivorIntent, SurvivorFrontend>).frontend.platform === Platform.Vr },
+        {
+          showSelf: () => (this.seat as Seat<SurvivorIntent, SurvivorFrontend>).frontend.showSelf,
+          showOwnBeam: () => (this.seat as Seat<SurvivorIntent, SurvivorFrontend>).frontend.platform === Platform.Vr,
+        },
         null,
       );
       survivor.spawn();
@@ -186,7 +189,6 @@ export class Game {
       location.assign(url);
     }, 4000);
   }
-
 }
 
 /**

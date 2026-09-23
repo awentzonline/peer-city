@@ -32,9 +32,7 @@ describe('codec', () => {
     w.u8(200).u16(65000).u32(4_000_000_000).f32(1.5).f64(Math.PI).varuint(300).varint(-12345).id48(0xabcdef123456).string('héllo');
     for (const v of [0, 1, 127, 128, 2 ** 40, Number.MAX_SAFE_INTEGER]) w.varuint(v);
     const r = new ByteReader(w.finish());
-    expect([r.u8(), r.u16(), r.u32(), r.f32(), r.f64(), r.varuint(), r.varint(), r.id48(), r.string()]).toEqual([
-      200, 65000, 4_000_000_000, 1.5, Math.PI, 300, -12345, 0xabcdef123456, 'héllo',
-    ]);
+    expect([r.u8(), r.u16(), r.u32(), r.f32(), r.f64(), r.varuint(), r.varint(), r.id48(), r.string()]).toEqual([200, 65000, 4_000_000_000, 1.5, Math.PI, 300, -12345, 0xabcdef123456, 'héllo']);
     for (const v of [0, 1, 127, 128, 2 ** 40, Number.MAX_SAFE_INTEGER]) expect(r.varuint()).toBe(v);
     expect(r.remaining).toBe(0);
   });
@@ -96,7 +94,6 @@ describe('bytes fields', () => {
     f.write(w, f.quantize(blob));
     expect([...f.dequantize(f.read(new ByteReader(w.finish())))]).toEqual([...blob]);
   });
-
 
   it('round-trip a blob, diff by contents, and clip to the limit', () => {
     const f = t.bytes(4);
@@ -162,7 +159,9 @@ describe('replication', () => {
     sim.run(300);
     expect([remote.state.f2, remote.state.f33, remote.state.f48, remote.state.f49]).toEqual([5, 700, 0, 9]);
     expect(before).toBeGreaterThanOrEqual(0);
-    expect(() => defineEntity({ name: 'too-wide', fields: { x: t.fixed(1), y: t.fixed(1), ...fields, ...Object.fromEntries(Array.from({ length: 5 }, (_, i) => [`g${i}`, t.uint(8)])) } })).toThrow(/at most 52/);
+    expect(() => defineEntity({ name: 'too-wide', fields: { x: t.fixed(1), y: t.fixed(1), ...fields, ...Object.fromEntries(Array.from({ length: 5 }, (_, i) => [`g${i}`, t.uint(8)])) } })).toThrow(
+      /at most 52/,
+    );
   });
 
   it('only sends entities inside the receiver interest radius, and removes them on exit', () => {
@@ -470,7 +469,7 @@ describe('replication', () => {
 });
 
 describe('commands, locks, singletons and tracking', () => {
-  it('carries out a command only on its target\'s owner, following the target when it changes hands', () => {
+  it("carries out a command only on its target's owner, following the target when it changes hands", () => {
     const sim = new Sim();
     const a = sim.add('a', base);
     const b = sim.add('b', base);
@@ -616,7 +615,7 @@ describe('commands, locks, singletons and tracking', () => {
     expect(seen).toEqual(['+early', '+late', '-despawned']);
   });
 
-  it('keeps each type\'s owned and remote entities in step as ownership moves', async () => {
+  it("keeps each type's owned and remote entities in step as ownership moves", async () => {
     const sim = new Sim();
     const a = sim.add('a', base);
     const b = sim.add('b', base);

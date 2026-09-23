@@ -14,3 +14,8 @@ export { MemoryNetwork } from './transport/memory';
 export { EntityViews } from './views/EntityViews';
 export type { ViewFactory } from './views/EntityViews';
 export { NetDebugPanel } from './ui/NetDebugPanel';
+export { FlowPaths } from './spatial/FlowPaths';
+export type { Spot, WalkGrid, FlowPathsOptions } from './spatial/FlowPaths';
+export { walkToward, turnToward, wander, spotNear, keepApart, walkMemory } from './ai/walk';
+export type { Pose, Wayfinder, WalkMemory, Walkable, WanderOptions, Body } from './ai/walk';
+export { Keeper } from './net/keeper';

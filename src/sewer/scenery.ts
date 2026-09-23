@@ -98,10 +98,20 @@ export class Scenery {
       const cb = this.map.chambers[b];
       if (ca.cy === cb.cy) {
         const [x0, x1] = ca.cx < cb.cx ? [ca.x1 + 1, cb.x0 - 1] : [cb.x1 + 1, ca.x0 - 1];
-        for (let i = x0; i <= x1; i++) for (let j = ca.cy - 2; j < ca.cy + 2; j++) (along[j * SIZE + i] = 1), (mid[j * SIZE + i] = ca.cy);
+        for (let i = x0; i <= x1; i++) {
+          for (let j = ca.cy - 2; j < ca.cy + 2; j++) {
+            along[j * SIZE + i] = 1;
+            mid[j * SIZE + i] = ca.cy;
+          }
+        }
       } else {
         const [y0, y1] = ca.cy < cb.cy ? [ca.y1 + 1, cb.y0 - 1] : [cb.y1 + 1, ca.y0 - 1];
-        for (let j = y0; j <= y1; j++) for (let i = ca.cx - 2; i < ca.cx + 2; i++) (along[j * SIZE + i] = 2), (mid[j * SIZE + i] = ca.cx);
+        for (let j = y0; j <= y1; j++) {
+          for (let i = ca.cx - 2; i < ca.cx + 2; i++) {
+            along[j * SIZE + i] = 2;
+            mid[j * SIZE + i] = ca.cx;
+          }
+        }
       }
     }
     return { along, mid };
@@ -250,7 +260,10 @@ export class Scenery {
       colors[k * 3 + 2] = c.b * f;
     }
     g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+    const m = new THREE.Mesh(
+      g,
+      new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }),
+    );
     m.position.set(x, 0, y);
     m.renderOrder = 6;
     return m;

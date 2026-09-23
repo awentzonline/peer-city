@@ -3,30 +3,40 @@ import { SOLID, box, merge, paint } from '../crossplay/models';
 import { disposePanel, panel, type Panel } from '../crossplay/panel';
 import { HandPointer, type Surface } from '../crossplay/pointer';
 import { Btn, type Rig, type XRHand } from '../crossplay/rig';
-import { angleDiff, type CrewEntity, type RaiderEntity, type ShipState, type StarshipContext } from './context';
+import { type RaiderEntity, type ShipState, type StarshipContext } from './context';
 import type { ConsoleSpot } from './deck';
-import { PAD } from './deck';
-import { Act, Beam, Crew, CrewMode, Phase, Raider, Relic, SCREENS, ShipSystem, Station, SYSTEMS, Warp } from './defs';
+import { Act, Beam, Phase, Raider, SCREENS, ShipSystem, Station, SYSTEMS, Warp } from './defs';
 import { act, type ConsoleAct } from './intent';
 import { GLOW, STATION_COLORS, css } from './models';
 import { RAIDERS } from './raiders';
 import { phaseLine, planetStatus, scopeFor, type Scope } from './scopes';
+import { MAX_PIPS, SHIELD_MAX, SYSTEM_NAMES, efficiency, health, pips, transporterBlocked } from './ship';
 import {
-  DOCK_REACH,
-  MAX_PIPS,
-  ORBIT_REACH,
-  POWER_POOL,
-  SHIELD_MAX,
-  SYSTEM_NAMES,
-  WARP_MIN,
-  efficiency,
-  health,
-  phaserBlocked,
-  pips,
-  powerUsed,
-  sensorRange,
-  transporterBlocked,
-} from './ship';
+  autopilotBlocked,
+  beamBlocked,
+  beamingLine,
+  bearingOf,
+  dockBlocked,
+  dockLabel,
+  nextTarget,
+  orbitBlocked,
+  orbitLabel,
+  phasersBlocked,
+  pipBlocked,
+  powerLine,
+  scanBlocked,
+  scanLabel,
+  scanningThis,
+  shieldsBlocked,
+  shieldsLabel,
+  targetOf,
+  torpedoBlocked,
+  tubesLoaded,
+  warpBlocked,
+  warpFill,
+  warpLabel,
+  waypointLine,
+} from './rules';
 import { STATION_NAMES, bearing, drawDial } from './stations';
 
 // A console's shape, in metres, side on: `u` forward from its centre (away from whoever works it), `v` up. The desk
@@ -340,7 +350,10 @@ export class BridgeConsole {
 
     g.fillStyle = '#9fb0c8';
     g.font = '14px Trebuchet MS, sans-serif';
-    this.controls.status().slice(0, 2).forEach((line, i) => g.fillText(line, 16, DESK_PY - 26 + i * 17, DESK_PX - 32));
+    this.controls
+      .status()
+      .slice(0, 2)
+      .forEach((line, i) => g.fillText(line, 16, DESK_PY - 26 + i * 17, DESK_PX - 32));
     this.desk.tex.needsUpdate = true;
   }
 
@@ -549,13 +562,7 @@ function consoleBody(color: number): THREE.BufferGeometry {
   // shape x is forward (the console's -z), and it's extruded across (+x)
   const shell = paint(new THREE.ExtrudeGeometry(s, { depth: WIDTH, bevelEnabled: false }).rotateY(Math.PI / 2).translate(-WIDTH / 2, 0, 0), 0x4a5262);
   const [su, sv] = screenCentre();
-  const bezel = paint(
-    new THREE.BoxGeometry(SCREEN_W + 0.05, SCREEN_H + 0.05, 0.05)
-      .translate(0, 0, -0.026)
-      .rotateX(-SCREEN_TILT)
-      .translate(0, sv, -su),
-    0x22262e,
-  );
+  const bezel = paint(new THREE.BoxGeometry(SCREEN_W + 0.05, SCREEN_H + 0.05, 0.05).translate(0, 0, -0.026).rotateX(-SCREEN_TILT).translate(0, sv, -su), 0x22262e);
   const stand = box(0.3, 0.1, 0.14, 0, SLOPE_TOP.v + 0.04, -(SCREEN_FOOT.u + 0.1), 0x2a2e38);
   const band = box(WIDTH + 0.01, 0.04, 0.72, 0, 0.12, -0.05, color);
   return merge([shell, bezel, stand, band]);
@@ -704,15 +711,15 @@ function helmKeys(ctx: StarshipContext, scope: Scope, ref: () => { course: numbe
         key({
           label: () => {
             const s = ship(ctx);
-            return s?.warp === Warp.Charging ? `WARP ${Math.round(s.warpT * 100)}%` : s?.warp === Warp.Warping ? 'AT WARP' : 'WARP';
+            return s ? warpLabel(s) : 'WARP';
           },
           fill: () => {
             const s = ship(ctx);
-            return s?.warp === Warp.Charging ? s.warpT : s?.warp === Warp.Warping ? 1 : 0;
+            return s ? warpFill(s) : 0;
           },
           off: () => {
             const s = ship(ctx);
-            return !s || s.phase !== Phase.Underway || s.docked || (s.warp === Warp.Idle && (!s.waypoint || Math.hypot(s.wx - s.x, s.wy - s.y) < WARP_MIN));
+            return !s || warpBlocked(s);
           },
           press: () => act(Act.Warp),
         }),
@@ -721,21 +728,19 @@ function helmKeys(ctx: StarshipContext, scope: Scope, ref: () => { course: numbe
           on: () => !!ship(ctx)?.autopilot,
           off: () => {
             const s = ship(ctx);
-            return !s || !s.waypoint || s.docked || s.phase !== Phase.Underway;
+            return !s || autopilotBlocked(s);
           },
           press: () => act(Act.Autopilot, ship(ctx)?.autopilot ? 0 : 1),
         }),
         key({
           label: () => {
             const s = ship(ctx);
-            if (!s) return 'ORBIT';
-            const near = ctx.sector.nearestPlanet(s.x, s.y);
-            return s.orbit ? 'BREAK ORBIT' : near.surface <= ORBIT_REACH ? `ORBIT ${near.planet.name.toUpperCase()}` : 'ORBIT';
+            return s ? orbitLabel(ctx, s) : 'ORBIT';
           },
           on: () => !!ship(ctx)?.orbit,
           off: () => {
             const s = ship(ctx);
-            return !s || (!s.orbit && (ctx.sector.nearestPlanet(s.x, s.y).surface > ORBIT_REACH || s.docked || s.phase !== Phase.Underway));
+            return !s || orbitBlocked(ctx, s);
           },
           press: () => act(Act.Orbit),
         }),
@@ -744,19 +749,23 @@ function helmKeys(ctx: StarshipContext, scope: Scope, ref: () => { course: numbe
         key({
           label: () => {
             const s = ship(ctx);
-            return s?.phase === Phase.Briefing ? 'CAST OFF' : s?.docked ? 'UNDOCK' : 'DOCK';
+            return s ? dockLabel(s) : 'DOCK';
           },
           on: () => ship(ctx)?.phase === Phase.Briefing,
           off: () => {
             const s = ship(ctx);
-            return !s || s.phase === Phase.Over || (!s.docked && Math.hypot(ctx.sector.starbase.x - s.x, ctx.sector.starbase.y - s.y) > DOCK_REACH);
+            return !s || dockBlocked(ctx, s);
           },
           press: () => act(Act.Dock),
         }),
-        key({ label: () => 'ALL STOP', color: '#ff7a5a', press: () => {
-          throttle = null;
-          return act(Act.AllStop);
-        } }),
+        key({
+          label: () => 'ALL STOP',
+          color: '#ff7a5a',
+          press: () => {
+            throttle = null;
+            return act(Act.AllStop);
+          },
+        }),
         key({ label: () => scope.zoomLabel!(), small: true, press: () => scope.zoom!() }),
       ],
       [
@@ -776,11 +785,7 @@ function helmKeys(ctx: StarshipContext, scope: Scope, ref: () => { course: numbe
     status: () => {
       const s = ship(ctx);
       if (!s) return [];
-      const wd = Math.hypot(s.wx - s.x, s.wy - s.y);
-      return [
-        s.waypoint ? `WAYPOINT ${Math.round(wd)} u${s.speed > 5 && s.warp === Warp.Idle ? ` · ETA ${Math.round(wd / s.speed)} s` : ''}` : 'No waypoint: point at the map on the screen',
-        `${s.orbit ? 'IN ORBIT' : s.autopilot ? 'AUTOPILOT' : `STEERING ${String(bearing(s.course)).padStart(3, '0')}°`}`,
-      ];
+      return [waypointLine(s, 'No waypoint: point at the map on the screen'), `${s.orbit ? 'IN ORBIT' : s.autopilot ? 'AUTOPILOT' : `STEERING ${String(bearing(s.course)).padStart(3, '0')}°`}`];
     },
   };
 }
@@ -789,7 +794,7 @@ function helmKeys(ctx: StarshipContext, scope: Scope, ref: () => { course: numbe
 function tacticalKeys(ctx: StarshipContext): Controls {
   const target = (): RaiderEntity | null => {
     const s = ship(ctx);
-    return s ? ((ctx.world.getAs(Raider, s.target) as RaiderEntity | undefined) ?? null) : null;
+    return s ? targetOf(ctx, s) : null;
   };
   return {
     rows: [
@@ -797,7 +802,7 @@ function tacticalKeys(ctx: StarshipContext): Controls {
         key({
           label: () => {
             const s = ship(ctx);
-            const why = s ? phaserBlocked(s, target()) : 'No ship';
+            const why = s ? phasersBlocked(s, target()) : 'No ship';
             return why ? (why === 'Charging' ? `CHARGING ${Math.round((s?.phaser ?? 0) * 100)}%` : why.toUpperCase()) : `PHASERS ${Math.round((s?.phaser ?? 0) * 100)}%`;
           },
           span: 2,
@@ -805,21 +810,21 @@ function tacticalKeys(ctx: StarshipContext): Controls {
           fill: () => ship(ctx)?.phaser ?? 0,
           off: () => {
             const s = ship(ctx);
-            return !s || !!phaserBlocked(s, target()) || s.phase !== Phase.Underway;
+            return !s || !!phasersBlocked(s, target());
           },
           press: () => act(Act.Phasers),
         }),
         key({
           label: () => {
             const s = ship(ctx);
-            return s?.shieldsUp ? (s.shields < SHIELD_MAX * 0.95 ? 'SHIELDS RAISING' : 'SHIELDS UP') : 'SHIELDS DOWN';
+            return s ? shieldsLabel(s) : 'SHIELDS DOWN';
           },
           color: '#6ab8ff',
           on: () => !!ship(ctx)?.shieldsUp,
           fill: () => (ship(ctx)?.shields ?? 0) / SHIELD_MAX,
           off: () => {
             const s = ship(ctx);
-            return !!s && s.docked && !s.shieldsUp;
+            return !!s && shieldsBlocked(s);
           },
           press: () => act(Act.Shields, ship(ctx)?.shieldsUp ? 0 : 1),
         }),
@@ -828,16 +833,14 @@ function tacticalKeys(ctx: StarshipContext): Controls {
         key({
           label: () => {
             const s = ship(ctx);
-            if (!s) return 'TORPEDO';
-            const loaded = (s.tubes & 1 ? 1 : 0) + (s.tubes & 2 ? 1 : 0);
-            return `FIRE TORPEDO ${loaded}/2`;
+            return s ? `FIRE TORPEDO ${tubesLoaded(s)}/2` : 'TORPEDO';
           },
           span: 2,
           color: '#ffd35a',
           fill: () => ship(ctx)?.loadT ?? 0,
           off: () => {
             const s = ship(ctx);
-            return !s || !s.tubes || s.docked || s.phase !== Phase.Underway;
+            return !s || torpedoBlocked(s);
           },
           press: () => act(Act.Torpedo),
         }),
@@ -847,11 +850,8 @@ function tacticalKeys(ctx: StarshipContext): Controls {
           off: () => !ctx.world.all(Raider).size,
           press: () => {
             const s = ship(ctx);
-            if (!s) return null;
-            const list = ([...ctx.world.all(Raider)] as RaiderEntity[]).sort((a, b) => Math.hypot(a.x - s.x, a.y - s.y) - Math.hypot(b.x - s.x, b.y - s.y));
-            if (!list.length) return null;
-            const i = list.findIndex((r) => r.id === s.target);
-            return act(Act.Target, 0, 0, list[(i + 1) % list.length].id);
+            const id = s ? nextTarget(ctx, s) : 0;
+            return id ? act(Act.Target, 0, 0, id) : null;
           },
         }),
       ],
@@ -862,10 +862,8 @@ function tacticalKeys(ctx: StarshipContext): Controls {
       const t = target();
       if (!t) return [ctx.world.all(Raider).size ? 'NO TARGET · point at a raider on the scope' : 'NO TARGET · no raiders on sensors', `${s.torps} torpedoes in the rack`];
       const spec = RAIDERS[t.render.kind];
-      const rel = Math.round((angleDiff(s.heading, Math.atan2(t.y - s.y, t.x - s.x)) * 180) / Math.PI);
-      const side = Math.abs(rel) < 3 ? 'dead ahead' : `${Math.abs(rel)}° ${rel > 0 ? 'starboard' : 'port'}`;
       return [
-        `${spec.name.toUpperCase()} · ${Math.round(Math.hypot(t.x - s.x, t.y - s.y))} u · ${side}`,
+        `${spec.name.toUpperCase()} · ${Math.round(Math.hypot(t.x - s.x, t.y - s.y))} u · ${bearingOf(s, t)}`,
         `HULL ${Math.round((t.render.hp / spec.hp) * 100)}% · SHIELDS ${Math.round((t.render.shields / spec.shields) * 100)}%${t.render.scanned ? ' · HARMONICS KNOWN' : ''} · ${s.torps} in the rack`,
       ];
     },
@@ -876,35 +874,26 @@ function tacticalKeys(ctx: StarshipContext): Controls {
 function scienceKeys(ctx: StarshipContext, scope: Scope): Controls {
   const scanning = (): boolean => {
     const s = ship(ctx);
-    const p = scope.picked;
-    return !!s && !!p && ('planet' in p ? s.scanPlanet === p.planet + 1 : s.scanning === p.raider);
+    return !!s && scanningThis(s, scope.picked ?? null);
   };
   const beamable = (want: 'down' | 'up' | 'relic'): boolean => {
     const s = ship(ctx);
-    if (!s || transporterBlocked(s) || s.beam !== Beam.Idle) return false;
-    const planet = s.orbit - 1;
-    if (want === 'relic') return planet >= 0 && [...ctx.world.all(Relic)].some((r) => r.render.site === planet + 1 && !r.render.carrier);
-    const crew = [...ctx.world.all(Crew)] as CrewEntity[];
-    if (want === 'down') return crew.some((c) => c.render.mode === CrewMode.Up && ctx.deck.onShip(c.x) && Math.hypot(c.x - PAD.x, c.y - PAD.y) <= PAD.radius);
-    return planet >= 0 && crew.some((c) => !ctx.deck.onShip(c.x) && ctx.deck.siteAt(c.x) === planet);
+    return !!s && !beamBlocked(ctx, s, want);
   };
   return {
     rows: [
       [
         key({
-          label: () => (scanning() ? `SCANNING ${Math.round((ship(ctx)?.scanT ?? 0) * 100)}%` : 'SCAN'),
+          label: () => {
+            const s = ship(ctx);
+            return s ? scanLabel(s, scope.picked ?? null) : 'SCAN';
+          },
           span: 2,
           color: '#b48aff',
           fill: () => (scanning() ? (ship(ctx)?.scanT ?? 0) : 0),
           off: () => {
             const s = ship(ctx);
-            const p = scope.picked;
-            if (!s || !p) return true;
-            if ('planet' in p) {
-              const pl = ctx.sector.planets[p.planet];
-              return Math.max(0, Math.hypot(pl.x - s.x, pl.y - s.y) - pl.radius) > sensorRange(s) || s.phase !== Phase.Underway;
-            }
-            return !!(ctx.world.getAs(Raider, p.raider) as RaiderEntity | undefined)?.render.scanned;
+            return !s || scanBlocked(ctx, s, scope.picked ?? null);
           },
           press: () => {
             const p = scope.picked;
@@ -939,12 +928,7 @@ function scienceKeys(ctx: StarshipContext, scope: Scope): Controls {
           ? `${ctx.sector.planets[p.planet].name.toUpperCase()} · ${planetStatus(ctx, s, p.planet)}`
           : `${RAIDERS[(ctx.world.getAs(Raider, p.raider) as RaiderEntity | undefined)?.render.kind ?? 0].name.toUpperCase()} · ${(ctx.world.getAs(Raider, p.raider) as RaiderEntity | undefined)?.render.scanned ? 'harmonics known' : 'unscanned'}`;
       const blocked = transporterBlocked(s);
-      const beam =
-        s.beam !== Beam.Idle
-          ? `${['', 'Beaming down', 'Beaming up', 'Locking onto the relic'][s.beam]}… ${Math.round(s.beamT * 100)}%`
-          : blocked
-            ? `TRANSPORTER: ${blocked}`
-            : `TRANSPORTER READY · in orbit of ${ctx.sector.planets[s.orbit - 1].name}`;
+      const beam = s.beam !== Beam.Idle ? beamingLine(s) : blocked ? `TRANSPORTER: ${blocked}` : `TRANSPORTER READY · in orbit of ${ctx.sector.planets[s.orbit - 1].name}`;
       return [what, beam];
     },
   };
@@ -977,7 +961,7 @@ function engineeringKeys(ctx: StarshipContext): Controls {
         },
         off: () => {
           const s = ship(ctx);
-          return !!s && n > pips(s, sys) && n - pips(s, sys) > POWER_POOL - powerUsed(s);
+          return !!s && pipBlocked(s, sys, n);
         },
         press: () => act(Act.Power, sys, n),
       }),
@@ -994,9 +978,8 @@ function engineeringKeys(ctx: StarshipContext): Controls {
     status: () => {
       const s = ship(ctx);
       if (!s) return [];
-      const used = powerUsed(s);
       return [
-        `POWER ${used} / ${POWER_POOL}${used < POWER_POOL ? ` · ${POWER_POOL - used} spare` : ''} · ${SYSTEMS.map((sys) => `${SYSTEM_NAMES[sys].slice(0, 3).toUpperCase()} ${Math.round(efficiency(s, sys) * 100)}%`).join('  ')}`,
+        `${powerLine(s)} · ${SYSTEMS.map((sys) => `${SYSTEM_NAMES[sys].slice(0, 3).toUpperCase()} ${Math.round(efficiency(s, sys) * 100)}%`).join('  ')}`,
         s.team !== 255 ? `Damage control team in the ${SYSTEM_NAMES[s.team as ShipSystem].toLowerCase()} room` : 'Hull hits start fires. Send the team, or crew with spanners.',
       ];
     },

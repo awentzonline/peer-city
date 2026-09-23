@@ -37,5 +37,7 @@ export interface RoomMedia {
 export function randomPeerId(): string {
   const bytes = new Uint8Array(10);
   crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(36).padStart(2, '0')).join('').slice(0, 16);
+  return Array.from(bytes, (b) => b.toString(36).padStart(2, '0'))
+    .join('')
+    .slice(0, 16);
 }

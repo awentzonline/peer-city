@@ -177,11 +177,7 @@ function collideWithEntities(ctx: GameContext, car: CarEntity): void {
         s.hp = Math.max(0, s.hp - Math.round(dmg * 0.5));
         ctx.sfx.play('crash', s.x, s.y);
         ctx.fx.sparks((s.x + other.x) / 2, (s.y + other.y) / 2);
-        ctx.world.send(
-          Damage,
-          { target: other.id, amount: dmg, attacker, cause: DamageCause.Vehicle, kx: -nxn * closing * 0.5, ky: -nyn * closing * 0.5 },
-          { to: 'owner', entity: other },
-        );
+        ctx.world.send(Damage, { target: other.id, amount: dmg, attacker, cause: DamageCause.Vehicle, kx: -nxn * closing * 0.5, ky: -nyn * closing * 0.5 }, { to: 'owner', entity: other });
       }
       continue;
     }
@@ -200,11 +196,7 @@ function collideWithEntities(ctx: GameContext, car: CarEntity): void {
     if (Math.abs(rx) > hl + 8 || Math.abs(ry) > hw + 8) continue;
     const sp = Math.abs(s.speed);
     if (sp > 70 && cooldownOk(car, e.id, ctx.now, 700)) {
-      ctx.world.send(
-        Damage,
-        { target: e.id, amount: Math.min(255, Math.round(sp / 2.5)), attacker, cause: DamageCause.Vehicle, kx: l.vx! * 0.8, ky: l.vy! * 0.8 },
-        { to: 'owner', entity: e },
-      );
+      ctx.world.send(Damage, { target: e.id, amount: Math.min(255, Math.round(sp / 2.5)), attacker, cause: DamageCause.Vehicle, kx: l.vx! * 0.8, ky: l.vy! * 0.8 }, { to: 'owner', entity: e });
       ctx.sfx.play('hit', e.x, e.y);
       l.vx! *= 0.85;
       l.vy! *= 0.85;
@@ -224,7 +216,11 @@ export function wreckCar(ctx: GameContext, car: CarEntity): void {
   for (const e of ctx.world.query(s.x, s.y, 120)) {
     if (e === car) continue;
     const alive =
-      e.def === Car ? (e.state as { mode: number }).mode !== CarMode.Wrecked : e.def === Ped ? (e.state as { mode: number }).mode !== PedMode.Dead : e.def === Player && (e.state as { hp: number }).hp > 0;
+      e.def === Car
+        ? (e.state as { mode: number }).mode !== CarMode.Wrecked
+        : e.def === Ped
+          ? (e.state as { mode: number }).mode !== PedMode.Dead
+          : e.def === Player && (e.state as { hp: number }).hp > 0;
     if (!alive) continue;
     const dx = e.x - s.x;
     const dy = e.y - s.y;

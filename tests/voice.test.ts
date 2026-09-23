@@ -235,7 +235,7 @@ describe('Voice', () => {
     expect(net.rooms.size).toBe(1); // it gave up after the first room, rather than opening one per zone
   });
 
-  it("sends to where an overseer listens, and plays it only while its presence is about", async () => {
+  it('sends to where an overseer listens, and plays it only while its presence is about', async () => {
     const { net, audio, voice, them } = setup(5);
     // looking right at us from on high, but its presence is off across the house
     const overseer = them as { peer: string; name: string; at: Vec3 | null; ears?: Vec3 };

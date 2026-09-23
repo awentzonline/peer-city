@@ -183,17 +183,7 @@ export const PARTS: Record<PartKind, PartSpec> = {
 };
 
 /** What the part gun places, in the order it cycles through them. */
-export const PLACEABLE: readonly PartKind[] = [
-  PartKind.Block,
-  PartKind.Wheel,
-  PartKind.BigWheel,
-  PartKind.Rocket,
-  PartKind.Wing,
-  PartKind.Balloon,
-  PartKind.Ballast,
-  PartKind.Bumper,
-  PartKind.Runner,
-];
+export const PLACEABLE: readonly PartKind[] = [PartKind.Block, PartKind.Wheel, PartKind.BigWheel, PartKind.Rocket, PartKind.Wing, PartKind.Balloon, PartKind.Ballast, PartKind.Bumper, PartKind.Runner];
 
 export interface Part {
   x: number;
@@ -292,7 +282,7 @@ export const PROBLEM_TEXT: Record<Exclude<PlaceProblem, null>, string> = {
   full: `A racer can only have ${MAX_PARTS} parts`,
   taken: 'Something is already there',
   'too far': 'Too far from the seat',
-  leaf: "Nothing sticks to that part",
+  leaf: 'Nothing sticks to that part',
 };
 
 /** A design with a part added against a face of part `onto`, or null if it can't go there. */

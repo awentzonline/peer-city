@@ -84,11 +84,7 @@ export function partGeometry(kind: PartKind, dir: Dir, seatColor = PARTS[PartKin
           dir,
         );
       case PartKind.Wing:
-        return merge([
-          box(0.62, 0.05, 0.56, -0.02, 0, 0, spec.color),
-          box(0.16, 0.052, 0.56, 0.2, 0.002, 0, 0xc0392b),
-          box(0.06, 0.2, 0.06, -0.1, -0.12, 0, 0x7f8c8d),
-        ]);
+        return merge([box(0.62, 0.05, 0.56, -0.02, 0, 0, spec.color), box(0.16, 0.052, 0.56, 0.2, 0.002, 0, 0xc0392b), box(0.06, 0.2, 0.06, -0.1, -0.12, 0, 0x7f8c8d)]);
       case PartKind.Balloon:
         return merge([
           box(0.12, 0.08, 0.12, 0, -0.2, 0, 0x7f8c8d),
@@ -97,11 +93,7 @@ export function partGeometry(kind: PartKind, dir: Dir, seatColor = PARTS[PartKin
           paint(new THREE.ConeGeometry(0.05, 0.08, 6).rotateX(Math.PI).translate(0, 0.46, 0), spec.color),
         ]);
       case PartKind.Bumper:
-        return merge([
-          box(0.44, 0.44, 0.44, 0, 0, 0, spec.color),
-          box(0.5, 0.1, 0.5, 0, 0.12, 0, 0x2d3436),
-          box(0.5, 0.1, 0.5, 0, -0.12, 0, 0x2d3436),
-        ]);
+        return merge([box(0.44, 0.44, 0.44, 0, 0, 0, spec.color), box(0.5, 0.1, 0.5, 0, 0.12, 0, 0x2d3436), box(0.5, 0.1, 0.5, 0, -0.12, 0, 0x2d3436)]);
       case PartKind.Runner:
         return merge([
           box(0.5, 0.1, 0.36, 0, -0.2, 0, spec.color),

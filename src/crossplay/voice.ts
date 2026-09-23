@@ -68,7 +68,9 @@ interface VoicePeer {
   source: VoiceSource | null;
   /** Whether their voice is actually being played: they're sending, and they're inside earshot. */
   heard: boolean;
+  /** Where their voice comes from this frame, if `placed`: the object is kept and refilled, frame to frame. */
   at: Vec3 | null;
+  placed: boolean;
   /** From their mouth to our ears, for hearing them. */
   distance: number;
   /** From our mouth to their ears, for sending to them. */
@@ -100,6 +102,8 @@ export class Voice {
   private readonly rooms = new Map<string, TransportRoom>();
   private readonly peers = new Map<string, VoicePeer>();
   private readonly muted = new Set<string>();
+  /** The zones the world is in this frame, kept between frames so following them allocates nothing. */
+  private readonly want = new Set<string>();
   private mic: MediaStream | null = null;
   private micLevel: (() => number) | null = null;
   /** Opening or closing the microphone right now: the browser may be asking. Settles at where `wanted` last was. */
@@ -213,7 +217,7 @@ export class Voice {
 
   private async openMic(): Promise<void> {
     if (!this.canTalk) {
-      this.error = 'This page can\'t reach a microphone';
+      this.error = "This page can't reach a microphone";
       return;
     }
     try {
@@ -243,7 +247,9 @@ export class Voice {
   /** One voice room per zone room the world is in, joined and left with them. */
   private syncRooms(): void {
     if (this.carriesMedia === false) return;
-    const want = new Set(this.opts.zones());
+    const { want } = this;
+    want.clear();
+    for (const key of this.opts.zones()) want.add(key);
     for (const key of want) {
       if (this.rooms.has(key)) continue;
       const room = this.opts.transport.join(`${this.opts.prefix}${key}`);
@@ -271,7 +277,7 @@ export class Voice {
     if (id === this.opts.transport.selfId || !this.rooms.has(key)) return;
     let peer = this.peers.get(id);
     if (!peer) {
-      peer = { id, name: '', rooms: new Set(), sendingVia: null, stream: null, source: null, heard: false, at: null, distance: Infinity, reach: Infinity, unplayable: false };
+      peer = { id, name: '', rooms: new Set(), sendingVia: null, stream: null, source: null, heard: false, at: null, placed: false, distance: Infinity, reach: Infinity, unplayable: false };
       this.peers.set(id, peer);
     }
     peer.rooms.add(key);
@@ -306,7 +312,7 @@ export class Voice {
   /** Where everyone is this frame, and how far off. Someone we can't place yet is treated as out of earshot. */
   private locate(): void {
     for (const peer of this.peers.values()) {
-      peer.at = null;
+      peer.placed = false;
       peer.distance = peer.reach = Infinity;
     }
     const ears = this.opts.audio.listenerAt;
@@ -317,7 +323,12 @@ export class Voice {
       peer.name = speaker.name;
       const { at } = speaker;
       if (at) {
-        peer.at = { x: at.x, y: at.y, z: at.z };
+        // reused from frame to frame: the speaker's own `at` may be a scratch object
+        const mine = (peer.at ??= { x: 0, y: 0, z: 0 });
+        mine.x = at.x;
+        mine.y = at.y;
+        mine.z = at.z;
+        peer.placed = true;
         peer.distance = dist(at, ears);
       }
       const theirEars = speaker.ears ?? at;
@@ -371,7 +382,7 @@ export class Voice {
     }
     const source = peer.source;
     if (!source) return;
-    if (peer.at) source.setPosition(peer.at);
+    if (peer.placed && peer.at) source.setPosition(peer.at);
     // The panner rolls a voice off with distance but never quite to nothing, so earshot is cut here.
     // We stop sending a good way beyond it (SEND_OUT), which is only to keep connections from churning.
     peer.heard = peer.distance <= this.range;
@@ -391,12 +402,22 @@ function dist(a: Vec3, b: Vec3): number {
   return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 }
 
-/** Every other player's mouth, for `VoiceOptions.speakers`: any entity built on `BODY_FIELDS` will do. */
+/**
+ * Every other player's mouth, for `VoiceOptions.speakers`: any entity built on `BODY_FIELDS` will do. It runs every
+ * frame, so one speaker object is filled in and yielded over and over rather than made afresh for each body.
+ */
 export function bodySpeakers<S extends Shape>(world: NetWorld, def: EntityDef<S>): () => Iterable<Speaker> {
+  const at = { x: 0, y: 0, z: 0 };
+  const speaker: Speaker = { peer: '', name: '', at };
   return function* speakers(): Iterable<Speaker> {
     for (const e of world.remote(def)) {
       const body = e.render as Infer<S> & Infer<typeof BODY_FIELDS> & { name: string };
-      yield { peer: e.owner, name: body.name, at: { x: e.x, y: e.y, z: body.z + body.head } };
+      speaker.peer = e.owner;
+      speaker.name = body.name;
+      at.x = e.x;
+      at.y = e.y;
+      at.z = body.z + body.head;
+      yield speaker;
     }
   };
 }

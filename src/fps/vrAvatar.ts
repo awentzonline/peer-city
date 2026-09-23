@@ -13,7 +13,6 @@ import { VrHud } from './vrhud';
 
 const TRIGGER = 0.6;
 
-
 /**
  * A headset. Walk round your room or use the left stick; the right stick snap-turns. Tools live in holsters
  * on your body and each hand uses the one it grabbed. Sitting in a car calibrates your head to the

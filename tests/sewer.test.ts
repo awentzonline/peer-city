@@ -5,21 +5,7 @@ import { Platform } from '../src/crossplay/platform';
 import { registerActions } from '../src/sewer/actions';
 import type { GoblinEntity, LootEntity, SewerContext } from '../src/sewer/context';
 import { ACTIONS, ENTITIES, FatChunk, Goblin, GoblinMode, LordMode, Loot, LootKind, LootWhere, Phase, Punch, Result, Sewer, Snatch, Splat, VALVE_FIELDS } from '../src/sewer/defs';
-import {
-  CHUNKS,
-  U,
-  V,
-  VoxelGrid,
-  W,
-  ablate,
-  breached,
-  floorW,
-  index,
-  inGrid,
-  raycastVoxels,
-  seedFatberg,
-  unsupported,
-} from '../src/sewer/fatberg';
+import { CHUNKS, U, V, VoxelGrid, W, ablate, breached, floorW, index, inGrid, raycastVoxels, seedFatberg, unsupported } from '../src/sewer/fatberg';
 import { stepRules } from '../src/sewer/frame';
 import { GoblinMind, spawnGoblin } from '../src/sewer/goblins';
 import { idleLordIntent, type LordIntent } from '../src/sewer/intent';

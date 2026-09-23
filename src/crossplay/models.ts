@@ -213,9 +213,7 @@ export function buildToolPickup(tool: Tool<any>): { root: THREE.Group; spin: THR
 }
 
 export function pickupGlow(color: number): THREE.Sprite {
-  const glow = new THREE.Sprite(
-    new THREE.SpriteMaterial({ map: glowTexture(), color, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }),
-  );
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
   glow.scale.set(1.4, 1.4, 1);
   glow.position.y = 0.6;
   return glow;
@@ -257,19 +255,13 @@ export interface HumanRig {
 export function buildHuman(look: HumanLook): HumanRig {
   const key = `${look.shirt}:${look.pants}:${look.skin}:${look.hair}:${look.hat}:${look.badge}`;
   const torso = cached(`torso:${key}`, () =>
-    merge([
-      box(0.24, 0.22, 0.42, 0, 0.99, 0, look.pants),
-      box(0.26, 0.56, 0.48, 0, 1.3, 0, look.shirt),
-      ...(look.badge !== undefined ? [box(0.02, 0.07, 0.08, 0.135, 1.43, -0.13, look.badge)] : []),
-    ]),
+    merge([box(0.24, 0.22, 0.42, 0, 0.99, 0, look.pants), box(0.26, 0.56, 0.48, 0, 1.3, 0, look.shirt), ...(look.badge !== undefined ? [box(0.02, 0.07, 0.08, 0.135, 1.43, -0.13, look.badge)] : [])]),
   );
   const head = cached(`head:${key}`, () =>
     merge([
       box(0.24, 0.26, 0.24, 0, 0.13, 0, look.skin),
       box(0.02, 0.05, 0.17, 0.125, 0.16, 0, 0x1e1e1e),
-      ...(look.hat !== undefined
-        ? [box(0.28, 0.07, 0.28, 0, 0.28, 0, look.hat), box(0.1, 0.02, 0.26, 0.16, 0.25, 0, look.hat)]
-        : [box(0.26, 0.07, 0.26, -0.01, 0.27, 0, look.hair)]),
+      ...(look.hat !== undefined ? [box(0.28, 0.07, 0.28, 0, 0.28, 0, look.hat), box(0.1, 0.02, 0.26, 0.16, 0.25, 0, look.hat)] : [box(0.26, 0.07, 0.26, -0.01, 0.27, 0, look.hair)]),
     ]),
   );
   const arm = cached(`arm:${key}`, () => merge([box(0.12, 0.6, 0.12, 0, -0.3, 0, look.shirt), box(0.11, 0.1, 0.11, 0, -0.65, 0, look.skin)]));

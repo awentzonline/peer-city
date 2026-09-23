@@ -1,5 +1,5 @@
-import { defineLocal } from '@engine/index';
-import type { Castle, Post, Spot } from './castle';
+import { defineLocal, keepApart, turnToward, walkMemory, walkToward, type WalkMemory, type Walkable } from '@engine/index';
+import type { Castle, Post } from './castle';
 import { angleDiff, clamp, type GuardEntity, type ShinobiContext, type ShinobiEntity, type Vec3 } from './context';
 import { Alert, Feed, Guard, GuardKind, GuardMode, Noise, OrderKind, Phase, Report, ReportKind, Shinobi, ShinobiMode, Sound, Tally, Weapon, Wound } from './defs';
 import { FLIGHTS } from './kit';
@@ -70,10 +70,8 @@ const ECHO_MS = 8000;
 /** How often a guard tells the captain it's still after the same intruder, ms. */
 const REPORT_MS = 8000;
 
-interface GuardLocal {
+interface GuardLocal extends WalkMemory {
   nextLook: number;
-  nextPath: number;
-  waypoint: Spot | null;
   nextStrike: number;
   /** The shinobi last seen, where, and when. */
   seenId: number;
@@ -97,9 +95,8 @@ interface GuardLocal {
 }
 
 export const GuardMind = defineLocal<GuardLocal>(() => ({
+  ...walkMemory(),
   nextLook: 0,
-  nextPath: 0,
-  waypoint: null,
   nextStrike: 0,
   seenId: 0,
   seenX: 0,
@@ -209,7 +206,17 @@ export function reinforce(ctx: ShinobiContext, round: number, x: number, y: numb
   const out: GuardEntity[] = [];
   for (let k = 0; k < 2; k++) {
     const at = castle.nearestOpen(castle.barracks.x + (k - 0.5) * 1.5, castle.barracks.y);
-    const g = world.spawn(Guard, { x: at.x, y: at.y, kind: GuardKind.Spear, hp: GUARDS[GuardKind.Spear].hp, round, mode: GuardMode.Search, home: k % castle.routes.length, lantern: true, left: SEARCH_SECONDS + 15 }) as GuardEntity;
+    const g = world.spawn(Guard, {
+      x: at.x,
+      y: at.y,
+      kind: GuardKind.Spear,
+      hp: GUARDS[GuardKind.Spear].hp,
+      round,
+      mode: GuardMode.Search,
+      home: k % castle.routes.length,
+      lantern: true,
+      left: SEARCH_SECONDS + 15,
+    }) as GuardEntity;
     const spot = castle.nearestOpen(x, y);
     g.state.tx = spot.x;
     g.state.ty = spot.y;
@@ -666,56 +673,38 @@ function lordOf(ctx: ShinobiContext, _g: GuardEntity | null): GuardEntity | null
   return (ctx.world.getAs(Guard, id) as GuardEntity | undefined) ?? null;
 }
 
+/** The ground as guards walk it, once per context. */
+const grounds = new WeakMap<ShinobiContext, Walkable>();
+function groundOf(ctx: ShinobiContext): Walkable {
+  let g = grounds.get(ctx);
+  if (!g) {
+    const { castle } = ctx;
+    g = { paths: ctx.paths, move: (p, dx, dy, r) => castle.move(p, dx, dy, r, 0), turnRate: 7, repathMs: 300 };
+    grounds.set(ctx, g);
+  }
+  return g;
+}
+
 function step(ctx: ShinobiContext, g: GuardEntity, tx: number, ty: number, speed: number, dt: number, path: boolean): void {
-  const { castle, paths, now } = ctx;
   const s = g.state;
   if (s.z > 0.5) return; // up a tower
-  const l = GuardMind.of(g);
-  const spec = GUARDS[s.kind];
-  let gx = tx;
-  let gy = ty;
-  if (path) {
-    if (now >= l.nextPath || !l.waypoint) {
-      l.nextPath = now + 300 + Math.random() * 100;
-      l.waypoint = paths.next(s.x, s.y, tx, ty, spec.radius);
-    }
-    if (!l.waypoint) return;
-    gx = l.waypoint.x;
-    gy = l.waypoint.y;
-    if (Math.hypot(gx - s.x, gy - s.y) < 0.3) l.nextPath = 0;
-  }
-  const dx = gx - s.x;
-  const dy = gy - s.y;
-  const d = Math.hypot(dx, dy);
-  if (d < 0.05) return;
-  const k = Math.min(d, speed * dt) / d;
-  if (castle.move(s, dx * k, dy * k, spec.radius, 0)) l.nextPath = 0;
-  face(g, Math.atan2(dy, dx), dt, 7);
+  walkToward(groundOf(ctx), s, GuardMind.of(g), tx, ty, GUARDS[s.kind].radius, speed, dt, ctx.now, path);
 }
 
 function face(g: GuardEntity, angle: number, dt: number, rate: number): void {
-  const s = g.state;
-  s.angle += angleDiff(s.angle, angle) * Math.min(1, dt * rate);
+  turnToward(g.state, angle, dt, rate);
 }
 
 /** Keep guards from standing in each other. */
 function separate(ctx: ShinobiContext): void {
-  const { world, castle } = ctx;
-  for (const g of world.owned(Guard) as ReadonlySet<GuardEntity>) {
-    const s = g.state;
-    if (s.mode === GuardMode.Dead || s.z > 0.5) continue;
-    const r = GUARDS[s.kind].radius;
-    for (const o of world.query(s.x, s.y, 1.2, Guard) as GuardEntity[]) {
-      if (o === g || o.render.mode === GuardMode.Dead || o.render.z > 0.5) continue;
-      const min = r + GUARDS[o.render.kind].radius;
-      const dx = s.x - o.x;
-      const dy = s.y - o.y;
-      const d = Math.hypot(dx, dy);
-      if (d >= min || d < 1e-4) continue;
-      const push = (min - d) * 0.5;
-      castle.move(s, (dx / d) * push, (dy / d) * push, r, 0);
-    }
-  }
+  const { world } = ctx;
+  keepApart(
+    groundOf(ctx),
+    world.owned(Guard) as ReadonlySet<GuardEntity>,
+    (x, y, r) => world.query(x, y, r, Guard) as GuardEntity[],
+    (g) => GUARDS[g.render.kind].radius,
+    (g) => g.render.mode !== GuardMode.Dead && g.render.z <= 0.5,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -759,8 +748,7 @@ export function struck(ctx: ShinobiContext, g: GuardEntity, by: number, weapon: 
   if (s.mode === GuardMode.Dead) return;
   const behind = Math.abs(angleDiff(s.angle, Math.atan2(fromY - s.y, fromX - s.x))) > 1.9;
   const unaware = s.alert !== Alert.Alarmed;
-  const lethal =
-    (weapon === Weapon.Tanto && (unaware || behind || s.kind === GuardKind.Lord)) || (weapon === Weapon.Kunai && unaware && s.kind !== GuardKind.Samurai);
+  const lethal = (weapon === Weapon.Tanto && (unaware || behind || s.kind === GuardKind.Lord)) || (weapon === Weapon.Kunai && unaware && s.kind !== GuardKind.Samurai);
   s.hp = lethal ? 0 : Math.max(0, s.hp - amount);
   if (s.hp <= 0) {
     die(ctx, g, by);

@@ -1,4 +1,4 @@
-import { mulberry32 } from '@engine/index';
+import { FlowPaths, mulberry32 } from '@engine/index';
 
 /**
  * The manor and its grounds: a grid of one-meter cells every peer builds from the same seed, so nothing about the
@@ -247,18 +247,6 @@ export class Manor {
     return this.traverse(ax, ay, bx, by, (i, j) => !this.blocksSight(i, j));
   }
 
-  /** Whether a body of radius `r` could walk straight from a to b: its middle and both its sides clear. */
-  clearWalk(ax: number, ay: number, bx: number, by: number, r: number): boolean {
-    const dx = bx - ax;
-    const dy = by - ay;
-    const len = Math.hypot(dx, dy);
-    if (len < 1e-6) return !this.solid(Math.floor(ax), Math.floor(ay));
-    const ox = (-dy / len) * r;
-    const oy = (dx / len) * r;
-    const open = (i: number, j: number) => !this.solid(i, j);
-    return this.traverse(ax, ay, bx, by, open) && this.traverse(ax + ox, ay + oy, bx + ox, by + oy, open) && this.traverse(ax - ox, ay - oy, bx - ox, by - oy, open);
-  }
-
   /** Visit the cells a segment passes through, in order, until `visit` says stop. Returns whether it got to the end. */
   private traverse(ax: number, ay: number, bx: number, by: number, visit: (i: number, j: number) => boolean): boolean {
     let i = Math.floor(ax);
@@ -407,7 +395,7 @@ export class Manor {
     const canX = w >= MIN_ROOM * 2 + 1;
     const canY = h >= MIN_ROOM * 2 + 1;
     const small = w <= MAX_ROOM && h <= MAX_ROOM;
-    if ((!canX && !canY) || (small && (depth > 1 && this.rnd() < 0.45))) {
+    if ((!canX && !canY) || (small && depth > 1 && this.rnd() < 0.45)) {
       this.addRoom(x0, y0, x1, y1);
       return;
     }
@@ -450,8 +438,22 @@ export class Manor {
       for (let i = x0 + 2; i < x1 - 2; i++) {
         if (this.tile(i, j) !== Tile.Wall || this.nearDoor(i, j)) continue;
         // two wall cells in a row with floor either side of both, and no wall crossing them
-        const acrossX = this.tile(i, j - 1) === Tile.Floor && this.tile(i, j + 1) === Tile.Floor && this.tile(i + 1, j) === Tile.Wall && this.tile(i + 1, j - 1) === Tile.Floor && this.tile(i + 1, j + 1) === Tile.Floor && this.tile(i + 2, j) === Tile.Wall && this.tile(i - 1, j) === Tile.Wall;
-        const acrossY = this.tile(i - 1, j) === Tile.Floor && this.tile(i + 1, j) === Tile.Floor && this.tile(i, j + 1) === Tile.Wall && this.tile(i - 1, j + 1) === Tile.Floor && this.tile(i + 1, j + 1) === Tile.Floor && this.tile(i, j + 2) === Tile.Wall && this.tile(i, j - 1) === Tile.Wall;
+        const acrossX =
+          this.tile(i, j - 1) === Tile.Floor &&
+          this.tile(i, j + 1) === Tile.Floor &&
+          this.tile(i + 1, j) === Tile.Wall &&
+          this.tile(i + 1, j - 1) === Tile.Floor &&
+          this.tile(i + 1, j + 1) === Tile.Floor &&
+          this.tile(i + 2, j) === Tile.Wall &&
+          this.tile(i - 1, j) === Tile.Wall;
+        const acrossY =
+          this.tile(i - 1, j) === Tile.Floor &&
+          this.tile(i + 1, j) === Tile.Floor &&
+          this.tile(i, j + 1) === Tile.Wall &&
+          this.tile(i - 1, j + 1) === Tile.Floor &&
+          this.tile(i + 1, j + 1) === Tile.Floor &&
+          this.tile(i, j + 2) === Tile.Wall &&
+          this.tile(i, j - 1) === Tile.Wall;
         if (acrossX) candidates.push({ i, j, alongX: true });
         if (acrossY) candidates.push({ i, j, alongX: false });
       }
@@ -512,7 +514,7 @@ export class Manor {
           else place(rect(cx, y0 + 2, 1, Math.max(2, h - 4)), Piece.Table);
           break;
         case RoomKind.Bedroom:
-          place(rect(x0, y1 - 2, 2, 3), Piece.Bed) || place(rect(x1 - 1, y0, 2, 3), Piece.Bed);
+          if (!place(rect(x0, y1 - 2, 2, 3), Piece.Bed)) place(rect(x1 - 1, y0, 2, 3), Piece.Bed);
           place([[x1, y1]], Piece.Chest);
           break;
         case RoomKind.Study:
@@ -625,102 +627,11 @@ export class Manor {
 }
 
 /**
- * Distance fields to places: how many steps every cell is from a target, walking. A monster heads downhill on the field
- * for where it's going, cutting corners wherever it can walk straight. Fields are shared by everyone going the same way,
- * and remade when they're a moment old, since the gate and the targets move.
+ * Ways round the house for monsters (see `FlowPaths`): fields are remade when they're a moment old, since the gate
+ * opens and closes.
  */
-export class Paths {
-  private readonly fields = new Map<number, { field: Uint16Array; at: number }>();
-  private readonly queue = new Int32Array(SIZE * SIZE);
-
-  constructor(
-    private readonly manor: Manor,
-    private readonly maxAgeMs = 700,
-  ) {}
-
-  /** The field to a point: 0 at its cell, 0xffff where it can't be walked to. */
-  field(x: number, y: number, now: number): Uint16Array {
-    const target = this.manor.nearestOpen(x, y);
-    const key = Manor.index(Math.floor(target.x), Math.floor(target.y));
-    const cached = this.fields.get(key);
-    if (cached && now - cached.at < this.maxAgeMs) return cached.field;
-    const field = cached?.field ?? new Uint16Array(SIZE * SIZE);
-    this.fill(field, key);
-    this.fields.delete(key);
-    this.fields.set(key, { field, at: now });
-    if (this.fields.size > 32) this.fields.delete(this.fields.keys().next().value!);
-    return field;
-  }
-
-  /**
-   * Where a body of radius `r` at (x, y) should head for next on its way to (tx, ty): the target itself if it can walk
-   * straight there, or the furthest cell down the field it can walk straight to. Null if the target can't be reached.
-   */
-  next(x: number, y: number, tx: number, ty: number, r: number, now: number): Spot | null {
-    const { manor } = this;
-    if (Math.hypot(tx - x, ty - y) < 14 && manor.clearWalk(x, y, tx, ty, r)) return { x: tx, y: ty };
-    const field = this.field(tx, ty, now);
-    let i = Math.floor(x);
-    let j = Math.floor(y);
-    if (field[Manor.index(i, j)] === 0xffff) {
-      // off the field (pushed into a corner, or standing in a doorway's edge): make for the nearest open cell
-      const open = manor.nearestOpen(x, y);
-      i = Math.floor(open.x);
-      j = Math.floor(open.y);
-      if (field[Manor.index(i, j)] === 0xffff) return null;
-    }
-    let best: Spot | null = null;
-    for (let step = 0; step < 10; step++) {
-      const here = field[Manor.index(i, j)];
-      if (here === 0) break;
-      let ni = -1;
-      let nj = -1;
-      let low = here;
-      for (const [di, dj] of DIRS8) {
-        const ci = i + di;
-        const cj = j + dj;
-        if (ci < 0 || cj < 0 || ci >= SIZE || cj >= SIZE) continue;
-        // no cutting a corner round a solid cell
-        if (di !== 0 && dj !== 0 && (manor.solid(i + di, j) || manor.solid(i, j + dj))) continue;
-        const v = field[Manor.index(ci, cj)];
-        if (v < low) {
-          low = v;
-          ni = ci;
-          nj = cj;
-        }
-      }
-      if (ni < 0) break;
-      i = ni;
-      j = nj;
-      const cx = i + 0.5;
-      const cy = j + 0.5;
-      if (step === 0 || manor.clearWalk(x, y, cx, cy, r)) best = { x: cx, y: cy };
-      else break;
-    }
-    return best ?? { x: tx, y: ty };
-  }
-
-  private fill(field: Uint16Array, from: number): void {
-    const { manor, queue } = this;
-    field.fill(0xffff);
-    let head = 0;
-    let tail = 0;
-    field[from] = 0;
-    queue[tail++] = from;
-    while (head < tail) {
-      const c = queue[head++];
-      const i = c % SIZE;
-      const j = (c - i) / SIZE;
-      const d = field[c] + 1;
-      for (let k = 0; k < 4; k++) {
-        const ni = i + DIRS8[k][0];
-        const nj = j + DIRS8[k][1];
-        if (manor.solid(ni, nj)) continue;
-        const n = nj * SIZE + ni;
-        if (field[n] <= d) continue;
-        field[n] = d;
-        queue[tail++] = n;
-      }
-    }
+export class Paths extends FlowPaths {
+  constructor(manor: Manor) {
+    super({ size: SIZE, open: (i, j) => !manor.solid(i, j), nearestOpen: (x, y) => manor.nearestOpen(x, y) }, { maxAgeMs: 700, straightWithin: 14 });
   }
 }

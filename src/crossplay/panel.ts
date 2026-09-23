@@ -19,10 +19,7 @@ export function panel(width: number, height: number, w: number, h: number, overl
   canvas.height = h;
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  const mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(width, height),
-    new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: !overlay, fog: false }),
-  );
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: !overlay, fog: false }));
   mesh.renderOrder = overlay ? 999 : 10;
   mesh.visible = false;
   return { mesh, ctx: canvas.getContext('2d')!, tex, w, h };

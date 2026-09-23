@@ -142,7 +142,9 @@ export class Hud extends HudBase {
       this.kunai = kunai;
       this.shuriken = shuriken;
       this.tool = tool;
-      this.kitEl.innerHTML = ['Tanto', `Kunai ×${kunai}`, `Shuriken ×${shuriken}`].map((t, i) => `<span class="${['Tanto', 'Kunai', 'Shuriken'][i] === tool ? 'on' : ''}"><small>${i + 1}</small>${t}</span>`).join('');
+      this.kitEl.innerHTML = ['Tanto', `Kunai ×${kunai}`, `Shuriken ×${shuriken}`]
+        .map((t, i) => `<span class="${['Tanto', 'Kunai', 'Shuriken'][i] === tool ? 'on' : ''}"><small>${i + 1}</small>${t}</span>`)
+        .join('');
       this.version++;
     }
     const exposure = Math.round(sim.exposure * 20) * 5;

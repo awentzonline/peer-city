@@ -1,11 +1,7 @@
 import { randomPeerId, type Transport, type TransportRoom } from './types';
 
 type Wire =
-  | { t: 'hello'; from: string }
-  | { t: 'here'; from: string; to: string }
-  | { t: 'bye'; from: string }
-  | { t: 'beat'; from: string }
-  | { t: 'data'; from: string; to: string; data: Uint8Array };
+  { t: 'hello'; from: string } | { t: 'here'; from: string; to: string } | { t: 'bye'; from: string } | { t: 'beat'; from: string } | { t: 'data'; from: string; to: string; data: Uint8Array };
 
 /**
  * Same-origin transport over BroadcastChannel. Every browser tab is a peer; no

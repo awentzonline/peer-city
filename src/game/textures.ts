@@ -191,7 +191,7 @@ function buildTileset(scene: Phaser.Scene) {
   const cell = TILE + TILE_SPACING;
   const [c, ctx] = canvas(TILESET_COLS * cell, TILESET_ROWS * cell);
   let seed = 7;
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const [tc, tctx] = canvas(TILE, TILE);
   for (let i = 0; i < TILESET_COLS * TILESET_ROWS; i++) {
     tctx.clearRect(0, 0, TILE, TILE);
@@ -364,7 +364,7 @@ export function buildTextures(scene: Phaser.Scene): void {
   {
     const [c, ctx] = canvas(40, 40);
     let seed = 3;
-    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     ctx.fillStyle = 'rgba(120,0,0,0.85)';
     ctx.beginPath();
     ctx.arc(20, 20, 9, 0, Math.PI * 2);

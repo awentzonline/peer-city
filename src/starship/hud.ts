@@ -152,7 +152,8 @@ export class Hud extends HudBase {
     }
     for (const c of ctx.world.all(Crew) as ReadonlySet<CrewEntity>) {
       const r = c.render;
-      const where = r.mode === CrewMode.Down ? 'hurt' : r.seat ? `${STATION_NAMES[(r.seat - 1) as Station].toLowerCase()} console` : ctx.deck.placeName(c.x, c.y, (i) => ctx.sector.planets[i].name).toLowerCase();
+      const where =
+        r.mode === CrewMode.Down ? 'hurt' : r.seat ? `${STATION_NAMES[(r.seat - 1) as Station].toLowerCase()} console` : ctx.deck.placeName(c.x, c.y, (i) => ctx.sector.planets[i].name).toLowerCase();
       lines.push({ name: r.name, where, color: c === ctx.me ? '#ffd35a' : '#e8ecf4' });
     }
     const key = lines.map((l) => `${l.name}|${l.where}`).join(',');

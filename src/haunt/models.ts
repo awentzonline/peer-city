@@ -122,12 +122,25 @@ export function monsterModel(kind: MonsterKind): MonsterModel {
       const robe = new THREE.MeshBasicMaterial({ color: 0x0d0b14, transparent: true, opacity: 0.88, side: THREE.DoubleSide, depthWrite: false });
       const hem = new THREE.MeshBasicMaterial({ color: 0x1c1826, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false });
       materials.push(robe, hem);
-      body.add(new THREE.Mesh(cached('shade-robe', () => new THREE.ConeGeometry(0.5, 1.7, 9, 3, true).translate(0, 0.95, 0)), robe));
-      body.add(new THREE.Mesh(cached('shade-hood', () => new THREE.SphereGeometry(0.27, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.62).translate(0, 1.75, 0)), robe));
+      body.add(
+        new THREE.Mesh(
+          cached('shade-robe', () => new THREE.ConeGeometry(0.5, 1.7, 9, 3, true).translate(0, 0.95, 0)),
+          robe,
+        ),
+      );
+      body.add(
+        new THREE.Mesh(
+          cached('shade-hood', () => new THREE.SphereGeometry(0.27, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.62).translate(0, 1.75, 0)),
+          robe,
+        ),
+      );
       const tatters = new THREE.Group();
       for (let i = 0; i < 7; i++) {
         const a = (i / 7) * Math.PI * 2;
-        const strip = new THREE.Mesh(cached('shade-strip', () => new THREE.PlaneGeometry(0.22, 0.6).translate(0, -0.3, 0)), hem);
+        const strip = new THREE.Mesh(
+          cached('shade-strip', () => new THREE.PlaneGeometry(0.22, 0.6).translate(0, -0.3, 0)),
+          hem,
+        );
         strip.position.set(Math.cos(a) * 0.46, 0.18, Math.sin(a) * 0.46);
         strip.rotation.y = -a + Math.PI / 2;
         tatters.add(strip);
@@ -138,7 +151,12 @@ export function monsterModel(kind: MonsterKind): MonsterModel {
       for (const side of [-1, 1]) {
         const arm = new THREE.Group();
         arm.position.set(0.05, 1.45, side * 0.28);
-        arm.add(new THREE.Mesh(cached('shade-arm', () => new THREE.ConeGeometry(0.11, 0.75, 6, 1, true).rotateZ(Math.PI / 2).translate(0.35, 0, 0)), robe));
+        arm.add(
+          new THREE.Mesh(
+            cached('shade-arm', () => new THREE.ConeGeometry(0.11, 0.75, 6, 1, true).rotateZ(Math.PI / 2).translate(0.35, 0, 0)),
+            robe,
+          ),
+        );
         body.add(arm);
         limbs.push(arm);
       }
@@ -220,13 +238,21 @@ export function monsterModel(kind: MonsterKind): MonsterModel {
   root.add(ring);
   const bar = new THREE.Group();
   bar.position.y = top + 0.1;
-  const back = new THREE.Mesh(cached('bar-back', () => new THREE.PlaneGeometry(0.9, 0.1)), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.6, depthWrite: false, fog: false }));
-  const fill = new THREE.Mesh(cached('bar-fill', () => new THREE.PlaneGeometry(0.86, 0.06).translate(0.43, 0, 0)), new THREE.MeshBasicMaterial({ color: 0xb46bff, depthWrite: false, fog: false }));
+  const back = new THREE.Mesh(
+    cached('bar-back', () => new THREE.PlaneGeometry(0.9, 0.1)),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.6, depthWrite: false, fog: false }),
+  );
+  const fill = new THREE.Mesh(
+    cached('bar-fill', () => new THREE.PlaneGeometry(0.86, 0.06).translate(0.43, 0, 0)),
+    new THREE.MeshBasicMaterial({ color: 0xb46bff, depthWrite: false, fog: false }),
+  );
   fill.position.set(-0.43, 0, 0.001);
   bar.add(back, fill);
   bar.visible = false;
   root.add(bar);
-  const badge = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: MONSTER_COLORS[kind], blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, depthTest: false, fog: false }));
+  const badge = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: glowTexture(), color: MONSTER_COLORS[kind], blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, depthTest: false, fog: false }),
+  );
   badge.position.y = top + 0.5;
   badge.renderOrder = 20;
   badge.visible = false;
@@ -315,7 +341,10 @@ export function beamGeometry(length: number, halfAngle: number): THREE.BufferGeo
 
 /** A flat ring on the ground: the Haunt's cursor, order pings and the like. */
 export function groundRing(inner: number, outer: number, color: number): THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial> {
-  const m = new THREE.Mesh(new THREE.RingGeometry(inner, outer, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, depthWrite: false, fog: false, side: THREE.DoubleSide }));
+  const m = new THREE.Mesh(
+    new THREE.RingGeometry(inner, outer, 40).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, depthWrite: false, fog: false, side: THREE.DoubleSide }),
+  );
   m.renderOrder = 5;
   return m;
 }

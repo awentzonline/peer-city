@@ -173,7 +173,9 @@ export class Course {
         const x = first.tee.x + Math.cos(a) * r;
         const y = first.tee.y + Math.sin(a) * r;
         if (Math.max(Math.abs(x - HALF), Math.abs(y - HALF)) > HALF - 90) continue;
-        const room = Math.min(...this.holes.map((h) => Math.min(toLine(h.line, x, y).d - h.width, Math.hypot(x - h.green.x, y - h.green.y) - h.green.r, ...h.ponds.map((p) => Math.hypot(x - p.x, y - p.y) - p.r))));
+        const room = Math.min(
+          ...this.holes.map((h) => Math.min(toLine(h.line, x, y).d - h.width, Math.hypot(x - h.green.x, y - h.green.y) - h.green.r, ...h.ponds.map((p) => Math.hypot(x - p.x, y - p.y) - p.r))),
+        );
         // roomy enough for the barn, then as close to the tee as that allows
         const score = Math.min(room, 48) - r * 0.3;
         if (score > best) {
@@ -253,7 +255,7 @@ export class Course {
       if (par > 3) {
         const at = this.along(line, Math.min(length - 60, 150 + rnd() * 25));
         const side = rnd() < 0.5 ? 1 : -1;
-        hole.bunkers.push({ x: at.x + Math.cos(at.heading + side * Math.PI / 2) * (width + 2), y: at.y + Math.sin(at.heading + side * Math.PI / 2) * (width + 2), r: 5 + rnd() * 2 });
+        hole.bunkers.push({ x: at.x + Math.cos(at.heading + (side * Math.PI) / 2) * (width + 2), y: at.y + Math.sin(at.heading + (side * Math.PI) / 2) * (width + 2), r: 5 + rnd() * 2 });
       }
       // water: carried from the tee on the par 3s, beside the fairway on one par 4
       if (par === 3) {
@@ -262,7 +264,7 @@ export class Course {
       } else if (index === 3) {
         const at = this.along(line, length * 0.62);
         const side = rnd() < 0.5 ? 1 : -1;
-        hole.ponds.push({ x: at.x + Math.cos(at.heading + side * Math.PI / 2) * (width + 14), y: at.y + Math.sin(at.heading + side * Math.PI / 2) * (width + 14), r: 16, z: 0 });
+        hole.ponds.push({ x: at.x + Math.cos(at.heading + (side * Math.PI) / 2) * (width + 14), y: at.y + Math.sin(at.heading + (side * Math.PI) / 2) * (width + 14), r: 16, z: 0 });
       }
       for (const p of hole.ponds) {
         // the water sits a little below the lowest ground round its edge, so its shore is always dry land
@@ -396,7 +398,8 @@ export class Course {
         const across = -(x - tee.x) * s + (y - tee.y) * c;
         return Math.abs(along) < 6 && Math.abs(across) < 4.5 ? Lie.Tee : null;
       });
-      for (const b of hole.bunkers) set(b.x - b.r, b.y - b.r, b.x + b.r, b.y + b.r, (x, y) => (Math.hypot(x - b.x, y - b.y) < b.r * (1 + 0.15 * Math.sin(Math.atan2(y - b.y, x - b.x) * 2 + b.r)) ? Lie.Sand : null));
+      for (const b of hole.bunkers)
+        set(b.x - b.r, b.y - b.r, b.x + b.r, b.y + b.r, (x, y) => (Math.hypot(x - b.x, y - b.y) < b.r * (1 + 0.15 * Math.sin(Math.atan2(y - b.y, x - b.x) * 2 + b.r)) ? Lie.Sand : null));
       for (const p of hole.ponds) set(p.x - p.r, p.y - p.r, p.x + p.r, p.y + p.r, (x, y) => (Math.hypot(x - p.x, y - p.y) < p.r ? Lie.Water : null));
     }
     // a paved apron in front of the barn

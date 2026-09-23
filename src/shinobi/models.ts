@@ -28,9 +28,27 @@ export function shinobiModel(skin: number): HumanRig {
   const scarf = shinobiColor(skin);
   const rig = buildHuman({ shirt: 0x1c1d24, pants: 0x17181e, skin: 0x1f2027, hair: 0x15161b, badge: scarf });
   // a strip of face showing between hood and mask, and a headband's tails
-  rig.head.add(new THREE.Mesh(cached(`shinobi-face:${skin}`, () => merge([box(0.012, 0.05, 0.18, 0.123, 0.16, 0, SKINS[(skin * 3) % SKINS.length]), box(0.014, 0.022, 0.05, 0.127, 0.165, -0.05, 0x101010), box(0.014, 0.022, 0.05, 0.127, 0.165, 0.05, 0x101010), box(0.26, 0.04, 0.26, 0, 0.23, 0, scarf), box(0.2, 0.03, 0.04, -0.2, 0.2, 0.05, scarf).rotateZ(-0.3)])), SOLID));
+  rig.head.add(
+    new THREE.Mesh(
+      cached(`shinobi-face:${skin}`, () =>
+        merge([
+          box(0.012, 0.05, 0.18, 0.123, 0.16, 0, SKINS[(skin * 3) % SKINS.length]),
+          box(0.014, 0.022, 0.05, 0.127, 0.165, -0.05, 0x101010),
+          box(0.014, 0.022, 0.05, 0.127, 0.165, 0.05, 0x101010),
+          box(0.26, 0.04, 0.26, 0, 0.23, 0, scarf),
+          box(0.2, 0.03, 0.04, -0.2, 0.2, 0.05, scarf).rotateZ(-0.3),
+        ]),
+      ),
+      SOLID,
+    ),
+  );
   // a sash round the waist
-  rig.body.add(new THREE.Mesh(cached(`shinobi-sash:${skin}`, () => box(0.27, 0.07, 0.49, 0, 1.08, 0, scarf)), SOLID));
+  rig.body.add(
+    new THREE.Mesh(
+      cached(`shinobi-sash:${skin}`, () => box(0.27, 0.07, 0.49, 0, 1.08, 0, scarf)),
+      SOLID,
+    ),
+  );
   return rig;
 }
 
@@ -106,18 +124,49 @@ export function guardModel(kind: GuardKind): GuardModel {
     }
   });
   rig.head.add(new THREE.Mesh(hat, SOLID));
-  if (kind === GuardKind.Samurai) rig.body.add(new THREE.Mesh(cached('samurai-armour', () => merge([box(0.3, 0.12, 0.62, 0, 1.45, 0, 0x4a1414), box(0.28, 0.3, 0.52, 0, 1.12, 0, 0x551818), box(0.02, 0.4, 0.04, -0.2, 1.1, -0.28, 0x111111)])), SOLID));
-  if (kind === GuardKind.Lord) rig.body.add(new THREE.Mesh(cached('lord-robe', () => merge([paint(new THREE.CylinderGeometry(0.32, 0.42, 0.9, 10).translate(0, 0.55, 0), COLORS[GuardKind.Lord].pants), box(0.3, 0.08, 0.5, 0, 1.1, 0, 0xc9a64a)])), SOLID));
+  if (kind === GuardKind.Samurai)
+    rig.body.add(
+      new THREE.Mesh(
+        cached('samurai-armour', () => merge([box(0.3, 0.12, 0.62, 0, 1.45, 0, 0x4a1414), box(0.28, 0.3, 0.52, 0, 1.12, 0, 0x551818), box(0.02, 0.4, 0.04, -0.2, 1.1, -0.28, 0x111111)])),
+        SOLID,
+      ),
+    );
+  if (kind === GuardKind.Lord)
+    rig.body.add(
+      new THREE.Mesh(
+        cached('lord-robe', () => merge([paint(new THREE.CylinderGeometry(0.32, 0.42, 0.9, 10).translate(0, 0.55, 0), COLORS[GuardKind.Lord].pants), box(0.3, 0.08, 0.5, 0, 1.1, 0, 0xc9a64a)])),
+        SOLID,
+      ),
+    );
 
   const weapon = new THREE.Group();
   if (kind === GuardKind.Spear) {
-    weapon.add(new THREE.Mesh(cached('yari', () => merge([paint(new THREE.CylinderGeometry(0.02, 0.025, 2.5, 5).translate(0, 1.25, 0), 0x4a3524), paint(new THREE.ConeGeometry(0.035, 0.3, 4).translate(0, 2.65, 0), 0xc9ced8)])), SOLID));
+    weapon.add(
+      new THREE.Mesh(
+        cached('yari', () =>
+          merge([paint(new THREE.CylinderGeometry(0.02, 0.025, 2.5, 5).translate(0, 1.25, 0), 0x4a3524), paint(new THREE.ConeGeometry(0.035, 0.3, 4).translate(0, 2.65, 0), 0xc9ced8)]),
+        ),
+        SOLID,
+      ),
+    );
     weapon.position.set(0.12, 0.05, 0.42);
   } else if (kind === GuardKind.Archer) {
-    weapon.add(new THREE.Mesh(cached('yumi', () => merge([paint(new THREE.TorusGeometry(0.9, 0.018, 4, 16, Math.PI * 0.75).rotateZ(Math.PI / 2 - Math.PI * 0.375), 0x3a2a1c), box(0.005, 1.6, 0.005, -0.45, 0, 0, 0xd8d0c0)])), SOLID));
+    weapon.add(
+      new THREE.Mesh(
+        cached('yumi', () =>
+          merge([paint(new THREE.TorusGeometry(0.9, 0.018, 4, 16, Math.PI * 0.75).rotateZ(Math.PI / 2 - Math.PI * 0.375), 0x3a2a1c), box(0.005, 1.6, 0.005, -0.45, 0, 0, 0xd8d0c0)]),
+        ),
+        SOLID,
+      ),
+    );
     weapon.position.set(0.3, 1.2, -0.38);
   } else if (kind === GuardKind.Samurai) {
-    weapon.add(new THREE.Mesh(cached('katana', () => merge([box(0.03, 0.25, 0.03, 0, 0.12, 0, 0x151515), box(0.012, 0.8, 0.035, 0, 0.66, 0, 0xc9ced8)])), SOLID));
+    weapon.add(
+      new THREE.Mesh(
+        cached('katana', () => merge([box(0.03, 0.25, 0.03, 0, 0.12, 0, 0x151515), box(0.012, 0.8, 0.035, 0, 0.66, 0, 0xc9ced8)])),
+        SOLID,
+      ),
+    );
     weapon.position.set(0.1, 0.95, -0.3);
     weapon.rotation.z = -1.9;
   }
@@ -126,7 +175,19 @@ export function guardModel(kind: GuardKind): GuardModel {
   const lantern = new THREE.Group();
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: 0xffb35a, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0.85 }));
   glow.scale.setScalar(0.9);
-  lantern.add(new THREE.Mesh(cached('chochin', () => merge([paint(new THREE.CylinderGeometry(0.11, 0.11, 0.3, 8).translate(0, -0.2, 0), 0xf2d7a0), box(0.24, 0.03, 0.24, 0, -0.04, 0, 0x151515), box(0.24, 0.03, 0.24, 0, -0.36, 0, 0x151515), box(0.015, 0.5, 0.015, -0.2, 0.15, 0, 0x4a3524).rotateZ(0.5)])), new THREE.MeshBasicMaterial({ vertexColors: true })));
+  lantern.add(
+    new THREE.Mesh(
+      cached('chochin', () =>
+        merge([
+          paint(new THREE.CylinderGeometry(0.11, 0.11, 0.3, 8).translate(0, -0.2, 0), 0xf2d7a0),
+          box(0.24, 0.03, 0.24, 0, -0.04, 0, 0x151515),
+          box(0.24, 0.03, 0.24, 0, -0.36, 0, 0x151515),
+          box(0.015, 0.5, 0.015, -0.2, 0.15, 0, 0x4a3524).rotateZ(0.5),
+        ]),
+      ),
+      new THREE.MeshBasicMaterial({ vertexColors: true }),
+    ),
+  );
   glow.position.y = -0.2;
   lantern.add(glow);
   lantern.position.set(0.45, 1.25, -0.35);
@@ -182,7 +243,10 @@ export function fanGeometry(radius: number, halfAngle: number): THREE.BufferGeom
 
 /** A flat ring on the ground: selections, the captain's cursor, pings. */
 export function groundRing(inner: number, outer: number, color: number): THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial> {
-  const m = new THREE.Mesh(new THREE.RingGeometry(inner, outer, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, depthWrite: false, fog: false, side: THREE.DoubleSide }));
+  const m = new THREE.Mesh(
+    new THREE.RingGeometry(inner, outer, 40).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, depthWrite: false, fog: false, side: THREE.DoubleSide }),
+  );
   m.renderOrder = 5;
   return m;
 }
@@ -237,7 +301,15 @@ export function brazierGeometry(): THREE.BufferGeometry {
     const parts: THREE.BufferGeometry[] = [paint(new THREE.CylinderGeometry(0.4, 0.22, 0.3, 10).translate(0, 1.05, 0), 0x2a2724)];
     for (let k = 0; k < 3; k++) {
       const a = (k / 3) * Math.PI * 2;
-      parts.push(paint(new THREE.CylinderGeometry(0.03, 0.03, 1, 4).rotateZ(0.2).rotateY(a).translate(Math.cos(a) * 0.22, 0.5, Math.sin(a) * 0.22), 0x1d1b19));
+      parts.push(
+        paint(
+          new THREE.CylinderGeometry(0.03, 0.03, 1, 4)
+            .rotateZ(0.2)
+            .rotateY(a)
+            .translate(Math.cos(a) * 0.22, 0.5, Math.sin(a) * 0.22),
+          0x1d1b19,
+        ),
+      );
     }
     parts.push(paint(new THREE.CylinderGeometry(0.34, 0.34, 0.05, 10).translate(0, 1.18, 0), 0xff7a2a));
     return merge(parts);

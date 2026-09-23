@@ -2,26 +2,7 @@ import type { NetWorld } from '@engine/index';
 import type { Vec3 } from '../crossplay/math';
 import type { ChunkEntity } from './context';
 import { Crumble, FatChunk } from './defs';
-import {
-  CHUNK,
-  CHUNKS,
-  CHUNK_BYTES,
-  FatFrame,
-  U,
-  V,
-  VOX,
-  VoxelGrid,
-  W,
-  ablate,
-  breached,
-  chunkOf,
-  chunkOrigin,
-  raycastVoxels,
-  seedFatberg,
-  unsupported,
-  voxelOf,
-  type Voxel,
-} from './fatberg';
+import { CHUNK, CHUNKS, CHUNK_BYTES, FatFrame, U, V, VOX, VoxelGrid, W, ablate, breached, chunkOf, chunkOrigin, raycastVoxels, seedFatberg, unsupported, voxelOf, type Voxel } from './fatberg';
 import type { SewerMap } from './sewer';
 
 const EMPTY = new Uint8Array(CHUNK_BYTES);

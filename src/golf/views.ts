@@ -175,7 +175,10 @@ export function registerViews(ctx: GolfContext, views: EntityViews, scene: THREE
   guideGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(24 * 3), 3));
   const guide = new THREE.Line(guideGeo, new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 0.6, gapSize: 0.4, transparent: true, opacity: 0.8, depthWrite: false }));
   guide.frustumCulled = false;
-  const landing = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.1, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }));
+  const landing = new THREE.Mesh(
+    new THREE.RingGeometry(0.8, 1.1, 32).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }),
+  );
   const beacon = new THREE.Mesh(
     new THREE.CylinderGeometry(0.12, 0.12, 40, 8, 1, true).translate(0, 20, 0),
     new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }),
@@ -289,7 +292,10 @@ function twoHanded(r: HumanRig, yaw: number): void {
   r.body.rotation.z = -0.12;
   const target = r.tool.position;
   const shoulder = new THREE.Vector3(0.1, 1.45, -0.2).applyAxisAngle(new THREE.Vector3(0, 1, 0), -yaw);
-  const reach = target.clone().sub(shoulder).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+  const reach = target
+    .clone()
+    .sub(shoulder)
+    .applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
   if (reach.lengthSq() > 1e-4) r.armL.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), reach.normalize());
 }
 

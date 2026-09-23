@@ -48,10 +48,18 @@ export function buildAnimal(kind: number): AnimalRig {
     const parts = [box(s * 1.1, s * 0.9, s * 0.8, s * 0.35, 0, 0, sh.color), box(s * 0.6, s * 0.45, s * 0.5, s * 1.1, -s * 0.15, 0, sh.belly)];
     if (k === AnimalKind.Rabbit) parts.push(box(0.04, 0.16, 0.035, 0, 0.14, 0.04, sh.color), box(0.04, 0.16, 0.035, 0, 0.14, -0.04, sh.color));
     else if (k === AnimalKind.Wolf) parts.push(box(0.06, 0.1, 0.06, 0.05, s * 0.5, 0.08, sh.color), box(0.06, 0.1, 0.06, 0.05, s * 0.5, -0.08, sh.color));
-    else parts.push(box(0.03, 0.34, 0.03, 0.05, 0.28, 0.1, 0x6b4c2e), box(0.03, 0.34, 0.03, 0.05, 0.28, -0.1, 0x6b4c2e), box(0.12, 0.03, 0.03, 0.1, 0.4, 0.1, 0x6b4c2e), box(0.12, 0.03, 0.03, 0.1, 0.4, -0.1, 0x6b4c2e));
+    else
+      parts.push(
+        box(0.03, 0.34, 0.03, 0.05, 0.28, 0.1, 0x6b4c2e),
+        box(0.03, 0.34, 0.03, 0.05, 0.28, -0.1, 0x6b4c2e),
+        box(0.12, 0.03, 0.03, 0.1, 0.4, 0.1, 0x6b4c2e),
+        box(0.12, 0.03, 0.03, 0.1, 0.4, -0.1, 0x6b4c2e),
+      );
     return merge(parts);
   });
-  const legGeo = cached(`animal-leg:${k}`, () => merge([box(sh.width * 0.25, sh.leg, sh.width * 0.25, 0, -sh.leg / 2, 0, sh.color), box(sh.width * 0.28, 0.05, sh.width * 0.28, 0, -sh.leg + 0.025, 0, 0x2a2420)]));
+  const legGeo = cached(`animal-leg:${k}`, () =>
+    merge([box(sh.width * 0.25, sh.leg, sh.width * 0.25, 0, -sh.leg / 2, 0, sh.color), box(sh.width * 0.28, 0.05, sh.width * 0.28, 0, -sh.leg + 0.025, 0, 0x2a2420)]),
+  );
 
   const root = new THREE.Group();
   const body = new THREE.Group();
@@ -60,7 +68,13 @@ export function buildAnimal(kind: number): AnimalRig {
   const head = new THREE.Group();
   head.position.set(sh.length / 2, top + sh.neck * 0.6, 0);
   head.add(new THREE.Mesh(headGeo, SOLID));
-  if (sh.neck > 0.1) head.add(new THREE.Mesh(cached(`animal-neck:${k}`, () => box(sh.width * 0.5, sh.neck, sh.width * 0.5, -0.05, -sh.neck / 2, 0, sh.color)), SOLID));
+  if (sh.neck > 0.1)
+    head.add(
+      new THREE.Mesh(
+        cached(`animal-neck:${k}`, () => box(sh.width * 0.5, sh.neck, sh.width * 0.5, -0.05, -sh.neck / 2, 0, sh.color)),
+        SOLID,
+      ),
+    );
   body.add(head);
   const legs: THREE.Group[] = [];
   for (const fx of [1, -1]) {
@@ -122,7 +136,15 @@ export function buildCampfire(): FireRig {
     const parts: THREE.BufferGeometry[] = [];
     for (let i = 0; i < 4; i++) {
       const a = (i / 4) * Math.PI * 2 + 0.3;
-      parts.push(paint(new THREE.CylinderGeometry(0.06, 0.06, 0.7, 6).rotateZ(1.1).rotateY(a).translate(Math.cos(a) * 0.12, 0.2, Math.sin(a) * 0.12), 0x5a3a22));
+      parts.push(
+        paint(
+          new THREE.CylinderGeometry(0.06, 0.06, 0.7, 6)
+            .rotateZ(1.1)
+            .rotateY(a)
+            .translate(Math.cos(a) * 0.12, 0.2, Math.sin(a) * 0.12),
+          0x5a3a22,
+        ),
+      );
     }
     return merge(parts);
   });
@@ -137,7 +159,9 @@ export function buildCampfire(): FireRig {
 export function buildStump(kind: ObstacleKind, radius: number): THREE.Group {
   const root = new THREE.Group();
   const stump = new THREE.Mesh(
-    cached('stump', () => merge([paint(new THREE.CylinderGeometry(1, 1.15, 0.5, 8).translate(0, 0.25, 0), 0x5b3d24), paint(new THREE.CylinderGeometry(0.9, 0.9, 0.02, 8).translate(0, 0.5, 0), 0xc9a26b)])),
+    cached('stump', () =>
+      merge([paint(new THREE.CylinderGeometry(1, 1.15, 0.5, 8).translate(0, 0.25, 0), 0x5b3d24), paint(new THREE.CylinderGeometry(0.9, 0.9, 0.02, 8).translate(0, 0.5, 0), 0xc9a26b)]),
+    ),
     SOLID,
   );
   stump.scale.set(radius, 1, radius);

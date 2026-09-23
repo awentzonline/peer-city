@@ -60,7 +60,7 @@ export class Sector {
         x: this.starbase.x + Math.cos(a) * d,
         y: this.starbase.y + Math.sin(a) * d,
         radius,
-        biome: i % 5 as Biome,
+        biome: (i % 5) as Biome,
         orbit: radius + 170,
       });
     }

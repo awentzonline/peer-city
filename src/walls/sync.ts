@@ -109,7 +109,12 @@ export class WallSync {
       const a = this.asking;
       if (!a || a.req !== p.req || a.from !== from.from) return;
       a.heard = host.now();
-      a.tiles.push(inflate(p.data).then((data) => ({ surface: p.surface, tile: p.tile, data }), () => null));
+      a.tiles.push(
+        inflate(p.data).then(
+          (data) => ({ surface: p.surface, tile: p.tile, data }),
+          () => null,
+        ),
+      );
     });
 
     world.onAction(WallDone, (p, from) => {

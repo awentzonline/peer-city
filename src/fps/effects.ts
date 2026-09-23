@@ -23,10 +23,7 @@ class Tracers {
     geo.setAttribute('position', this.pos);
     geo.setAttribute('color', this.col);
     geo.setDrawRange(0, 0);
-    this.lines = new THREE.LineSegments(
-      geo,
-      new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }),
-    );
+    this.lines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
     this.lines.frustumCulled = false;
   }
 
@@ -70,11 +67,7 @@ class Decals {
       [0.55, 'rgba(255,255,255,0.75)'],
       [1, 'rgba(255,255,255,0)'],
     ]);
-    this.mesh = new THREE.InstancedMesh(
-      new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }),
-      max,
-    );
+    this.mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }), max);
     this.mesh.count = 0;
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 2;

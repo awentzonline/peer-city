@@ -157,11 +157,20 @@ export function tantoGeometry(): THREE.BufferGeometry {
 }
 
 export function kunaiGeometry(): THREE.BufferGeometry {
-  const leaf = new THREE.ConeGeometry(0.022, 0.13, 4).rotateX(-Math.PI / 2).scale(1, 0.35, 1).translate(0, 0, -0.1);
+  const leaf = new THREE.ConeGeometry(0.022, 0.13, 4)
+    .rotateX(-Math.PI / 2)
+    .scale(1, 0.35, 1)
+    .translate(0, 0, -0.1);
   return merge([
     paint(new THREE.TorusGeometry(0.018, 0.005, 5, 10).translate(0, 0, 0.085), DARK_STEEL),
     paint(new THREE.BoxGeometry(0.014, 0.014, 0.08).translate(0, 0, 0.03), WRAP),
-    paint(new THREE.ConeGeometry(0.022, 0.03, 4).rotateX(Math.PI / 2).scale(1, 0.35, 1).translate(0, 0, -0.025), DARK_STEEL),
+    paint(
+      new THREE.ConeGeometry(0.022, 0.03, 4)
+        .rotateX(Math.PI / 2)
+        .scale(1, 0.35, 1)
+        .translate(0, 0, -0.025),
+      DARK_STEEL,
+    ),
     paint(leaf, DARK_STEEL),
   ]);
 }
@@ -169,7 +178,10 @@ export function kunaiGeometry(): THREE.BufferGeometry {
 export function shurikenGeometry(): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [paint(new THREE.CylinderGeometry(0.018, 0.018, 0.006, 10).rotateX(Math.PI / 2), 0x3a3f4a)];
   for (let k = 0; k < 4; k++) {
-    const point = new THREE.ConeGeometry(0.02, 0.06, 3).rotateZ(-Math.PI / 2).scale(1, 1, 0.15).translate(0.045, 0, 0);
+    const point = new THREE.ConeGeometry(0.02, 0.06, 3)
+      .rotateZ(-Math.PI / 2)
+      .scale(1, 1, 0.15)
+      .translate(0.045, 0, 0);
     parts.push(paint(point.rotateZ((k * Math.PI) / 2), STEEL));
   }
   // flat in the plane of the hand, facing up: lie it along -Z

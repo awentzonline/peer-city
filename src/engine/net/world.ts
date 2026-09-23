@@ -80,10 +80,7 @@ export interface NetWorldOptions {
 }
 
 export type ActionTarget =
-  | { to: 'all'; self?: boolean }
-  | { to: 'peer'; peer: string }
-  | { to: 'owner'; entity: NetEntity<any> | number }
-  | { to: 'near'; x: number; y: number; radius?: number; self?: boolean };
+  { to: 'all'; self?: boolean } | { to: 'peer'; peer: string } | { to: 'owner'; entity: NetEntity<any> | number } | { to: 'near'; x: number; y: number; radius?: number; self?: boolean };
 
 export interface ActionContext {
   /** Peer that sent the action (selfId for local dispatch). */
@@ -300,10 +297,7 @@ export class NetWorld {
     this.byType = this.defs.map(() => new Set());
     this.ownedByType = this.defs.map(() => new Set());
     this.remoteByType = this.defs.map(() => new Set());
-    const signature = [
-      ...this.defs.map((d) => `E:${d.name}{${d.layout.signature()}}`),
-      ...this.actionDefs.map((d) => `A:${d.name}{${d.layout.signature()}}`),
-    ].join(';');
+    const signature = [...this.defs.map((d) => `E:${d.name}{${d.layout.signature()}}`), ...this.actionDefs.map((d) => `A:${d.name}{${d.layout.signature()}}`)].join(';');
     this.schemaHash = fnv1a(signature) & 0xffff;
 
     this.zoneSize = opts.zoneSize ?? 2048;
@@ -572,11 +566,7 @@ export class NetWorld {
    * Carry out a command on the target's owner. `fn` runs only here, only while this peer owns the target, and,
    * given an entity type, only for targets of that type (register a handler per type a command can hit).
    */
-  onCommand<S extends Shape, E extends Shape>(
-    def: CommandDef<S>,
-    type: EntityDef<E>,
-    fn: (target: NetEntity<Infer<E>>, payload: Infer<S>, ctx: ActionContext) => void,
-  ): () => void;
+  onCommand<S extends Shape, E extends Shape>(def: CommandDef<S>, type: EntityDef<E>, fn: (target: NetEntity<Infer<E>>, payload: Infer<S>, ctx: ActionContext) => void): () => void;
   onCommand<S extends Shape>(def: CommandDef<S>, fn: (target: NetEntity<any>, payload: Infer<S>, ctx: ActionContext) => void): () => void;
   onCommand<S extends Shape>(
     def: CommandDef<S>,
@@ -613,10 +603,7 @@ export class NetWorld {
    * arrives, `removed` as each goes. For keeping something derived in step, such as an index or a scene object.
    * Returns a function that stops following.
    */
-  track<S extends Shape>(
-    def: EntityDef<S>,
-    handlers: { added?: (e: NetEntity<Infer<S>>) => void; removed?: (e: NetEntity<Infer<S>>, reason: RemoveReason) => void },
-  ): () => void {
+  track<S extends Shape>(def: EntityDef<S>, handlers: { added?: (e: NetEntity<Infer<S>>) => void; removed?: (e: NetEntity<Infer<S>>, reason: RemoveReason) => void }): () => void {
     const offAdded = this.on('entityAdded', (e) => e.def === def && handlers.added?.(e));
     const offRemoved = this.on('entityRemoved', (e, reason) => e.def === def && handlers.removed?.(e, reason));
     if (handlers.added) for (const e of this.all(def)) handlers.added(e);
@@ -1127,7 +1114,11 @@ export class NetWorld {
             const e = this.entities.get(id);
             const policy = e ? this.transferPolicies.get(this.tid(e.def)) : undefined;
             const ok = !!e && e.mine && e.alive && (policy ? policy(e, from) : !e.held) && this.handoff(e, from, true);
-            peer.out.u8(MSG_OWN_REPLY).id48(id).u32(reqId).u8(ok ? 1 : 0);
+            peer.out
+              .u8(MSG_OWN_REPLY)
+              .id48(id)
+              .u32(reqId)
+              .u8(ok ? 1 : 0);
             break;
           }
           case MSG_OWN_REPLY: {

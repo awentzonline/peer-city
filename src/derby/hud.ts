@@ -116,7 +116,8 @@ export class Hud extends HudBase {
     if (seated) {
       const kmh = Math.round(Math.abs(r.speed) * 3.6);
       const place = order.indexOf(racer);
-      const drive = r.mode === RacerMode.Finished ? `FINISHED ${ordinal(place + 1)} · ${raceTime(r.finish)}` : `${kmh} km/h${place >= 0 && order.length > 1 ? ` · ${ordinal(place + 1)} of ${order.length}` : ''}`;
+      const drive =
+        r.mode === RacerMode.Finished ? `FINISHED ${ordinal(place + 1)} · ${raceTime(r.finish)}` : `${kmh} km/h${place >= 0 && order.length > 1 ? ` · ${ordinal(place + 1)} of ${order.length}` : ''}`;
       this.set('drive', drive, () => (this.speedEl.textContent = drive));
       const fuel = Math.round((r.fuel / FUEL_SECONDS) * 50) / 50;
       this.set('fuel', b.stats().rockets ? fuel : 0, () => {

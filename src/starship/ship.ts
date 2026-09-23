@@ -533,8 +533,7 @@ export class ShipKeeper {
           ctx.world.command(Mend, { target: fault.id, amount: this.mendOwed });
           this.mendOwed = 0;
         }
-      }
-      else if (health(s, sys) < 1) setHealth(s, sys, health(s, sys) + 0.006 * dt);
+      } else if (health(s, sys) < 1) setHealth(s, sys, health(s, sys) + 0.006 * dt);
       else {
         s.team = 255;
         ctx.world.send(Feed, { text: `Damage control: ${SYSTEM_NAMES[sys].toLowerCase()} repaired` }, { to: 'all' });
@@ -706,8 +705,20 @@ export class ShipKeeper {
     const spots = ctx.deck.faultSpots[sys];
     const spot = spots[Math.floor(Math.random() * spots.length)];
     const kind = Math.random() < 0.35 ? FaultKind.Fire : FaultKind.Sparks;
-    ctx.world.spawn(Fault, { x: spot.x + (Math.random() - 0.5) * 0.6, y: spot.y + (Math.random() - 0.5) * 0.6, z: kind === FaultKind.Fire ? 0 : 0.6 + Math.random() * 1.2, system: sys, kind, left: 1, voyage: s.voyage });
-    ctx.world.send(Feed, { text: `${kind === FaultKind.Fire ? 'Fire' : 'Damage'} in the ${SYSTEM_NAMES[sys] === 'Weapons' ? 'torpedo room' : SYSTEM_NAMES[sys].toLowerCase() + ' room'}!` }, { to: 'all' });
+    ctx.world.spawn(Fault, {
+      x: spot.x + (Math.random() - 0.5) * 0.6,
+      y: spot.y + (Math.random() - 0.5) * 0.6,
+      z: kind === FaultKind.Fire ? 0 : 0.6 + Math.random() * 1.2,
+      system: sys,
+      kind,
+      left: 1,
+      voyage: s.voyage,
+    });
+    ctx.world.send(
+      Feed,
+      { text: `${kind === FaultKind.Fire ? 'Fire' : 'Damage'} in the ${SYSTEM_NAMES[sys] === 'Weapons' ? 'torpedo room' : SYSTEM_NAMES[sys].toLowerCase() + ' room'}!` },
+      { to: 'all' },
+    );
   }
 
   private end(ship: ShipEntity, result: Result): void {

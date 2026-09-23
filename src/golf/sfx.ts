@@ -1,23 +1,7 @@
 import { SpatialAudio } from '../crossplay/audio';
 import type { Vec3 } from './context';
 
-export type SoundName =
-  | 'thwack'
-  | 'putt'
-  | 'swish'
-  | 'bonk'
-  | 'oof'
-  | 'crash'
-  | 'splash'
-  | 'tock'
-  | 'lip'
-  | 'cup'
-  | 'switch'
-  | 'door'
-  | 'motor'
-  | 'tick'
-  | 'fanfare'
-  | 'nope';
+export type SoundName = 'thwack' | 'putt' | 'swish' | 'bonk' | 'oof' | 'crash' | 'splash' | 'tock' | 'lip' | 'cup' | 'switch' | 'door' | 'motor' | 'tick' | 'fanfare' | 'nope';
 
 const RANGE: Partial<Record<SoundName, number>> = { thwack: 160, crash: 140, splash: 120, bonk: 90, cup: 60, fanfare: 1, motor: 40, tick: 1 };
 

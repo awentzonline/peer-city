@@ -1,22 +1,7 @@
 import { SpatialAudio } from '../crossplay/audio';
 import type { Vec3 } from './context';
 
-export type SoundName =
-  | 'shot'
-  | 'rifle'
-  | 'shotgun'
-  | 'sniper'
-  | 'boom'
-  | 'horn'
-  | 'hit'
-  | 'headshot'
-  | 'pickup'
-  | 'wasted'
-  | 'busted'
-  | 'crash'
-  | 'door'
-  | 'ricochet'
-  | 'empty';
+export type SoundName = 'shot' | 'rifle' | 'shotgun' | 'sniper' | 'boom' | 'horn' | 'hit' | 'headshot' | 'pickup' | 'wasted' | 'busted' | 'crash' | 'door' | 'ricochet' | 'empty';
 
 const RANGE: Partial<Record<SoundName, number>> = { boom: 400, shot: 220, rifle: 240, shotgun: 240, sniper: 380, horn: 120 };
 

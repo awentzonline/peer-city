@@ -1,4 +1,4 @@
-import { Singleton, type NetWorld } from '@engine/index';
+import { Keeper, type NetWorld } from '@engine/index';
 import { WATER_START, type SewerContext, type SewerEntity } from './context';
 import { Feed, Goblin, Lord, LordMode, Loot, LootKind, LootWhere, Noise, Phase, Result, Sewer, Sound, VALVE_FIELDS, VALVES, type LootKind as Kind } from './defs';
 import { stuckSpots } from './fatberg';
@@ -64,46 +64,36 @@ export function tally(world: NetWorld, dive: number): Tally {
  * drains, and the sewage rises unless the relief valves are kept open. It's over once nobody's left down there but
  * the dead: rich if anyone climbed out, lost if nobody did.
  */
-export class DiveKeeper {
-  private readonly one: Singleton<typeof Sewer>;
+export class DiveKeeper extends Keeper<typeof Sewer> {
   private nextSurge = 0;
   private surgeUntil = 0;
   private nextGoblin = 0;
   private nextBreach = 0;
   private chunkWait = 0;
-  /** The dive this peer is running, so timers kept here (not in the schema) are reseeded when it takes one over. */
-  private running: SewerEntity | null = null;
 
   constructor(private readonly ctx: SewerContext) {
     const { start } = ctx.map;
-    this.one = new Singleton(ctx.world, Sewer, { init: () => ({ x: start.cx, y: start.cy, phase: Phase.Gather, dive: 1, timer: GATHER_SECONDS, water: WATER_START }) });
+    super(ctx.world, Sewer, { init: () => ({ x: start.cx, y: start.cy, phase: Phase.Gather, dive: 1, timer: GATHER_SECONDS, water: WATER_START }) });
   }
 
   get sewer(): SewerEntity | null {
-    return this.one.entity;
+    return this.entity;
   }
 
-  update(dt: number, now: number): void {
-    const e = this.one.update(now);
-    if (!e?.mine) {
-      this.chunkWait = now + CHUNK_WAIT_MS;
-      this.running = null;
-      return;
-    }
-    if (this.running !== e) this.takeOver(e, now);
-    this.run(e, dt, now);
+  /** While somebody else runs it, keep listening for the fatberg's chunks rather than making our own the moment it's ours. */
+  protected override watching(now: number): void {
+    this.chunkWait = now + CHUNK_WAIT_MS;
   }
 
   /** Ours now (made here, or its last owner left): start the clocks that aren't on the wire from now, not from 0. */
-  private takeOver(e: SewerEntity, now: number): void {
-    this.running = e;
+  protected override takeOver(_e: SewerEntity, now: number): void {
     this.nextSurge = now + rand(SURGE_GAP[0], SURGE_GAP[1]) * 1000;
     this.surgeUntil = now + SURGE_SECONDS * 1000; // a surge already on runs its course from here
     this.nextGoblin = now + GOBLIN_MS;
     this.nextBreach = now + 500;
   }
 
-  private run(e: SewerEntity, dt: number, now: number): void {
+  protected run(e: SewerEntity, dt: number, now: number): void {
     const { world, plug } = this.ctx;
     const s = e.state;
     if (s.phase !== Phase.Over && !plug.chunks.some((c) => c) && now >= this.chunkWait) plug.spawn(world, s.dive, fatSeed(s.dive));

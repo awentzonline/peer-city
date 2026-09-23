@@ -51,7 +51,7 @@ export class Settings {
     if (!voice.supported) {
       rows.push(note('voice:unsupported', 'Voice needs the online network, not local tabs'));
     } else {
-      const mic = voice.canTalk ? (voice.talking ? 'People near you can hear you' : 'Nobody can hear you') : 'This page can\'t reach a microphone';
+      const mic = voice.canTalk ? (voice.talking ? 'People near you can hear you' : 'Nobody can hear you') : "This page can't reach a microphone";
       rows.push({
         id: 'voice:mic',
         kind: 'toggle',

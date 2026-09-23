@@ -257,7 +257,9 @@ export class Scenery {
       for (let i = WALL.x0; i <= WALL.x1; i++) {
         if (castle.tile(i, j) !== Tile.Bush) continue;
         const s = 0.75 + rnd() * 0.25;
-        parts.push(paint(new THREE.IcosahedronGeometry(0.62 * s, 1).scale(1.1, 0.8, 1.1).translate(i + 0.5 + (rnd() - 0.5) * 0.2, 0.45 * s, j + 0.5 + (rnd() - 0.5) * 0.2), jitter(0x2f4a2a, rnd, 0.15)));
+        parts.push(
+          paint(new THREE.IcosahedronGeometry(0.62 * s, 1).scale(1.1, 0.8, 1.1).translate(i + 0.5 + (rnd() - 0.5) * 0.2, 0.45 * s, j + 0.5 + (rnd() - 0.5) * 0.2), jitter(0x2f4a2a, rnd, 0.15)),
+        );
       }
     }
     return new THREE.Mesh(merge(parts), SOLID);

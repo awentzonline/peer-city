@@ -26,7 +26,10 @@ interface HumanView {
 function createHuman(ctx: GameContext, e: NetEntity<{ x: number; y: number }>, texture: string, withLabel: boolean, isMe: boolean): HumanView {
   const { scene } = ctx;
   const view: HumanView = {
-    shadow: scene.add.image(e.x + 3, e.y + 4, 'shadow').setDepth(4).setScale(0.55),
+    shadow: scene.add
+      .image(e.x + 3, e.y + 4, 'shadow')
+      .setDepth(4)
+      .setScale(0.55),
     body: scene.add.image(e.x, e.y, texture).setDepth(5),
     lastX: e.x,
     lastY: e.y,
@@ -40,7 +43,10 @@ function createHuman(ctx: GameContext, e: NetEntity<{ x: number; y: number }>, t
       .setScale(0.7)
       .setTint(isMe ? 0x7dff8a : 0x4fc3ff)
       .setAlpha(0.8);
-    view.label = scene.add.text(e.x, e.y - 26, '', LABEL_STYLE).setOrigin(0.5, 1).setDepth(10);
+    view.label = scene.add
+      .text(e.x, e.y - 26, '', LABEL_STYLE)
+      .setOrigin(0.5, 1)
+      .setDepth(10);
   }
   return view;
 }
@@ -117,7 +123,10 @@ export function registerViews(ctx: GameContext, views: EntityViews): void {
     create: (e): CarView => {
       const { w, h } = carSize(e.state.kind);
       return {
-        shadow: scene.add.image(e.x + 5, e.y + 6, 'shadow').setDepth(5).setDisplaySize(w * 1.1, h * 1.5),
+        shadow: scene.add
+          .image(e.x + 5, e.y + 6, 'shadow')
+          .setDepth(5)
+          .setDisplaySize(w * 1.1, h * 1.5),
         body: scene.add.image(e.x, e.y, carTextureKey(e.state.kind, e.state.color)).setDepth(6),
         siren: scene.add.image(e.x, e.y, 'glow').setDepth(7).setBlendMode(Phaser.BlendModes.ADD).setScale(0.5).setVisible(false),
         label: scene.add.text(e.x, e.y, '', LABEL_STYLE).setOrigin(0.5, 1).setDepth(10),

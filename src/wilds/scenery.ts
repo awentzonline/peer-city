@@ -112,10 +112,7 @@ export class Scenery {
     private readonly scene: THREE.Scene,
   ) {
     scene.add(terrain(land));
-    const water = new THREE.Mesh(
-      new THREE.PlaneGeometry(3000, 3000).rotateX(-Math.PI / 2),
-      new THREE.MeshLambertMaterial({ color: 0x2c6d96, transparent: true, opacity: 0.82 }),
-    );
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0x2c6d96, transparent: true, opacity: 0.82 }));
     water.position.set(SIZE / 2, SEA - 0.08, SIZE / 2);
     scene.add(water);
 
@@ -170,8 +167,14 @@ export class Scenery {
     const light = daylight(day);
     const dusk = Math.max(0, 1 - Math.abs(sunHeight(day)) * 3.5);
     const { top, horizon } = this.sky.material.uniforms;
-    (top.value as THREE.Color).copy(NIGHT[0]).lerp(DAY[0], light).lerp(DUSK[0], dusk * 0.5);
-    (horizon.value as THREE.Color).copy(NIGHT[1]).lerp(DAY[1], light).lerp(DUSK[1], dusk * 0.7);
+    (top.value as THREE.Color)
+      .copy(NIGHT[0])
+      .lerp(DAY[0], light)
+      .lerp(DUSK[0], dusk * 0.5);
+    (horizon.value as THREE.Color)
+      .copy(NIGHT[1])
+      .lerp(DAY[1], light)
+      .lerp(DUSK[1], dusk * 0.7);
     this.fog.color.copy(horizon.value as THREE.Color);
     this.fog.far = 130 + 100 * light;
     this.stars.material.opacity = Math.max(0, 1 - light * 2.5);
@@ -183,7 +186,10 @@ export class Scenery {
     this.sun.position.set(head.x, head.z, head.y).addScaledVector(dir.normalize(), 100);
     this.sun.target.position.set(head.x, head.z, head.y);
     this.sun.intensity = 0.35 + 2.1 * light;
-    this.sun.color.setHex(0xa8c0ff).lerp(new THREE.Color(0xfff0d8), light).lerp(new THREE.Color(0xffa868), dusk * light * 0.8);
+    this.sun.color
+      .setHex(0xa8c0ff)
+      .lerp(new THREE.Color(0xfff0d8), light)
+      .lerp(new THREE.Color(0xffa868), dusk * light * 0.8);
     this.hemi.intensity = 0.45 + 1.6 * light;
     this.hemi.color.setHex(0x6a82b8).lerp(new THREE.Color(0xe4f0ff), light);
 

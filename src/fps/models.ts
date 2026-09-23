@@ -180,9 +180,7 @@ export function buildPickup(kind: number, tool: Tool<any> | null): PickupRig {
   if (kind === PickupKind.Tool && tool) return buildToolPickup(tool);
   const cash = kind === PickupKind.Cash;
   const geo = cash
-    ? cached('cash', () =>
-        merge([box(0.42, 0.1, 0.22, 0, -0.05, 0, 0x2e9e4f), box(0.42, 0.1, 0.22, 0.03, 0.05, 0.02, 0x3cbf62), box(0.1, 0.22, 0.24, 0, 0, 0, 0xe8e0b0)]),
-      )
+    ? cached('cash', () => merge([box(0.42, 0.1, 0.22, 0, -0.05, 0, 0x2e9e4f), box(0.42, 0.1, 0.22, 0.03, 0.05, 0.02, 0x3cbf62), box(0.1, 0.22, 0.24, 0, 0, 0, 0xe8e0b0)]))
     : cached('health', () =>
         merge([
           box(0.36, 0.36, 0.36, 0, 0, 0, 0xf4f4f4),

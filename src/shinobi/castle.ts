@@ -1,4 +1,4 @@
-import { mulberry32 } from '@engine/index';
+import { FlowPaths, mulberry32 } from '@engine/index';
 
 /**
  * The castle and the woods round it: a grid of one-meter cells every peer builds from the same seed, so nothing about
@@ -514,7 +514,17 @@ export class Castle {
     this.addBuilding(WALL.x0 + 7, WALL.y0 + 6, WALL.x0 + 15, WALL.y0 + 10, BuildingKind.Barracks, 4);
     Object.assign(this.barracks, { x: WALL.x0 + 11.5, y: WALL.y0 + 11.8 });
 
-    const wanted: BuildingKind[] = [BuildingKind.TeaHouse, BuildingKind.Shrine, BuildingKind.Hall, BuildingKind.Hall, BuildingKind.Storehouse, BuildingKind.Storehouse, BuildingKind.Storehouse, BuildingKind.Hall, BuildingKind.TeaHouse];
+    const wanted: BuildingKind[] = [
+      BuildingKind.TeaHouse,
+      BuildingKind.Shrine,
+      BuildingKind.Hall,
+      BuildingKind.Hall,
+      BuildingKind.Storehouse,
+      BuildingKind.Storehouse,
+      BuildingKind.Storehouse,
+      BuildingKind.Hall,
+      BuildingKind.TeaHouse,
+    ];
     for (const kind of wanted) {
       for (let attempt = 0; attempt < 80; attempt++) {
         let [w, h] = SIZES[kind]!;
@@ -660,125 +670,9 @@ export class Castle {
   }
 }
 
-/**
- * Distance fields over the ground: how many steps every cell is from a target, walking. A guard heads downhill on the
- * field for where it's going, cutting corners wherever it can walk straight. The castle never changes once it's built,
- * so a field is good for as long as it's kept, and it's shared by everyone going the same way.
- */
-export class Paths {
-  private readonly fields = new Map<number, Uint16Array>();
-  private readonly queue = new Int32Array(SIZE * SIZE);
-  /** Which cells can be walked on, so filling a field is plain array work. */
-  private readonly walkable = new Uint8Array(SIZE * SIZE);
-
-  constructor(private readonly castle: Castle) {
-    for (let j = 0; j < SIZE; j++) for (let i = 0; i < SIZE; i++) this.walkable[j * SIZE + i] = castle.open(i, j) ? 1 : 0;
-  }
-
-  field(x: number, y: number): Uint16Array {
-    const target = this.castle.nearestOpen(x, y);
-    const key = Castle.index(Math.floor(target.x), Math.floor(target.y));
-    let field = this.fields.get(key);
-    if (field) {
-      // most recently used goes to the back
-      this.fields.delete(key);
-    } else {
-      field = new Uint16Array(SIZE * SIZE);
-      this.fill(field, key);
-      if (this.fields.size >= 64) this.fields.delete(this.fields.keys().next().value!);
-    }
-    this.fields.set(key, field);
-    return field;
-  }
-
-  /** Whether a body of radius `r` could walk straight along the ground from a to b. */
-  clearWalk(ax: number, ay: number, bx: number, by: number, r: number): boolean {
-    const dx = bx - ax;
-    const dy = by - ay;
-    const len = Math.hypot(dx, dy);
-    if (len < 1e-6) return this.castle.open(Math.floor(ax), Math.floor(ay));
-    const steps = Math.ceil(len / 0.3);
-    const ox = (-dy / len) * r;
-    const oy = (dx / len) * r;
-    for (let s = 0; s <= steps; s++) {
-      const x = ax + (dx * s) / steps;
-      const y = ay + (dy * s) / steps;
-      if (!this.castle.open(Math.floor(x), Math.floor(y)) || !this.castle.open(Math.floor(x + ox), Math.floor(y + oy)) || !this.castle.open(Math.floor(x - ox), Math.floor(y - oy))) return false;
-    }
-    return true;
-  }
-
-  /** Where a body at (x, y) should head for next on its way to (tx, ty), or null if it can't get there. */
-  next(x: number, y: number, tx: number, ty: number, r: number): Spot | null {
-    const { castle } = this;
-    if (Math.hypot(tx - x, ty - y) < 12 && this.clearWalk(x, y, tx, ty, r)) return { x: tx, y: ty };
-    const field = this.field(tx, ty);
-    let i = Math.floor(x);
-    let j = Math.floor(y);
-    if (field[Castle.index(i, j)] === 0xffff) {
-      const open = castle.nearestOpen(x, y);
-      i = Math.floor(open.x);
-      j = Math.floor(open.y);
-      if (field[Castle.index(i, j)] === 0xffff) return null;
-      return open;
-    }
-    let best: Spot | null = null;
-    for (let step = 0; step < 10; step++) {
-      const here = field[Castle.index(i, j)];
-      if (here === 0) break;
-      let ni = -1;
-      let nj = -1;
-      let low = here;
-      for (const [di, dj] of DIRS8) {
-        const ci = i + di;
-        const cj = j + dj;
-        if (ci < 0 || cj < 0 || ci >= SIZE || cj >= SIZE) continue;
-        if (di !== 0 && dj !== 0 && (!castle.open(i + di, j) || !castle.open(i, j + dj))) continue;
-        const v = field[Castle.index(ci, cj)];
-        if (v < low) {
-          low = v;
-          ni = ci;
-          nj = cj;
-        }
-      }
-      if (ni < 0) break;
-      i = ni;
-      j = nj;
-      const cx = i + 0.5;
-      const cy = j + 0.5;
-      if (step === 0 || this.clearWalk(x, y, cx, cy, r)) best = { x: cx, y: cy };
-      else break;
-    }
-    return best ?? { x: tx, y: ty };
-  }
-
-  private fill(field: Uint16Array, from: number): void {
-    const { walkable, queue } = this;
-    field.fill(0xffff);
-    let head = 0;
-    let tail = 0;
-    field[from] = 0;
-    queue[tail++] = from;
-    while (head < tail) {
-      const c = queue[head++];
-      const i = c % SIZE;
-      const d = field[c] + 1;
-      if (i + 1 < SIZE && walkable[c + 1] && field[c + 1] > d) {
-        field[c + 1] = d;
-        queue[tail++] = c + 1;
-      }
-      if (i > 0 && walkable[c - 1] && field[c - 1] > d) {
-        field[c - 1] = d;
-        queue[tail++] = c - 1;
-      }
-      if (c + SIZE < SIZE * SIZE && walkable[c + SIZE] && field[c + SIZE] > d) {
-        field[c + SIZE] = d;
-        queue[tail++] = c + SIZE;
-      }
-      if (c >= SIZE && walkable[c - SIZE] && field[c - SIZE] > d) {
-        field[c - SIZE] = d;
-        queue[tail++] = c - SIZE;
-      }
-    }
+/** Ways over the ground for guards (see `FlowPaths`): the castle never changes once it's built, so fields are kept. */
+export class Paths extends FlowPaths {
+  constructor(castle: Castle) {
+    super({ size: SIZE, open: (i, j) => castle.open(i, j), nearestOpen: (x, y) => castle.nearestOpen(x, y) });
   }
 }

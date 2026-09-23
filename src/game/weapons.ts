@@ -46,11 +46,7 @@ export function fireBullet(ctx: GameContext, shooter: NetEntity, ox: number, oy:
 
   ctx.world.send(Shot, { x: ox, y: oy, angle, dist: hit ? hitT : wall, shooter: shooter.id }, { to: 'near', x: ox, y: oy, radius: 1600 });
   if (hit) {
-    ctx.world.send(
-      Damage,
-      { target: hit.id, amount: hitDamage, attacker: shooter.id, cause: DamageCause.Bullet, kx: dx * 60, ky: dy * 60 },
-      { to: 'owner', entity: hit },
-    );
+    ctx.world.send(Damage, { target: hit.id, amount: hitDamage, attacker: shooter.id, cause: DamageCause.Bullet, kx: dx * 60, ky: dy * 60 }, { to: 'owner', entity: hit });
   }
   return hit;
 }

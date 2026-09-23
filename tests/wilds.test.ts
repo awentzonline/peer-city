@@ -276,7 +276,10 @@ describe('Survivor', () => {
     const other = world.spawn(SurvivorDef, { ...ahead(1.5), name: 'Other', hp: 100, food: 80 });
     survivor.heading = open.heading;
     const intent = idleIntent();
-    for (const [tool, amount] of [[AXE, 24], [HOE, 14]] as const) {
+    for (const [tool, amount] of [
+      [AXE, 24],
+      [HOE, 14],
+    ] as const) {
       intent.selectTool = tool;
       intent.trigger = false;
       frames(1, intent);

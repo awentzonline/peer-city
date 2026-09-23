@@ -14,7 +14,17 @@ export class Effects {
     scene.add(this.glow.mesh, this.bits.mesh);
   }
 
-  private burst(x: number, y: number, z: number, count: number, c: Rgba, speed: number, size: number, life: number, opts: { glow?: boolean; up?: number; gravity?: number; along?: { x: number; y: number } } = {}): void {
+  private burst(
+    x: number,
+    y: number,
+    z: number,
+    count: number,
+    c: Rgba,
+    speed: number,
+    size: number,
+    life: number,
+    opts: { glow?: boolean; up?: number; gravity?: number; along?: { x: number; y: number } } = {},
+  ): void {
     const floor = this.course.heightAt(x, y) + 0.02;
     const layer = opts.glow ? this.glow : this.bits;
     for (let i = 0; i < count; i++) {
@@ -90,7 +100,22 @@ export class Effects {
   dust(x: number, y: number, speed: number, lie: Lie): void {
     const floor = this.course.heightAt(x, y);
     const c: Rgba = lie === Lie.Sand ? [0.9, 0.82, 0.6, 0.4] : lie === Lie.Path ? [0.7, 0.7, 0.68, 0.25] : [0.45, 0.55, 0.35, 0.22];
-    this.bits.emit({ x: x + rand(-0.2, 0.2), y: y + rand(-0.2, 0.2), z: floor + 0.1, vx: rand(-0.5, 0.5), vy: rand(-0.5, 0.5), vz: rand(0.2, 0.6) * Math.min(2, speed / 5), life: rand(0.5, 0.9), s0: 0.2, s1: 0.8, c0: c, c1: [c[0], c[1], c[2], 0], gravity: -0.2, drag: 2, floor });
+    this.bits.emit({
+      x: x + rand(-0.2, 0.2),
+      y: y + rand(-0.2, 0.2),
+      z: floor + 0.1,
+      vx: rand(-0.5, 0.5),
+      vy: rand(-0.5, 0.5),
+      vz: rand(0.2, 0.6) * Math.min(2, speed / 5),
+      life: rand(0.5, 0.9),
+      s0: 0.2,
+      s1: 0.8,
+      c0: c,
+      c1: [c[0], c[1], c[2], 0],
+      gravity: -0.2,
+      drag: 2,
+      floor,
+    });
   }
 
   /** Confetti over a holed ball. */

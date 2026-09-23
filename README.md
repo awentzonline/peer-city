@@ -20,6 +20,36 @@ connect across machines) and play together. `?debug` shows live network stats (t
 
 ---
 
+## Contents
+
+- [Why this is hard, and how the engine approaches it](#why-this-is-hard-and-how-the-engine-approaches-it)
+  - [1. Zones: only connect to peers you might see](#1-zones-only-connect-to-peers-you-might-see)
+  - [2. Interest management + field-level deltas](#2-interest-management--field-level-deltas)
+  - [3. Ownership, authority and migration](#3-ownership-authority-and-migration)
+  - [4. Typed actions: state, commands and events](#4-typed-actions-state-commands-and-events)
+- [Using the framework](#using-the-framework)
+  - [Declare what's replicated](#declare-whats-replicated)
+  - [Create a world](#create-a-world)
+  - [Game loop](#game-loop)
+  - [Common calls](#common-calls)
+  - [Transports](#transports)
+- [Peer City (the demo)](#peer-city-the-demo)
+- [Peer City 3D (first-person + room-scale VR)](#peer-city-3d-first-person--room-scale-vr)
+- [The crossplay layer (`src/crossplay/`)](#the-crossplay-layer-srccrossplay)
+  - [Proximity voice chat](#proximity-voice-chat)
+  - [The settings menu](#the-settings-menu)
+- [Peer Wilds (survival, farming and hunting)](#peer-wilds-survival-farming-and-hunting)
+- [Peer Derby (build downhill racers together, then race them)](#peer-derby-build-downhill-racers-together-then-race-them)
+- [Peer Walls (paint a yard of walls together)](#peer-walls-paint-a-yard-of-walls-together)
+- [Peer Golf (battle golf)](#peer-golf-battle-golf)
+- [Peer Haunt (asymmetric horror: survivors against the Haunt)](#peer-haunt-asymmetric-horror-survivors-against-the-haunt)
+- [Peer Shinobi (stealth: shinobi against the Captain of the Watch)](#peer-shinobi-stealth-shinobi-against-the-captain-of-the-watch)
+- [Peer Starship (a bridge crew: stations, a viewscreen, and crew on the decks)](#peer-starship-a-bridge-crew-stations-a-viewscreen-and-crew-on-the-decks)
+- [Sewer Lordz (co-op sewer diving: goblins, loot, rising sewage and a voxel fatberg)](#sewer-lordz-co-op-sewer-diving-goblins-loot-rising-sewage-and-a-voxel-fatberg)
+- [Scaling results](#scaling-results)
+- [Limits and trade-offs](#limits-and-trade-offs)
+
+---
 ## Why this is hard, and how the engine approaches it
 
 A full WebRTC mesh stops working past a few dozen peers, and without a server nobody is in
@@ -168,6 +198,9 @@ update() {
 | `world.command(Command, payload)`, `world.onCommand(Command, Def?, (target, payload, ctx) => ...)` | ask a target's owner to change it; handled only there, per target type |
 | `world.withLock(e, (e) => ...)` → `Promise<result \| undefined>` | change something only one peer may: ownership as a lock |
 | `defineSingleton({name, fields})`, `new Singleton(world, Def, {init}).update(now)` | one entity for everyone nearby (a race, a match), made by whoever's first; duplicates settle on the longest-running |
+| `class X extends Keeper<Def> { run(e, dt, now) {...} takeOver(e, now) {...} }` | run a singleton for whoever owns it; `takeOver` reseeds the timers you keep outside its fields when it changes hands |
+| `new FlowPaths(grid, {maxAgeMs}).next(x, y, tx, ty, r, now)` | distance-field pathing over a cell grid: where a body should head next, cutting corners it can walk straight |
+| `walkToward(ground, pose, mem, tx, ty, r, speed, dt, now, path)`, `wander(...)`, `keepApart(...)` | NPC steering on top of `FlowPaths`: walk a path, drift about, and stay out of each other |
 | `world.track(Def, {added, removed})` | keep something derived in step with one type's entities |
 | `world.on('entityAdded' / 'entityRemoved' / 'ownershipGained' / 'ownershipLost' / 'peerJoined' / 'peerLeft')` | lifecycle |
 | `world.isAuthorityFor(x, y)`, `world.isObserved(x, y, r)`, `world.peerFoci()` | coordination helpers |

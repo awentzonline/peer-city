@@ -5,7 +5,27 @@ import { NO_PRESENTER, registerActions } from '../src/starship/actions';
 import type { CrewEntity, FaultEntity, RaiderEntity, RelicEntity, SentinelEntity, ShipEntity, StarshipContext } from '../src/starship/context';
 import { CrewRole, SEAT_BACK, type CrewBody } from '../src/starship/crew';
 import { CELL, CONSOLES, Deck, MACHINES, PAD, RACK, SPAWN, TUBES, Tile } from '../src/starship/deck';
-import { ACTIONS, Act, Beam, Carry, CrewMode, ENTITIES, Fault, FaultKind, Phase, Raider, RaiderKind, Relic, Result, Screen, Sentinel, ShipSystem, Station, STATIONS, SYSTEMS } from '../src/starship/defs';
+import {
+  ACTIONS,
+  Act,
+  Beam,
+  Carry,
+  CrewMode,
+  ENTITIES,
+  Fault,
+  FaultKind,
+  Phase,
+  Raider,
+  RaiderKind,
+  Relic,
+  Result,
+  Screen,
+  Sentinel,
+  ShipSystem,
+  Station,
+  STATIONS,
+  SYSTEMS,
+} from '../src/starship/defs';
 import { DESK, LEAVE_BOX, SCOPE_BOX, deskLayout, stationControls, within, type Key, type Slider } from '../src/starship/consoles';
 import { Torpedoes } from '../src/starship/flights';
 import { stepRules } from '../src/starship/frame';
@@ -458,7 +478,7 @@ describe('Fighting', () => {
     expect(r.state.hp + r.state.shields).toBeLessThan(170 + 90 - 40);
   });
 
-  it("lets crew fix a sparking conduit with the spanner and put out a fire with the extinguisher, giving the system back its health", () => {
+  it('lets crew fix a sparking conduit with the spanner and put out a fire with the extinguisher, giving the system back its health', () => {
     const { net, o, c, peers } = underway();
     const run0 = owner(peers);
     const ship = shipOf(run0);

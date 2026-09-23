@@ -1,4 +1,4 @@
-import { Singleton, type NetWorld } from '@engine/index';
+import { Keeper, type NetWorld } from '@engine/index';
 import { START } from './castle';
 import type { BeaconEntity, BladeEntity, RoundEntity, ShinobiContext } from './context';
 import { Beacon, Blade, Feed, Guard, GuardMode, Phase, Result, Round, Shinobi, ShinobiMode } from './defs';
@@ -41,21 +41,20 @@ export function tally(world: NetWorld, round: number): Tally {
  * it sees of the round (see `ShinobiRole.nightly`), and guards, blades and braziers from a night that's over clear
  * themselves away.
  */
-export class RoundKeeper {
-  private readonly one: Singleton<typeof Round>;
+export class RoundKeeper extends Keeper<typeof Round> {
   private lordMissing = 0;
 
   constructor(private readonly ctx: ShinobiContext) {
-    this.one = new Singleton(ctx.world, Round, { init: () => ({ x: START.x, y: START.y + 40, phase: Phase.Waiting, round: 1, timer: WAIT_SECONDS }) });
+    super(ctx.world, Round, { init: () => ({ x: START.x, y: START.y + 40, phase: Phase.Waiting, round: 1, timer: WAIT_SECONDS }) });
   }
 
   get round(): RoundEntity | null {
-    return this.one.entity;
+    return this.entity;
   }
 
-  update(dt: number, now: number): void {
-    const round = this.one.update(now);
-    if (round?.mine) this.run(round, dt);
+  protected override takeOver(): void {
+    // a lord that went missing under the last owner is given his moment again under this one
+    this.lordMissing = 0;
   }
 
   /** Ring the alarm bell, if this peer runs the night. */
@@ -64,7 +63,7 @@ export class RoundKeeper {
     if (round?.mine && (round.state.phase === Phase.Night || round.state.phase === Phase.Escape)) round.state.alarm = seconds;
   }
 
-  private run(round: RoundEntity, dt: number): void {
+  protected run(round: RoundEntity, dt: number): void {
     const { world } = this.ctx;
     const s = round.state;
     s.alarm = Math.max(0, s.alarm - dt);

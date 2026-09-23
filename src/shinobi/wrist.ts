@@ -48,7 +48,7 @@ export class Wrist {
       c.fillStyle = '#333';
       c.fillRect(26, 196, 460, 30);
       c.fillStyle = hud.hidden ? '#4a7a4a' : hud.exposure > 60 ? '#ffb35a' : '#8a9ac0';
-      c.fillRect(30, 200, 452 * Math.max(0, hud.exposure) / 100, 22);
+      c.fillRect(30, 200, (452 * Math.max(0, hud.exposure)) / 100, 22);
       c.fillStyle = '#fff';
       c.font = 'bold 22px Georgia, serif';
       c.fillText(hud.hidden ? 'hidden' : `seen ${Math.max(0, hud.exposure)}%`, 36, 219);

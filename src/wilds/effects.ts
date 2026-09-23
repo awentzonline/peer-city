@@ -71,7 +71,21 @@ export class Effects {
   }
 
   ember(x: number, y: number, z: number): void {
-    this.glow.emit({ x, y, z, vx: rand(-0.3, 0.3), vy: rand(-0.3, 0.3), vz: rand(1, 2.5), life: rand(0.8, 1.6), s0: 0.04, s1: 0.01, c0: [1, 0.6, 0.2, 1], c1: [1, 0.3, 0, 0], gravity: -0.2, drag: 0.3 });
+    this.glow.emit({
+      x,
+      y,
+      z,
+      vx: rand(-0.3, 0.3),
+      vy: rand(-0.3, 0.3),
+      vz: rand(1, 2.5),
+      life: rand(0.8, 1.6),
+      s0: 0.04,
+      s1: 0.01,
+      c0: [1, 0.6, 0.2, 1],
+      c1: [1, 0.3, 0, 0],
+      gravity: -0.2,
+      drag: 0.3,
+    });
   }
 
   smoke(x: number, y: number, z: number): void {

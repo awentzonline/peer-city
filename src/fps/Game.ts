@@ -88,9 +88,7 @@ export class Game {
     hud.show();
     hud.message(`Welcome to Peer City 3D, ${launch.playerName}`);
     hud.message(
-      launch.touch
-        ? 'The cog opens settings; the microphone lets players near you hear your voice'
-        : 'Press Esc for settings, or V to turn on your microphone: players near you will hear your voice',
+      launch.touch ? 'The cog opens settings; the microphone lets players near you hear your voice' : 'Press Esc for settings, or V to turn on your microphone: players near you will hear your voice',
     );
 
     shell.run({

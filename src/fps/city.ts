@@ -151,10 +151,7 @@ export class City {
     this.ground[i] = tile;
     this.heights[i] = tile === Tile.Tree ? TREE_HEIGHT : height;
     this.solid[i] = tile === Tile.Building || tile === Tile.Water || tile === Tile.Tree ? 1 : 0;
-    this.walkable[i] =
-      tile === Tile.Sidewalk || tile === Tile.CrossH || tile === Tile.CrossV || tile === Tile.Path || tile === Tile.Concrete || tile === Tile.Parking
-        ? 1
-        : 0;
+    this.walkable[i] = tile === Tile.Sidewalk || tile === Tile.CrossH || tile === Tile.CrossV || tile === Tile.Path || tile === Tile.Concrete || tile === Tile.Parking ? 1 : 0;
   }
 
   private fill(x: number, y: number, w: number, h: number, tile: number, height = 0): void {

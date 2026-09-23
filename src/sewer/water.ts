@@ -112,10 +112,7 @@ export class Sewage {
 
     // junk bobbing along in the channels
     const rnd = mulberry32(map.seed ^ 0x77);
-    const junk = merge([
-      paint(new THREE.BoxGeometry(0.22, 0.02, 0.16), 0xe8e2c8),
-      paint(new THREE.BoxGeometry(0.12, 0.03, 0.1).translate(0.18, 0, 0.1), 0xd8d2b8),
-    ]);
+    const junk = merge([paint(new THREE.BoxGeometry(0.22, 0.02, 0.16), 0xe8e2c8), paint(new THREE.BoxGeometry(0.12, 0.03, 0.1).translate(0.18, 0, 0.1), 0xd8d2b8)]);
     const count = 140;
     this.floaters = new THREE.InstancedMesh(junk, SOLID, count);
     const colors = [0xe8e2c8, 0x6a4a22, 0xc8c8a8, 0x4a3a1a, 0xb8a060];

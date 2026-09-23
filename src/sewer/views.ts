@@ -57,7 +57,14 @@ const hoseTip = toolTip(HOSE);
  * ragdoll or a burst of gunk the moment they're splattered. Loot glints on the walkways, rides on goblins' heads, and is
  * hidden in the silt or someone's sack.
  */
-export function registerViews(ctx: SewerContext, views: EntityViews, scene: THREE.Scene, rig: Rig, local: LocalView, ragdolls: Ragdolls): { update(dt: number): void; splat(p: { goblin: number; kind: SplatKind; x: number; y: number; z: number; angle: number; vx: number; vy: number; vz: number }): void } {
+export function registerViews(
+  ctx: SewerContext,
+  views: EntityViews,
+  scene: THREE.Scene,
+  rig: Rig,
+  local: LocalView,
+  ragdolls: Ragdolls,
+): { update(dt: number): void; splat(p: { goblin: number; kind: SplatKind; x: number; y: number; z: number; angle: number; vx: number; vy: number; vz: number }): void } {
   const lamps: THREE.PointLight[] = [];
   for (let i = 0; i < LAMPS; i++) {
     const l = new THREE.PointLight(0xfff0c8, 0, 9, 1.5);
@@ -132,7 +139,29 @@ export function registerViews(ctx: SewerContext, views: EntityViews, scene: THRE
   });
 
   /** A spraying hose: the jet from its nozzle, and fat flying where it lands. */
-  function spray(view: LordView, e: { x: number; y: number; render: { hx: number; hy: number; hz: number; aimYaw: number; aimPitch: number; lhx: number; lhy: number; lhz: number; laimYaw: number; laimPitch: number; tool: number; ltool: number; z: number } }, isMe: boolean): void {
+  function spray(
+    view: LordView,
+    e: {
+      x: number;
+      y: number;
+      render: {
+        hx: number;
+        hy: number;
+        hz: number;
+        aimYaw: number;
+        aimPitch: number;
+        lhx: number;
+        lhy: number;
+        lhz: number;
+        laimYaw: number;
+        laimPitch: number;
+        tool: number;
+        ltool: number;
+        z: number;
+      };
+    },
+    isMe: boolean,
+  ): void {
     const s = e.render;
     const left = s.ltool === HOSE.id && s.tool !== HOSE.id;
     const [hx, hy, hz, yaw, pitch] = left ? [s.lhx, s.lhy, s.lhz, s.laimYaw, s.laimPitch] : [s.hx, s.hy, s.hz, s.aimYaw, s.aimPitch];

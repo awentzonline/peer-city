@@ -256,10 +256,19 @@ export class CartWorld {
     }
     ground(RAPIER.ColliderDesc.trimesh(vertices, indices));
     const upright = { x: Math.SQRT1_2, y: 0, z: 0, w: Math.SQRT1_2 }; // cylinders stand along y; turn them onto z
-    for (const t of course.trees) ground(RAPIER.ColliderDesc.cylinder(3, t.trunk).setTranslation(t.x, t.y, t.z + 2.5).setRotation(upright));
+    for (const t of course.trees)
+      ground(
+        RAPIER.ColliderDesc.cylinder(3, t.trunk)
+          .setTranslation(t.x, t.y, t.z + 2.5)
+          .setRotation(upright),
+      );
     const c = course.clubhouse;
     const cz = course.heightAt(c.x, c.y);
-    ground(RAPIER.ColliderDesc.cuboid(c.d / 2, c.w / 2, 3).setTranslation(c.x, c.y, cz + 2.5).setRotation(yawQuat(c.heading)));
+    ground(
+      RAPIER.ColliderDesc.cuboid(c.d / 2, c.w / 2, 3)
+        .setTranslation(c.x, c.y, cz + 2.5)
+        .setRotation(yawQuat(c.heading)),
+    );
   }
 
   /** The body for a cart, if it has one yet. */

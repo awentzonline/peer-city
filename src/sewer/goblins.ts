@@ -1,5 +1,5 @@
-import { defineLocal } from '@engine/index';
-import { angleDiff, type GoblinEntity, type LordEntity, type SewerContext, type Vec3 } from './context';
+import { defineLocal, keepApart, turnToward, walkMemory, walkToward, wander, type WalkMemory, type Walkable, type WanderOptions } from '@engine/index';
+import { type GoblinEntity, type LordEntity, type SewerContext, type Vec3 } from './context';
 import { Feed, Goblin, GoblinMode, Hurt, Lord, LordMode, Loot, LootWhere, Noise, Phase, Snatch, Sound, Splat, SplatKind } from './defs';
 import { WADE } from './fatberg';
 import type { WallSpot } from './sewer';
@@ -30,13 +30,10 @@ export const FLING_FORCE = 0.45;
 export const GIB_FORCE = 0.95;
 const GIB_CHANCE = 0.25;
 
-interface GoblinLocal {
+interface GoblinLocal extends WalkMemory {
   nextLook: number;
-  nextPath: number;
   nextStrike: number;
-  waypoint: { x: number; y: number } | null;
   sawAt: number;
-  restUntil: number;
   staggerUntil: number;
   /** Knocked back this fast, m/s, sliding to a stop. */
   kx: number;
@@ -49,12 +46,10 @@ interface GoblinLocal {
 }
 
 export const GoblinMind = defineLocal<GoblinLocal>(() => ({
+  ...walkMemory(),
   nextLook: 0,
-  nextPath: 0,
   nextStrike: 0,
-  waypoint: null,
   sawAt: 0,
-  restUntil: 0,
   staggerUntil: 0,
   kx: 0,
   ky: 0,
@@ -160,7 +155,7 @@ export function updateOwnedGoblins(ctx: SewerContext, dt: number): void {
         break;
       }
       default:
-        wander(ctx, g, dt);
+        roam(ctx, g, dt);
     }
     s.z = ctx.map.groundAt(s.x, s.y);
   }
@@ -214,64 +209,49 @@ function look(ctx: SewerContext, g: GoblinEntity): void {
   }
 }
 
+/** The sewer as goblins walk it (the fat stops them as it stops anyone), and how they drift about, once per context. */
+interface Ground {
+  ground: Walkable;
+  roam: WanderOptions;
+}
+const grounds = new WeakMap<SewerContext, Ground>();
+function groundOf(ctx: SewerContext): Ground {
+  let g = grounds.get(ctx);
+  if (!g) {
+    const { map } = ctx;
+    g = {
+      ground: {
+        paths: ctx.paths,
+        turnRate: 9,
+        move: (p, dx, dy, r) => {
+          const x0 = p.x;
+          const y0 = p.y;
+          const bumped = map.move(p, dx, dy, r);
+          const ground = map.groundAt(p.x, p.y);
+          if (!ctx.plug.blocks(p.x, p.y, ground + WADE + 0.05, ground + GOBLIN_HEIGHT - 0.1, r)) return bumped;
+          p.x = x0;
+          p.y = y0;
+          return true;
+        },
+      },
+      roam: { restMs: 800, restJitterMs: 2500, range: 6, ok: (fx, fy, x, y) => !map.solid(Math.floor(x), Math.floor(y)) && map.sees(fx, fy, x, y) },
+    };
+    grounds.set(ctx, g);
+  }
+  return g;
+}
+
 function step(ctx: SewerContext, g: GoblinEntity, tx: number, ty: number, speed: number, dt: number, path: boolean): void {
-  const { map, paths, now } = ctx;
-  const s = g.state;
-  const l = GoblinMind.of(g);
-  let gx = tx;
-  let gy = ty;
-  if (path) {
-    if (now >= l.nextPath || !l.waypoint) {
-      l.nextPath = now + 250 + Math.random() * 100;
-      l.waypoint = paths.next(s.x, s.y, tx, ty, GOBLIN_RADIUS, now);
-    }
-    if (!l.waypoint) return;
-    gx = l.waypoint.x;
-    gy = l.waypoint.y;
-    if (Math.hypot(gx - s.x, gy - s.y) < 0.3) l.nextPath = 0;
-  }
-  const dx = gx - s.x;
-  const dy = gy - s.y;
-  const d = Math.hypot(dx, dy);
-  if (d < 0.05) return;
-  const k = Math.min(d, speed * dt) / d;
-  const x0 = s.x;
-  const y0 = s.y;
-  if (map.move(s, dx * k, dy * k, GOBLIN_RADIUS)) l.nextPath = 0;
-  // the fat stops goblins as it stops anyone
-  const ground = map.groundAt(s.x, s.y);
-  if (ctx.plug.blocks(s.x, s.y, ground + WADE + 0.05, ground + GOBLIN_HEIGHT - 0.1, GOBLIN_RADIUS)) {
-    s.x = x0;
-    s.y = y0;
-    l.nextPath = 0;
-  }
-  face(g, Math.atan2(dy, dx), dt);
+  walkToward(groundOf(ctx).ground, g.state, GoblinMind.of(g), tx, ty, GOBLIN_RADIUS, speed, dt, ctx.now, path);
 }
 
 function face(g: GoblinEntity, angle: number, dt: number): void {
-  const s = g.state;
-  s.angle += angleDiff(s.angle, angle) * Math.min(1, dt * 9);
+  turnToward(g.state, angle, dt, 9);
 }
 
-function wander(ctx: SewerContext, g: GoblinEntity, dt: number): void {
-  const s = g.state;
-  const l = GoblinMind.of(g);
-  if (ctx.now < l.restUntil) return;
-  if (Math.hypot(s.tx - s.x, s.ty - s.y) < 0.6) {
-    l.restUntil = ctx.now + 800 + Math.random() * 2500;
-    for (let i = 0; i < 8; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const d = 2 + Math.random() * 6;
-      const x = s.x + Math.cos(a) * d;
-      const y = s.y + Math.sin(a) * d;
-      if (ctx.map.solid(Math.floor(x), Math.floor(y)) || !ctx.map.sees(s.x, s.y, x, y)) continue;
-      s.tx = Math.floor(x) + 0.5;
-      s.ty = Math.floor(y) + 0.5;
-      break;
-    }
-    return;
-  }
-  step(ctx, g, s.tx, s.ty, WANDER_SPEED, dt, true);
+function roam(ctx: SewerContext, g: GoblinEntity, dt: number): void {
+  const { ground, roam } = groundOf(ctx);
+  wander(ground, g.state, GoblinMind.of(g), GOBLIN_RADIUS, WANDER_SPEED, dt, ctx.now, roam);
 }
 
 /** Lunge at a Lord: a scratch, or a grab at their sack if there's anything in it. */
@@ -331,21 +311,15 @@ function escape(ctx: SewerContext, g: GoblinEntity): void {
 
 /** Keep goblins from standing in each other. */
 function separate(ctx: SewerContext): void {
-  const { world, map } = ctx;
-  for (const g of world.owned(Goblin) as ReadonlySet<GoblinEntity>) {
-    const s = g.state;
-    if (!alive(s.mode) || s.mode === GoblinMode.Held) continue;
-    for (const o of world.query(s.x, s.y, 0.8, Goblin) as GoblinEntity[]) {
-      if (o === g || !alive(o.render.mode) || o.render.mode === GoblinMode.Held) continue;
-      const dx = s.x - o.x;
-      const dy = s.y - o.y;
-      const d = Math.hypot(dx, dy);
-      const min = GOBLIN_RADIUS * 2;
-      if (d >= min || d < 1e-4) continue;
-      const push = (min - d) * 0.5;
-      map.move(s, (dx / d) * push, (dy / d) * push, GOBLIN_RADIUS);
-    }
-  }
+  const { world } = ctx;
+  keepApart(
+    groundOf(ctx).ground,
+    world.owned(Goblin) as ReadonlySet<GoblinEntity>,
+    (x, y, r) => world.query(x, y, r, Goblin) as GoblinEntity[],
+    () => GOBLIN_RADIUS,
+    (g) => alive(g.render.mode) && g.render.mode !== GoblinMode.Held,
+    0.8,
+  );
 }
 
 /**

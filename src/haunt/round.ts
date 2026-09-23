@@ -1,4 +1,4 @@
-import { Singleton, type NetWorld } from '@engine/index';
+import { Keeper, type NetWorld } from '@engine/index';
 import type { HauntContext, RoundEntity } from './context';
 import { Feed, Haunt, Key, Monster, MonsterKind, MonsterMode, Phase, Result, Round, Survivor, SurvivorMode } from './defs';
 import { KEY_FLOOR, pickKeySpots } from './keys';
@@ -43,34 +43,22 @@ export function tally(world: NetWorld, round: number): Tally {
  *
  * With nobody playing the Haunt, the house sends monsters of its own, so a group of survivors (or one) still has a night.
  */
-export class RoundKeeper {
-  private readonly one: Singleton<typeof Round>;
+export class RoundKeeper extends Keeper<typeof Round> {
   private nextHouse = 0;
-  /** The round this peer is running, so `nextHouse` (not on the wire) is reseeded when it takes one over. */
-  private running: RoundEntity | null = null;
 
   constructor(private readonly ctx: HauntContext) {
-    this.one = new Singleton(ctx.world, Round, { init: () => ({ x: START.x, y: START.y + 30, phase: Phase.Waiting, round: 1, timer: WAIT_SECONDS, needed: SOCKETS.length }) });
+    super(ctx.world, Round, { init: () => ({ x: START.x, y: START.y + 30, phase: Phase.Waiting, round: 1, timer: WAIT_SECONDS, needed: SOCKETS.length }) });
   }
 
   get round(): RoundEntity | null {
-    return this.one.entity;
+    return this.entity;
   }
 
-  update(dt: number, now: number): void {
-    const round = this.one.update(now);
-    if (!round?.mine) {
-      this.running = null;
-      return;
-    }
-    if (this.running !== round) {
-      this.running = round;
-      this.nextHouse = now + HOUSE_MS;
-    }
-    this.run(round, dt);
+  protected override takeOver(_round: RoundEntity, now: number): void {
+    this.nextHouse = now + HOUSE_MS;
   }
 
-  private run(round: RoundEntity, dt: number): void {
+  protected run(round: RoundEntity, dt: number): void {
     const { world } = this.ctx;
     const s = round.state;
     switch (s.phase) {

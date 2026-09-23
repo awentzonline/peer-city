@@ -79,7 +79,21 @@ function player(net: Sim, id: string, name: string, shelf = new MemoryShelf()): 
   const hud = { ...stub(), message: (text: string) => messages.push(text) };
   const physics = new Physics(course);
   const keeper = new RaceKeeper(world);
-  const ctx = { world, course, physics, sfx: stub(), hud, fx: stub(), settings: stub(), shelf, me: null, racer: null, playerName: name, now: net.now, race: () => keeper.race } as unknown as DerbyContext;
+  const ctx = {
+    world,
+    course,
+    physics,
+    sfx: stub(),
+    hud,
+    fx: stub(),
+    settings: stub(),
+    shelf,
+    me: null,
+    racer: null,
+    playerName: name,
+    now: net.now,
+    race: () => keeper.race,
+  } as unknown as DerbyContext;
   const builder = new Builder(ctx);
   const body = new TestBody();
   builder.attach(body);

@@ -282,7 +282,11 @@ export class Scenery {
   }
 
   private trees(): THREE.InstancedMesh {
-    const geo = merge([paint(new THREE.CylinderGeometry(0.06, 0.08, 0.3, 6).translate(0, 0.15, 0), 0x5b3d24), paint(new THREE.ConeGeometry(0.28, 0.5, 7).translate(0, 0.5, 0), 0x2f5a34), paint(new THREE.ConeGeometry(0.2, 0.4, 7).translate(0, 0.78, 0), 0x3d7641)]);
+    const geo = merge([
+      paint(new THREE.CylinderGeometry(0.06, 0.08, 0.3, 6).translate(0, 0.15, 0), 0x5b3d24),
+      paint(new THREE.ConeGeometry(0.28, 0.5, 7).translate(0, 0.5, 0), 0x2f5a34),
+      paint(new THREE.ConeGeometry(0.2, 0.4, 7).translate(0, 0.78, 0), 0x3d7641),
+    ]);
     const { trees } = this.course;
     const mesh = new THREE.InstancedMesh(geo, SOLID, trees.length);
     const m = new THREE.Matrix4();
