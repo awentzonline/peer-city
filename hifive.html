@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>High Five with Friends</title>
+    <link rel="stylesheet" href="/src/hifive/style.css" />
+    <link rel="stylesheet" href="/src/crossplay/settings.css" />
+    <link rel="stylesheet" href="/src/crossplay/touch.css" />
+  </head>
+  <body>
+    <div id="game"></div>
+
+    <div id="hud" hidden>
+      <div id="crosshair"></div>
+      <div id="ring" hidden>
+        <div id="ring-target"></div>
+        <div id="ring-closer"></div>
+        <div id="ring-label"></div>
+      </div>
+      <div id="status"></div>
+      <div id="score"></div>
+      <div id="combo" hidden></div>
+      <div id="board"></div>
+      <div id="alert" hidden></div>
+      <div id="offer" hidden></div>
+      <div id="feed"></div>
+      <div id="banner"></div>
+      <div id="hint"></div>
+      <div id="help"></div>
+      <button id="vr-enter" hidden>ENTER VR</button>
+      <div id="lock" hidden>
+        <div>CLICK TO HIGH FIVE</div>
+        <small>Esc releases the mouse</small>
+      </div>
+    </div>
+
+    <div id="lobby">
+      <div class="panel">
+        <h1>HIGH FIVE<br /><span>WITH FRIENDS</span></h1>
+        <p class="tag">A locker room, a tunnel and a stadium full of people to give five to. Up high, down low, fist bumps and doubles, and a slap on the backside for anyone who isn't watching theirs. No server: everyone's browser is the team.</p>
+        <label>Name <input id="name" maxlength="16" autocomplete="off" /></label>
+        <label
+          >Network
+          <select id="net">
+            <option value="online">Online (WebRTC via Trystero / Nostr)</option>
+            <option value="local">Local tabs (BroadcastChannel)</option>
+          </select>
+        </label>
+        <label>Locker room <input id="room" maxlength="24" autocomplete="off" /></label>
+        <div class="buttons">
+          <button id="play">TAKE THE FIELD</button>
+          <button id="play-vr" disabled>IN VR</button>
+        </div>
+        <p class="small" id="vr-note">Checking for a VR headset…</p>
+        <details class="small">
+          <summary>How to give five</summary>
+          <ul>
+            <li><b>Hold one out:</b> up high, down low, a fist bump, or a double. Someone (a friend or one of the team) swings at it.</li>
+            <li><b>Swing at someone's:</b> face them and press the same move as the ring closes on the target. Perfect timing scores most.</li>
+            <li><b>Combos:</b> five after five with the same person multiplies your points. Mix up the moves to keep it climbing.</li>
+            <li><b>Too slow!</b> Pull your offer away just as they swing, and you get the points instead.</li>
+            <li><b>Butt slaps:</b> get behind someone and slap. Crouch so they don't hear you coming. If they turn round in time, it's
+              <b>denied</b> and they score. Turn slaps off in the settings if you'd rather not.</li>
+          </ul>
+          <b>Desktop:</b> <b>1</b> (or click) up high, <b>2</b> (or right-click) down low, <b>3</b> fist bump, <b>4</b> double, <b>Q</b> pull
+          it away, <b>F</b> slap, <b>C</b> sneak, <b>WASD</b> walk, <b>Space</b> jump (fives in the air are worth more).
+          <br /><b>VR:</b> it's your hands. Hold one still over your head to offer (both for a double), out low for down low, a fist
+          (squeeze the grip) at your chest for a bump. Swing into theirs: the faster, the better.
+          <br /><b>Touch:</b> swipe the pad: up for up high, down for down low, sideways for a double, tap for a fist bump.
+          <b>SLAP</b> and <b>SNEAK</b> are by your thumb.
+        </details>
+        <p class="small">Open more tabs or share the URL to bring the team. <a href="./">All games →</a></p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/hifive/main.ts"></script>
+  </body>
+</html>

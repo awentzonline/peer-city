@@ -9,18 +9,29 @@ const euler = new THREE.Euler(0, 0, 0, 'YXZ');
 const REST = [0.2, -0.3, -0.35] as const;
 const HIP = [0.22, -0.68, -0.05] as const;
 const SHOULDER = [0.2, -0.12, 0.25] as const;
+/** Held up over the head, and thrown out in front: to try reaching and swinging. */
+const HIGH = [0.18, 0.28, -0.3] as const;
+const THRUST = [0.08, -0.12, -0.72] as const;
+const LEFT_REST = [-0.2, -0.4, -0.3] as const;
+const LEFT_HIGH = [-0.18, 0.28, -0.3] as const;
+/** How fast a simulated hand moves to where the keys put it, 1/s: quick, but a real swing's speed rather than a jump. */
+const REACH_RATE = 14;
 
 /**
  * A headset faked from the keyboard and mouse (?xrsim), so the VR frontend can be tried without one.
  * Mouse turns the head, arrow keys walk around a 3×3m room, C crouches. Controllers: WASD left stick,
  * Q/E right stick, left/right mouse the triggers, F = A, H = B, R = Y, X = right stick click, Space =
  * right grip, Shift = left grip. Hold G or B to reach the right hand down to your hip or back over your
- * shoulder, to try the holsters.
+ * shoulder, to try the holsters; T holds it up over your head (U the left), and Z throws it out in front. Hands move
+ * there at a swing's speed rather than jumping, so what a hand's speed means can be tried too.
  */
 export class SimulatedXr implements XrPoseSource {
   readonly mode = 'sim';
   private yaw = 0;
   private pitch = 0;
+  /** Where each hand is, relative to the head in its own heading, easing toward where the keys want it. */
+  private readonly rightAt = new THREE.Vector3(REST[0], REST[1], REST[2]);
+  private readonly leftAt = new THREE.Vector3(LEFT_REST[0], LEFT_REST[1], LEFT_REST[2]);
 
   constructor(private readonly input: DesktopInput) {}
 
@@ -42,11 +53,15 @@ export class SimulatedXr implements XrPoseSource {
     rig.camera.quaternion.copy(rig.headQuat);
 
     const r = rig.right.object;
-    const [rx, ry, rz] = input.down('KeyG') ? HIP : input.down('KeyB') ? SHOULDER : REST;
-    r.position.copy(head).add(v.set(rx, ry, rz).applyEuler(euler.set(0, this.yaw, 0)));
+    const reach = Math.min(1, dt * REACH_RATE);
+    const [rx, ry, rz] = input.down('KeyG') ? HIP : input.down('KeyB') ? SHOULDER : input.down('KeyZ') ? THRUST : input.down('KeyT') ? HIGH : REST;
+    this.rightAt.lerp(v.set(rx, ry, rz), reach);
+    r.position.copy(head).add(v.copy(this.rightAt).applyEuler(euler.set(0, this.yaw, 0)));
     r.quaternion.copy(rig.headQuat);
     const l = rig.left.object;
-    l.position.copy(head).add(v.set(-0.2, -0.4, -0.3).applyEuler(euler.set(0, this.yaw, 0)));
+    const [lx, ly, lz] = input.down('KeyU') ? LEFT_HIGH : LEFT_REST;
+    this.leftAt.lerp(v.set(lx, ly, lz), reach);
+    l.position.copy(head).add(v.copy(this.leftAt).applyEuler(euler.set(0, this.yaw, 0)));
     l.quaternion.setFromEuler(euler.set(0.9, this.yaw, 0));
 
     const key = (code: string) => (input.down(code) ? 1 : 0);

@@ -46,6 +46,7 @@ connect across machines) and play together. `?debug` shows live network stats (t
 - [Peer Shinobi (stealth: shinobi against the Captain of the Watch)](#peer-shinobi-stealth-shinobi-against-the-captain-of-the-watch)
 - [Peer Starship (a bridge crew: stations, a viewscreen, and crew on the decks)](#peer-starship-a-bridge-crew-stations-a-viewscreen-and-crew-on-the-decks)
 - [Sewer Lordz (co-op sewer diving: goblins, loot, rising sewage and a voxel fatberg)](#sewer-lordz-co-op-sewer-diving-goblins-loot-rising-sewage-and-a-voxel-fatberg)
+- [High Five with Friends (up high, down low, too slow, and butt slaps)](#high-five-with-friends-up-high-down-low-too-slow-and-butt-slaps)
 - [Scaling results](#scaling-results)
 - [Limits and trade-offs](#limits-and-trade-offs)
 
@@ -856,6 +857,64 @@ strokes, a dive starting with its loot and fatberg the same for everyone, water 
 and haymakers, grabbing and tearing, digging and banking, a goblin snatching from a sack and dropping it when splattered,
 a pumped hose carving the fat for every peer, climbing out and a new dive, being downed and hauled up, and in a headset,
 pumping the hose with the other hand and tearing a goblin between two.
+
+## High Five with Friends (up high, down low, too slow, and butt slaps)
+
+`/hifive.html`, `src/hifive/`. A locker room, a tunnel, and a floodlit stadium full of people to give five to. It's a
+hangout with a score rather than a match: every five is graded, combos build with the same person, and the leaderboard
+is up on the jumbotron and the locker room's whiteboard.
+
+```bash
+npm run dev    # http://localhost:5173/hifive.html
+```
+
+**Moves.** Up high, down low, a fist bump, and a double (both hands). Hold one out, and whoever's facing you swings at
+it. On a flat screen a swing is timed: a ring closes on a target round the crosshair while you're lined up on someone's
+offer, and pressing the same move as it lands grades the five (perfect, great, good, or a whiff). The wrong move is
+**awkward**. In a headset your hands are your hands. A hand held still over your head is an offer (both hands for a
+double), one out low is down low, a fist (the grip squeezed) at your chest is a bump, and a five is a hand swung into
+someone else's, graded by how fast it was going.
+
+**Scoring.** Both of you score a five. The same pair keeps a combo going for 15 seconds, a quarter more each time, up
+to triple, but only when you mix up the moves (the same move again holds it). Doubles are worth half as much again, and
+so is a five with your feet off the ground. **Too slow:** pull your offer away as they swing (press the move again, or
+yank a tracked hand away fast) and you get the points.
+
+**Butt slaps.** From behind, slap. Anyone standing behind you is heard ("someone's behind you…"), and a slap winding up
+behind you is shouted ("turn round!"). Turn to face them before it lands and it's **denied**, which scores for you.
+Crouch to creep up in silence. Each player can turn slaps off in the settings menu, both ways.
+
+**The team.** Coach Palmer, Big Tony and Buzz the mascot stroll the locker room and field, walk up to hold out fives,
+come over to take anyone's that's held out (and fall for a pulled-away one like anyone else), and hear you coming
+unless you crouch. Buzz creeps up to slap people himself, loudly enough to be denied. A migratable `Team` singleton makes
+any that are missing, so it's fun alone too.
+
+| | Desktop | Touch | VR |
+| --- | --- | --- | --- |
+| Pal | **WASD**, mouse look; **1** / click up high, **2** / right-click down low, **3** fist bump, **4** double; **Q** pull it away; **F** slap; **C** sneak; **Space** jump | left thumb walks, right looks; swipe the pad (up high, down low, sideways for a double, tap for a bump); **SLAP**, **SNEAK**, **JUMP**, **PULL** | your hands; grip for a fist; crouch for real to sneak; **Y** settings |
+
+How it uses the engine, and what it found:
+
+- **Whoever swings decides.** A five or a slap is judged on the swinger's peer, from how it sees the other person, and
+  sent to everyone as a `Five` or `Slap` event with the grade, the pair's new combo and the points. Each of the two
+  adds their own share on their own peer. Every peer keeps every pair's combo from the events, so whoever swings next
+  has it. Two reports of one five (both headset players' hands saw it) within 350 ms count once.
+- **Remote hands are led.** A headset hand meets another headset hand that's drawn about 100 ms late, so each peer
+  tracks how the other's hands are moving and leads them ahead (up to 30 cm) before testing contact.
+- **Flat players' hands are real too.** The rules put a keyboard or phone player's hands where their offer or swing
+  is, in the same replicated hand fields a headset fills, so a headset hand can hit a keyboard player's offer, and
+  everyone sees arms reach.
+- **Games can add settings rows.** `Settings.game` puts a game's own rows (here the butt-slap opt-out) above voice
+  and sound on every platform.
+- **`?xrsim` can reach and swing.** **T** holds the right hand over your head, **U** the left, and **Z** throws the
+  right out in front. Simulated hands now move at a swing's speed rather than jumping, so hand speed can be tried
+  without a headset.
+
+Source: `src/hifive/`. Tests: `tests/hifive.test.ts` checks the ring's timing and speed grades, scoring and combos,
+reading a headset player's hands as offers, swipes, the grounds and the way out to the field, timed fives between two
+peers (perfect, late, awkward, combos, too slow), holding out and pulling away, tracked-hand fives (graded by speed,
+doubles with both hands, a fist into a palm), slaps landed, denied, refused and heard coming, and a buddy coming over to
+take a five.
 
 ## Scaling results
 

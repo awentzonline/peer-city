@@ -26,7 +26,7 @@ export interface SettingsDeps {
 
 const noop = (): void => {};
 
-function heading(label: string): SettingsRow {
+export function heading(label: string): SettingsRow {
   return { id: `h:${label}`, kind: 'heading', label, detail: '', on: false, level: -1, toggle: noop };
 }
 
@@ -41,12 +41,14 @@ function note(id: string, label: string): SettingsRow {
 export class Settings {
   /** Whether the menu is up. The frontends own how it's opened; this is what they agree on. */
   open = false;
+  /** The game's own rows, which go first, under its own headings (High Five's butt-slap opt-out). */
+  game: (() => SettingsRow[]) | null = null;
 
   constructor(private readonly deps: SettingsDeps) {}
 
   rows(): SettingsRow[] {
     const { voice, sfx } = this.deps;
-    const rows: SettingsRow[] = [heading('Voice')];
+    const rows: SettingsRow[] = [...(this.game?.() ?? []), heading('Voice')];
 
     if (!voice.supported) {
       rows.push(note('voice:unsupported', 'Voice needs the online network, not local tabs'));
